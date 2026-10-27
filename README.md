@@ -1,6 +1,6 @@
 # akme-template
 
-Template para construir, validar e publicar uma ontologia e uma camada semantica sobre a base de dados de um cliente. Segue LOT + NeOn com humano no loop: um agente de IA le `SKILL.md`, consulta a ontologia pelo servidor MCP (`akme serve`) e propoe edicoes tipadas que so entram depois de aprovadas. Snowflake, Databricks, Postgres e pastas locais sao apenas adapters de entrada e alvos de publicacao; a ontologia vive em `ontology/` como texto versionado.
+Template para construir, validar e publicar uma ontologia e uma camada semantica sobre a base de dados de um cliente. Segue LOT + NeOn com humano no loop: um agente de IA le `SKILL.md`, consulta a ontologia pelo servidor MCP (`akme serve`) e propoe edicoes tipadas que so entram depois de aprovadas. Snowflake, Databricks, Postgres e pastas locais sao apenas adapters de entrada e alvos de publicacao; a ontologia vive em `ontology/` como texto versionado. No Claude Code, `.mcp.json` registra o servidor e `.claude/skills/akme` carrega a skill.
 
 ## Demo local
 

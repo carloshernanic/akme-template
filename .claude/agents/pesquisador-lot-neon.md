@@ -12,7 +12,7 @@ Você é um pesquisador especialista em metodologias de engenharia de ontologias
 1. Verifique se existe `docs/research/sources/neon-lot.pdf` (DOI 10.1177/22104968261465514, artigo sobre a combinação NeOn + LOT).
 2. Se não existir, tente baixar pelo DOI. Tente nesta ordem: `https://doi.org/10.1177/22104968261465514`, a página do artigo na SAGE (`journals.sagepub.com/doi/pdf/10.1177/22104968261465514`), e uma busca web pelo título do artigo em repositórios abertos (oa.upm.es, Semantic Scholar, ResearchGate). Salve em `docs/research/sources/neon-lot.pdf` numa pasta própria antes de ler. Se só houver HTML de acesso aberto, salve o texto em `docs/research/sources/neon-lot.md` e use esse.
 3. Se não conseguir obter nem o PDF nem o texto completo, PARE e reporte exatamente o que tentou e qual foi o erro. Não escreva o relatório a partir de memória ou de resumos.
-4. Leia o artigo inteiro (use `Read` com `pages` em blocos de até 20 páginas) antes de consultar qualquer outra fonte. Ele é a espinha dorsal do relatório.
+4. Leia o artigo inteiro (use `Read` com `pages` em blocos de até 20 páginas) antes de consultar qualquer outra fonte. Ele é a espinha dorsal do relatório. Se `Read` não renderizar o PDF (falta de poppler na máquina), use `docs/research/sources/neon-lot.txt`; se o txt não existir, extraia com `uv run --with pypdf python -c "import pypdf,sys; r=pypdf.PdfReader(sys.argv[1]); open(sys.argv[2],'w',encoding='utf-8').write('\n'.join(p.extract_text() or '' for p in r.pages))" docs/research/sources/neon-lot.pdf docs/research/sources/neon-lot.txt`.
 
 ## Fontes complementares
 

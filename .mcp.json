@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "akme": {
+      "command": "uv",
+      "args": ["run", "akme", "serve"]
+    }
+  }
+}
