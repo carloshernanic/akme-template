@@ -1,0 +1,400 @@
+{
+  "project": "local_demo",
+  "version": "0.1.0",
+  "base_iri": "https://akme.example/ontology#",
+  "classes": [
+    {
+      "name": "Cliente",
+      "iri": "https://akme.example/ontology#Cliente",
+      "label": "Cliente",
+      "comment": "Pessoa juridica cadastrada que pode fazer pedidos.",
+      "subclass_of": [
+        "Entity"
+      ]
+    },
+    {
+      "name": "Entity",
+      "iri": "https://akme.example/ontology#Entity",
+      "label": "Entidade",
+      "comment": "Coisa do dominio do cliente que tem identidade propria, como cliente, pedido ou produto.",
+      "subclass_of": []
+    },
+    {
+      "name": "Faturamento",
+      "iri": "https://akme.example/ontology#Faturamento",
+      "label": "Faturamento",
+      "comment": "Soma de vl_total dos pedidos com status FATURADO.",
+      "subclass_of": [
+        "Metric"
+      ]
+    },
+    {
+      "name": "ItemPedido",
+      "iri": "https://akme.example/ontology#ItemPedido",
+      "label": "Item de pedido",
+      "comment": "Linha de um pedido com produto, quantidade e valor.",
+      "subclass_of": [
+        "Entity"
+      ]
+    },
+    {
+      "name": "Metric",
+      "iri": "https://akme.example/ontology#Metric",
+      "label": "Metrica",
+      "comment": "Medida calculada a partir de dados, com formula e unidade definidas na camada semantica.",
+      "subclass_of": []
+    },
+    {
+      "name": "Pedido",
+      "iri": "https://akme.example/ontology#Pedido",
+      "label": "Pedido",
+      "comment": "Solicitacao de compra de um cliente, com status e valor total.",
+      "subclass_of": [
+        "Entity"
+      ]
+    },
+    {
+      "name": "Produto",
+      "iri": "https://akme.example/ontology#Produto",
+      "label": "Produto",
+      "comment": "Item do catalogo identificado por SKU.",
+      "subclass_of": [
+        "Entity"
+      ]
+    },
+    {
+      "name": "Relation",
+      "iri": "https://akme.example/ontology#Relation",
+      "label": "Relacao",
+      "comment": "Ligacao reificada entre entidades quando a relacao precisa de atributos proprios, como vigencia ou origem.",
+      "subclass_of": []
+    },
+    {
+      "name": "Rule",
+      "iri": "https://akme.example/ontology#Rule",
+      "label": "Regra",
+      "comment": "Regra de negocio ou restricao que condiciona como entidades e metricas devem ser interpretadas.",
+      "subclass_of": []
+    }
+  ],
+  "relations": [
+    {
+      "name": "contem",
+      "iri": "https://akme.example/ontology#contem",
+      "label": "contem",
+      "comment": "",
+      "domain": [
+        "Pedido"
+      ],
+      "range": [
+        "ItemPedido"
+      ],
+      "inverse_of": [
+        "pertenceAoPedido"
+      ]
+    },
+    {
+      "name": "pertenceA",
+      "iri": "https://akme.example/ontology#pertenceA",
+      "label": "pertence a",
+      "comment": "",
+      "domain": [
+        "Pedido"
+      ],
+      "range": [
+        "Cliente"
+      ],
+      "inverse_of": [
+        "possuiPedido"
+      ]
+    },
+    {
+      "name": "pertenceAoPedido",
+      "iri": "https://akme.example/ontology#pertenceAoPedido",
+      "label": "pertenceAoPedido",
+      "comment": "",
+      "domain": [
+        "ItemPedido"
+      ],
+      "range": [
+        "Pedido"
+      ],
+      "inverse_of": [
+        "contem"
+      ]
+    },
+    {
+      "name": "possuiPedido",
+      "iri": "https://akme.example/ontology#possuiPedido",
+      "label": "possuiPedido",
+      "comment": "",
+      "domain": [
+        "Cliente"
+      ],
+      "range": [
+        "Pedido"
+      ],
+      "inverse_of": [
+        "pertenceA"
+      ]
+    },
+    {
+      "name": "referencia",
+      "iri": "https://akme.example/ontology#referencia",
+      "label": "referencia",
+      "comment": "",
+      "domain": [
+        "ItemPedido"
+      ],
+      "range": [
+        "Produto"
+      ],
+      "inverse_of": []
+    }
+  ],
+  "terms": [
+    {
+      "name": "cliente",
+      "class": "Cliente",
+      "definition": "Pessoa juridica cadastrada na distribuidora.",
+      "synonyms": [
+        "conta",
+        "comprador"
+      ]
+    },
+    {
+      "name": "uf",
+      "class": "Cliente",
+      "definition": "Estado do endereco principal do cliente."
+    },
+    {
+      "name": "cliente_ativo",
+      "class": "Cliente",
+      "definition": "Cliente com pedido faturado nos ultimos 180 dias, segundo o financeiro."
+    },
+    {
+      "name": "pedido",
+      "class": "Pedido",
+      "definition": "Solicitacao de compra identificada por id_pedido."
+    },
+    {
+      "name": "data_pedido",
+      "class": "Pedido",
+      "definition": "Data em que o pedido foi registrado."
+    },
+    {
+      "name": "status_pedido",
+      "class": "Pedido",
+      "definition": "Situacao do pedido (FATURADO, PENDENTE ou CANCELADO)."
+    },
+    {
+      "name": "faturamento",
+      "class": "Faturamento",
+      "definition": "Soma do valor total dos pedidos faturados."
+    },
+    {
+      "name": "produto",
+      "class": "Produto",
+      "definition": "Item do catalogo identificado por SKU."
+    },
+    {
+      "name": "categoria",
+      "class": "Produto",
+      "definition": "Familia comercial do produto."
+    },
+    {
+      "name": "quantidade",
+      "class": "ItemPedido",
+      "definition": "Quantidade vendida na unidade de medida do produto."
+    }
+  ],
+  "mappings": [
+    {
+      "term": "cliente",
+      "source": "clientes",
+      "column": "id_cliente",
+      "role": "dimension"
+    },
+    {
+      "term": "uf",
+      "source": "clientes",
+      "column": "uf",
+      "role": "dimension"
+    },
+    {
+      "term": "cliente_ativo",
+      "source": "clientes",
+      "column": "fl_ativo",
+      "role": "dimension",
+      "note": "campo do ERP. A definicao do financeiro prevalece."
+    },
+    {
+      "term": "pedido",
+      "source": "pedidos",
+      "column": "id_pedido",
+      "role": "dimension"
+    },
+    {
+      "term": "data_pedido",
+      "source": "pedidos",
+      "column": "dt_pedido",
+      "role": "dimension"
+    },
+    {
+      "term": "status_pedido",
+      "source": "pedidos",
+      "column": "status",
+      "role": "dimension"
+    },
+    {
+      "term": "faturamento",
+      "source": "pedidos",
+      "column": "vl_total",
+      "role": "metric",
+      "expression": "SUM(CASE WHEN status = 'FATURADO' THEN vl_total END)"
+    },
+    {
+      "term": "produto",
+      "source": "produtos",
+      "column": "sku",
+      "role": "dimension"
+    },
+    {
+      "term": "categoria",
+      "source": "produtos",
+      "column": "categoria",
+      "role": "dimension"
+    },
+    {
+      "term": "quantidade",
+      "source": "itens_pedido",
+      "column": "qt_itens",
+      "role": "dimension"
+    }
+  ],
+  "constraints": [
+    {
+      "id": "C-001",
+      "term": "faturamento",
+      "rule": "considerar apenas pedidos com status FATURADO",
+      "severity": "error"
+    }
+  ],
+  "glossary": [
+    {
+      "acronym": "UF",
+      "meaning": "Unidade federativa",
+      "convention": "duas letras maiusculas"
+    },
+    {
+      "acronym": "SKU",
+      "meaning": "Codigo unico do produto no catalogo"
+    },
+    {
+      "acronym": "NF",
+      "meaning": "Numero da nota fiscal. Pedido sem NF nao foi faturado."
+    },
+    {
+      "acronym": "CNPJ",
+      "meaning": "Cadastro nacional da pessoa juridica",
+      "convention": "sem mascara"
+    }
+  ],
+  "precedence": [
+    {
+      "topic": "cliente ativo",
+      "winner": "financeiro",
+      "over": "erp",
+      "reason": "o financeiro define inadimplencia e o ERP so registra o cadastro"
+    }
+  ],
+  "requirements": {
+    "purpose": "Responder perguntas de faturamento e carteira de clientes de uma distribuidora de materiais de construcao.",
+    "scope": "Clientes, pedidos, itens e produtos. Fora de escopo logistica e estoque.",
+    "users": [
+      "analista comercial"
+    ],
+    "competency_questions": [
+      {
+        "id": "CQ-001",
+        "question": "Qual o faturamento por UF no ultimo trimestre?",
+        "priority": "high",
+        "status": "approved",
+        "source": "reuniao de kickoff"
+      },
+      {
+        "id": "CQ-002",
+        "question": "Quais clientes ativos nao compraram nos ultimos 90 dias?",
+        "priority": "medium",
+        "status": "approved",
+        "source": "reuniao de kickoff"
+      },
+      {
+        "id": "CQ-003",
+        "question": "Qual o ticket medio por categoria de produto?",
+        "priority": "low",
+        "status": "proposed",
+        "source": "sugestao do agente a partir de produtos.csv"
+      }
+    ]
+  },
+  "validation": {
+    "generated_at": "2026-10-27T21:49:46+00:00",
+    "ok": true,
+    "errors": 0,
+    "warnings": 0,
+    "coverage": {
+      "available": true,
+      "columns": 21,
+      "mapped": 10,
+      "ratio": 0.476,
+      "by_source": {
+        "clientes": {
+          "columns": 6,
+          "mapped": 3,
+          "unmapped": [
+            "nm_cliente",
+            "cnpj",
+            "dt_cadastro"
+          ]
+        },
+        "itens_pedido": {
+          "columns": 4,
+          "mapped": 1,
+          "unmapped": [
+            "id_pedido",
+            "sku",
+            "vl_item"
+          ]
+        },
+        "pedidos": {
+          "columns": 6,
+          "mapped": 4,
+          "unmapped": [
+            "id_cliente",
+            "nf"
+          ]
+        },
+        "produtos": {
+          "columns": 5,
+          "mapped": 2,
+          "unmapped": [
+            "ds_produto",
+            "vl_unitario",
+            "un_medida"
+          ]
+        }
+      }
+    },
+    "pitfalls": [
+      {
+        "code": "P13",
+        "level": "minor",
+        "subject": "referencia",
+        "message": "relacao sem inversa declarada",
+        "source": "native"
+      }
+    ],
+    "findings": []
+  }
+}

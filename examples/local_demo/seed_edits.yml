@@ -1,0 +1,225 @@
+# Edicoes da demo. Cada uma passa por propose_edit e apply_edit como qualquer outra.
+edits:
+  - type: add_requirement
+    payload:
+      field: purpose
+      value: Responder perguntas de faturamento e carteira de clientes de uma distribuidora de materiais de construcao.
+    evidence: glossario.md e reuniao de kickoff
+  - type: add_requirement
+    payload:
+      field: scope
+      value: Clientes, pedidos, itens e produtos. Fora de escopo logistica e estoque.
+    evidence: reuniao de kickoff
+  - type: add_requirement
+    payload:
+      field: users
+      value: analista comercial
+
+  - type: add_competency_question
+    payload:
+      id: CQ-001
+      question: Qual o faturamento por UF no ultimo trimestre?
+      priority: high
+      status: approved
+    evidence: reuniao de kickoff
+  - type: add_competency_question
+    payload:
+      id: CQ-002
+      question: Quais clientes ativos nao compraram nos ultimos 90 dias?
+      priority: medium
+      status: approved
+    evidence: reuniao de kickoff
+  - type: add_competency_question
+    payload:
+      id: CQ-003
+      question: Qual o ticket medio por categoria de produto?
+      priority: low
+      status: proposed
+    evidence: sugestao do agente a partir de produtos.csv
+
+  - type: add_class
+    payload:
+      name: Cliente
+      label: Cliente
+      comment: Pessoa juridica cadastrada que pode fazer pedidos.
+    requirement_id: CQ-002
+    evidence: clientes.csv
+  - type: add_class
+    payload:
+      name: Pedido
+      label: Pedido
+      comment: Solicitacao de compra de um cliente, com status e valor total.
+    requirement_id: CQ-001
+    evidence: pedidos.csv
+  - type: add_class
+    payload:
+      name: ItemPedido
+      label: Item de pedido
+      comment: Linha de um pedido com produto, quantidade e valor.
+    requirement_id: CQ-003
+    evidence: itens_pedido.csv
+  - type: add_class
+    payload:
+      name: Produto
+      label: Produto
+      comment: Item do catalogo identificado por SKU.
+    requirement_id: CQ-003
+    evidence: produtos.csv
+  - type: add_class
+    payload:
+      name: Faturamento
+      label: Faturamento
+      comment: Soma de vl_total dos pedidos com status FATURADO.
+      subclass_of: Metric
+    requirement_id: CQ-001
+    evidence: glossario.md, regras implicitas
+
+  - type: add_relation
+    payload:
+      name: pertenceA
+      domain: Pedido
+      range: Cliente
+      label: pertence a
+      inverse_of: possuiPedido
+    requirement_id: CQ-001
+    evidence: pedidos.id_cliente referencia clientes.id_cliente
+  - type: add_relation
+    payload:
+      name: contem
+      domain: Pedido
+      range: ItemPedido
+      label: contem
+      inverse_of: pertenceAoPedido
+    requirement_id: CQ-003
+    evidence: itens_pedido.id_pedido referencia pedidos.id_pedido
+  - type: add_relation
+    payload:
+      name: referencia
+      domain: ItemPedido
+      range: Produto
+      label: referencia
+    requirement_id: CQ-003
+    evidence: itens_pedido.sku referencia produtos.sku
+
+  - type: add_term
+    payload:
+      name: cliente
+      class: Cliente
+      definition: Pessoa juridica cadastrada na distribuidora.
+      synonyms: [conta, comprador]
+    requirement_id: CQ-002
+  - type: add_term
+    payload:
+      name: uf
+      class: Cliente
+      definition: Estado do endereco principal do cliente.
+    requirement_id: CQ-001
+  - type: add_term
+    payload:
+      name: cliente_ativo
+      class: Cliente
+      definition: Cliente com pedido faturado nos ultimos 180 dias, segundo o financeiro.
+    requirement_id: CQ-002
+    evidence: glossario.md, regras implicitas
+  - type: add_term
+    payload:
+      name: pedido
+      class: Pedido
+      definition: Solicitacao de compra identificada por id_pedido.
+    requirement_id: CQ-001
+  - type: add_term
+    payload:
+      name: data_pedido
+      class: Pedido
+      definition: Data em que o pedido foi registrado.
+    requirement_id: CQ-001
+  - type: add_term
+    payload:
+      name: status_pedido
+      class: Pedido
+      definition: Situacao do pedido (FATURADO, PENDENTE ou CANCELADO).
+    requirement_id: CQ-001
+  - type: add_term
+    payload:
+      name: faturamento
+      class: Faturamento
+      definition: Soma do valor total dos pedidos faturados.
+    requirement_id: CQ-001
+  - type: add_term
+    payload:
+      name: produto
+      class: Produto
+      definition: Item do catalogo identificado por SKU.
+    requirement_id: CQ-003
+  - type: add_term
+    payload:
+      name: categoria
+      class: Produto
+      definition: Familia comercial do produto.
+    requirement_id: CQ-003
+  - type: add_term
+    payload:
+      name: quantidade
+      class: ItemPedido
+      definition: Quantidade vendida na unidade de medida do produto.
+    requirement_id: CQ-003
+
+  - type: add_mapping
+    payload: {term: cliente, source: clientes, column: id_cliente, role: dimension}
+  - type: add_mapping
+    payload: {term: uf, source: clientes, column: uf, role: dimension}
+  - type: add_mapping
+    payload:
+      term: cliente_ativo
+      source: clientes
+      column: fl_ativo
+      role: dimension
+      note: campo do ERP. A definicao do financeiro prevalece.
+  - type: add_mapping
+    payload: {term: pedido, source: pedidos, column: id_pedido, role: dimension}
+  - type: add_mapping
+    payload: {term: data_pedido, source: pedidos, column: dt_pedido, role: dimension}
+  - type: add_mapping
+    payload: {term: status_pedido, source: pedidos, column: status, role: dimension}
+  - type: add_mapping
+    payload:
+      term: faturamento
+      source: pedidos
+      column: vl_total
+      role: metric
+      expression: "SUM(CASE WHEN status = 'FATURADO' THEN vl_total END)"
+  - type: add_mapping
+    payload: {term: produto, source: produtos, column: sku, role: dimension}
+  - type: add_mapping
+    payload: {term: categoria, source: produtos, column: categoria, role: dimension}
+  - type: add_mapping
+    payload: {term: quantidade, source: itens_pedido, column: qt_itens, role: dimension}
+
+  - type: add_constraint
+    payload:
+      id: C-001
+      term: faturamento
+      rule: considerar apenas pedidos com status FATURADO
+      severity: error
+    evidence: glossario.md, regras implicitas
+
+  - type: add_glossary
+    payload: {acronym: UF, meaning: Unidade federativa, convention: duas letras maiusculas}
+    evidence: glossario.md
+  - type: add_glossary
+    payload: {acronym: SKU, meaning: Codigo unico do produto no catalogo}
+    evidence: glossario.md
+  - type: add_glossary
+    payload: {acronym: NF, meaning: Numero da nota fiscal. Pedido sem NF nao foi faturado.}
+    evidence: glossario.md
+  - type: add_glossary
+    payload: {acronym: CNPJ, meaning: Cadastro nacional da pessoa juridica, convention: sem mascara}
+    evidence: glossario.md
+
+  - type: add_precedence
+    payload:
+      topic: cliente ativo
+      winner: financeiro
+      over: erp
+      reason: o financeiro define inadimplencia e o ERP so registra o cadastro
+    evidence: glossario.md, regras implicitas

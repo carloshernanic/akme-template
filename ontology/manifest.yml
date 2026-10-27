@@ -1,0 +1,58 @@
+name: akme
+version: 0.1.0
+base_iri: https://akme.example/ontology#
+artifacts:
+  schema: schema.ttl
+  content: content.yml
+  changelog: changelog.yml
+  pending: pending/
+
+tools:
+  - name: connect
+    description: Escolhe o adapter em akme.yml e testa a conexao.
+    when: Inicio do projeto e sempre que a fonte mudar.
+    requires_approval: false
+    output_format: json
+
+  - name: profile
+    description: Colunas, tipos, nulos, cardinalidade, chaves candidatas e convencoes detectadas. Grava docs/profile.json.
+    when: Etapa Especificar, antes de propor termos e mappings.
+    requires_approval: false
+    output_format: json
+
+  - name: ontology_read
+    description: list_entities, list_relations, search_term, resolve_acronym, get_precedence, list_competency_questions, get_requirements, search_registry.
+    when: Sempre que o agente precisar saber o que ja existe; nunca responda de memoria.
+    requires_approval: false
+    output_format: json
+
+  - name: ontology_write
+    description: propose_edit grava em pending/; apply_edit aplica; reject_edit descarta. Tipos add_term, add_mapping, add_constraint, add_glossary, add_precedence, add_class, add_relation, add_competency_question, add_requirement.
+    when: Etapas Especificar, Conceitualizar, Codificar e Manter. apply_edit so apos aprovacao humana explicita.
+    requires_approval: true
+    runs_before: [validate]
+    output_format: yaml
+
+  - name: validate
+    description: TTL parseia, classes referenciadas existem, mappings apontam para colunas do profile, conflitos de precedencia, cobertura e pitfalls (nativos e OOPS! opcional). Grava docs/validation.json.
+    when: Antes de todo apply_edit e na etapa Avaliar.
+    requires_approval: false
+    output_format: json
+
+  - name: eval
+    description: Roda validation/questions.yml com testes estruturais e, via CLI, a comparacao com e sem ontologia usando um callable do usuario.
+    when: Etapa Avaliar e depois de cada release.
+    requires_approval: false
+    output_format: table
+
+  - name: publish
+    description: Gera semantic view e comments para Snowflake, comments do Unity Catalog para Databricks, YAML generico ou RDF via Morph-KGC. Dry-run por padrao; --release faz o bump de versao.
+    when: Etapa Publicar, apos validate e eval aprovados.
+    requires_approval: true
+    output_format: sql
+
+  - name: export
+    description: Gera docs/ontology.json, docs/ontology.js, docs/ontology.mmd e ontology/mappings.yarrrml.yml.
+    when: Etapa Publicar e sempre que quiser ver o grafo em docs/index.html.
+    requires_approval: false
+    output_format: json

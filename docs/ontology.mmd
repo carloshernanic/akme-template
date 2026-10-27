@@ -1,0 +1,20 @@
+classDiagram
+    class Cliente
+    Entity <|-- Cliente
+    class Entity
+    class Faturamento
+    Metric <|-- Faturamento
+    class ItemPedido
+    Entity <|-- ItemPedido
+    class Metric
+    class Pedido
+    Entity <|-- Pedido
+    class Produto
+    Entity <|-- Produto
+    class Relation
+    class Rule
+    Pedido --> ItemPedido : contem
+    Pedido --> Cliente : pertenceA
+    ItemPedido --> Pedido : pertenceAoPedido
+    Cliente --> Pedido : possuiPedido
+    ItemPedido --> Produto : referencia

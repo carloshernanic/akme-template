@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+.env
+.env.*
+akme.local.yml
+docs/profile.json
+docs/validation.json
+examples/local_demo/ontology/
+docs/publish/
+docs/ontology.js
+akme.yml
+!.env.example

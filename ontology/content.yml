@@ -1,0 +1,50 @@
+# Conteudo da ontologia AKME. Toda entrada aqui nasce de um propose_edit aprovado e aplicado.
+# Os exemplos comentados mostram o formato de cada secao.
+
+requirements:
+  purpose: ""
+  scope: ""
+  users: []
+  competency_questions: []
+  # - id: CQ-001
+  #   question: Qual o faturamento por UF no ultimo trimestre?
+  #   priority: high
+  #   status: approved
+  #   source: reuniao de kickoff, 2026-10-01
+
+terms: []
+# - name: cliente
+#   class: Cliente
+#   definition: Pessoa juridica que fez ao menos um pedido faturado.
+#   synonyms: [conta, comprador]
+
+mappings: []
+# - term: cliente
+#   source: clientes
+#   column: id_cliente
+#   role: dimension
+#   note: chave primaria da tabela clientes
+
+constraints: []
+# - id: C-001
+#   term: faturamento
+#   rule: considerar apenas pedidos com status FATURADO
+#   severity: error
+
+glossary: []
+# - acronym: UF
+#   meaning: Unidade federativa (sigla do estado brasileiro)
+#   convention: sempre duas letras maiusculas
+
+precedence: []
+# - topic: cliente ativo
+#   winner: financeiro
+#   over: erp
+#   reason: o financeiro define inadimplencia; o ERP so registra cadastro
+
+evidence: []
+# - decision: add_term-1a2b3c4d
+#   source: dicionario de dados do cliente, pagina 3
+#   requirement_id: CQ-001
+#   approved_by: maria
+#   date: "2026-10-27T18:00:00+00:00"

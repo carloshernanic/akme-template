@@ -1,0 +1,2516 @@
+
+
+===== PAGE 1 =====
+Original Article
+Large Language Models for Ontology
+Engineering: A Systematic
+Literature Review
+Semantic Web
+V ol. 17(4) 1–44
+© The Author(s) 2026
+Article reuse guidelines:
+sagepub.com/journals-permissions
+DOI: 10.1177/22104968261465514
+journals.sagepub.com/home/swj
+Jiayi Li1 , Daniel Garijo 1 and María Poveda-Villalón1
+Abstract
+Ontology engineering (OE) is a complex task in knowledge representation that relies heavily on domain experts to
+accurately deﬁne concepts and precise relationships in a domain of interest, as well as to maintain logical consistency
+throughout the resultant ontology. Recent advances in large language models (LLMs) have created new opportunities to
+automate and enhance various stages of ontology development. This article presents a systematic literature review on
+the use of LLMs in OE, focusing on their roles in core development activities, input–output characteristics, evaluation
+methods, and application domains. We analyze 36 papers covering 49 task-level studies to identify common tasks where
+LLMs have been applied, spanning ontology requirements speciﬁcation, implementation, publication, and maintenance.
+Our ﬁndings indicate that LLMs primarily act as ontology engineers, domain experts, and evaluators, using models such
+as Generative Pretrained T ransformer , Large Language Model Meta AI, and T ext-to-T ext T ransfer T ransformer . Different
+approaches rely on zero-shot and few-shot prompting to process heterogeneous inputs (e.g., Web Ontology Language
+ontologies, natural language text, and competency questions) and generate task-speciﬁc outputs (e.g., axioms, mappings,
+and documentation). Our review also reveals a lack of homogenization in task deﬁnitions, dataset selection, evaluation
+metrics, and experimental workﬂows. In addition, several studies do not release their complete evaluation protocols
+or code, making their results difﬁcult to reproduce and their methods insufﬁciently transparent. Addressing these gaps
+through standardized benchmarks and hybrid workﬂows that integrate LLM automation with human expertise represents
+an important challenge for future research.
+Keywords
+large language models, ontology engineering, ontology development, systematic review survey
+Received: May 6, 2025; accepted: April 30, 2026
+Editor: Guilin Qi, Computer Science and Engineering Researcher at Southeast University, Nanjing, China
+Solicited reviews: Four anonymous reviewers
+Open reviews: None
+1 Introduction
+Ontologies have emerged as a crucial technology for providing machine-readable semantics and structured knowledge
+representations that enable data integration, validation, and automated reasoning over data (Glauer et al., 2024; Krötzsch
+& Thost, 2016; Patel & Debnath, 2024). Ontologies are employed in a wide range of applications (ranging from Internet
+of Things [IoT] (Janowicz et al. (2019) or digital rights (Rodríguez-Doncel et al. (2018)) to Biology (Ashburner et al.
+1Ontology Engineering Group, Universidad Politécnica de Madrid, Boadilla del Monte, Spain
+Corresponding Author:
+Jiayi Li, Ontology Engineering Group, Universidad Politécnica de Madrid, Boadilla del Monte, 28660, Spain.
+Email: li.jiayi@upm.es
+Creative Commons Non Commercial CC BY -NC: This article is distributed under the terms of the Creative Commons
+Attribution-NonCommercial 4.0 License (https://creativecommons.org/licenses/by-nc/4.0/) which permits non-commercial use,
+reproduction and distribution of the work without further permission provided the original work is attributed as speciﬁed on the SAGE and Open
+Access page (https://us.sagepub.com/en-us/nam/open-access-at-sage).
+
+
+===== PAGE 2 =====
+2 Semantic Web 17(4)
+(2000)) to deﬁne domain-speciﬁc concepts, relationships, constraints, axioms and logical rules (De V ergara et al., 2004;
+Glauer et al., 2024; Patel & Debnath, 2024).
+Ontology engineering (OE) is the process of developing formal knowledge representations (i.e., ontologies) to describe
+aspects of reality for speciﬁc purposes (Salamon & Barcellos, 2022). Despite the availability of structured method-
+ologies such as Linked Open Terms (LOT) (Poveda-Villalón et al., 2022), NeOn (Suárez-Figueroa et al., 2012), the
+“Ontology Development 101” guide (Noy & McGuinness, 2001), and so on, ontology development remains a complex,
+time-consuming, and error-prone activity (Gangemi & Presutti, 2009; Saeedizade & Blomqvist, 2024). It requires deep
+domain expertise, careful conceptual modeling, extensive collaboration among stakeholders, and precise alignment with
+intended use cases.
+With the development of artiﬁcial intelligence (AI), signiﬁcant advancements have been made in large language mod-
+els (LLMs) to show remarkable capabilities in capturing complex language patterns in different knowledge domains
+(Doumanas et al., 2024). In recent years, LLMs have emerged as an innovative technology for OE. Research efforts
+have explored their potential to assist developers in various tasks, including generating and reﬁning ontologies from text,
+aligning concepts with existing taxonomies, and automatically detecting syntax errors in ontologies, among others (Garijo
+et al., 2024).
+Despite the promise of LLMs for OE, several key research gaps remain. Many studies have claimed that LLMs are
+useful for ontology development tasks (Ciatto et al., 2025; Joachimiak et al., 2024; Lippolis et al., 2024, 2025; Lo et al.,
+2024), but do not clearly distinguish the speciﬁc development phases where LLMs provide the most value. In addition,
+little is known about the speciﬁc roles LLMs can assume, the types of inputs and outputs required by them, the need and
+extent of human involvement, and the experimental setups, including datasets used, evaluation metrics, and reproducibility
+considerations used to validate their effectiveness. Furthermore, while LLMs are increasingly applied in various domains,
+few studies systematically address domain-speciﬁc challenges or necessary model adaptations. Although recent surveys
+have offered valuable overviews of LLMs in OE (Garijo et al., 2024; Perera & Liu, 2024), a detailed analysis focusing
+speciﬁcally on ontology development activities remains limited. A systematic understanding of how LLMs contribute to
+different phases of ontology development, along with a critical assessment of their capabilities and limitations, is essential
+for guiding future research and fostering their successful integration into OE workﬂows.
+To address these gaps, this study conducts a comprehensive and systematic review of how LLMs are employed in OE.
+We extend the overview presented in our previous work (Garijo et al., 2024) with the following contributions: First, through
+a comprehensive systematic search, we broaden and update the literature coverage, ultimately identifying 36 peer-reviewed
+papers published between 2018 and May 2025, signiﬁcantly more than the 20 + papers included in the earlier overview.
+Second, we introduce a structured analytical framework that categorizes existing research according to OE stages, LLM
+roles, LLM technical details, and inputs and outputs handled by each LLM. Third, we examine dataset usage, evaluation
+practices, and the degree of human involvement in LLM-supported workﬂows. Finally, we analyze the application domains
+in which LLMs have been deployed for ontology development, offering additional cross-study insights. Building on these
+contributions, this extended study aims to achieve the following objectives:
+1. Identify the ontology development tasks where LLMs have been applied.
+2. Analyze how LLM-based approaches contribute to ontology development, focusing on their roles, model types,
+inputs, outputs, and the role of human participants in interactive workﬂows.
+3. Examine how LLM performance is assessed in ontology development by identifying experimental datasets,
+evaluation methods, and reported performance results.
+4. Explore the application domains where LLMs have been effectively utilized for ontology development.
+We conduct our review following the systematic methodology proposed by Kitchenham et al. (2009), ensuring a rig-
+orous and reproducible analysis. We also make publicly available the complete corpus of resources used to generate or
+evaluate different OE tasks at our GitHub repository. 1 In addition, the corpus is archived on Zenodo (Li et al., 2025).
+The remainder of this article is organized as follows. Section 2 presents background information on OE and LLM tech-
+nologies. Section 3 outlines our research objectives and key questions and describes the data collection and analysis
+methods. Section 4 presents the research results and key insights. Section 5 shows the discussion of the analyzed studies,
+and Section 6 concludes the survey by highlighting open research challenges. Finally, Section 7 describes the supporting
+materials used in our work.
+
+===== PAGE 3 =====
+Li et al. 3
+2 Background
+In this section, we brieﬂy introduce the main ontology development tasks identiﬁed in the literature and provide an
+overview of the recent evolution of LLMs.
+2.1 Ontology Development T asks
+Ontologies are formal and explicit speciﬁcations of shared conceptualizations (Studer et al., 1998), enabling the rep-
+resentation of structured knowledge (Dimitropoulos & Hatzilygeroudis, 2024) and facilitating semantic interoperability
+between systems and applications (Bittner et al., 2005; Tan et al., 2024).
+OE provides the methodologies and tools necessary to construct domain-speciﬁc and application-speciﬁc ontological
+models (Gómez-Pérez, 1999). An OE method outlines a structured set of phases, processes, and tasks to systematically
+guide the development process (Kotis et al., 2020).
+Traditional methodologies, such as METHONTOLOGY (Fernández-López et al., 1997), On-To-Knowledge (Staab
+et al., 2001), DILIGENT (Pinto et al., 2004), and the “Ontology Development 101” guide (Noy & McGuinness, 2001),
+have signiﬁcantly contributed to the formalization of OE practices. However, they typically follow step-by-step workﬂows
+that may not fully address modern requirements such as reuse, collaboration, and interoperability. The NeOn method-
+ology (Suárez-Figueroa et al., 2012) introduced a more dynamic and ﬂexible approach, emphasizing the creation of
+interconnected ontology networks through mechanisms such as import, versioning, mapping, and modularization.
+To consider a basic group of activities that are usually carried out during ontology development, we follow the LOT
+methodology (Poveda-Villalón et al., 2022) general workﬂow as it includes the ontology publication and maintenance
+phases. However, other activities not deﬁned in detail in LOT may appear in the reviewed works. In order to address these
+cases, we also consider the NeOn glossary of activities (Suárez-Figueroa & Gómez-Pérez, 2008). It should be noted that
+both LOT and NeOn deﬁne more activities than the ones listed below; however, we include in this section only those
+activities found in the reviewed papers.
+1. Ontology requirement speciﬁcation phase: The gathering of requirements is related to the speciﬁc ontology goals,
+domain, and technical constraints (Suárez-Figueroa et al., 2009). From the activities deﬁned for this phase, in the
+analyzed papers, the following activities are addressed:
+• Functional requirement writing: Speciﬁes the functionalities the ontology must support. It should be noted that
+this activity refers to writing the functional requirements in natural language (NN) text. This may occur in the
+form of competency questions (CQs) (Gruninger, 1995) or afﬁrmative sentences in NL.
+• CQ reverse engineering: Involves generating CQs that an ontology must answer, using the ontology itself as
+input. Although not explicitly covered in the LOT framework, this activity appears in several studies (Alharbi
+et al., 2024b) and aligns with NeOn Ontological Resource Reverse Re-engineering (Suárez-Figueroa et al.,
+2012).
+• Requirement formalization: This activity consists of translating functional requirements into formal, machine-
+readable speciﬁcations.
+2. Ontology implementation phase: Building the ontology using formal languages (e.g., Web Ontology Language
+(OWL) and Resource Description Framework (RDF)) based on collected requirements. Key sub-activities include:
+• Conceptualization: Structuring domain knowledge into concepts and relationships.
+• Encoding: Formalizing conceptual models into machine-readable formats (e.g., Turtle, RDF/XML, etc.).
+• Evaluation: V alidating the ontology against CQs and domain needs.
+• Matching: This activity’s deﬁnition is taken from NeOn, which literally reads “the activity of ﬁnding or
+discovering relationships or correspondences between entities of different ontologies or ontology modules”
+(Suárez-Figueroa & Gómez-Pérez, 2008).
+3. Ontology publication phase: Making the ontology accessible both as human-readable documentation and machine-
+readable ﬁles. This phase includes, among others, not found in the reviewed papers, as the actual online publication,
+the following activity:
+• Documentation: Generating human-oriented documentation, usually consisting, but not limited to, HTML web
+pages, diagrams, examples of use, and so on.
+4. Ontology maintenance phase: Updating the ontology based on bug reports, improvements, and new requirements
+throughout its lifecycle. This includes:
+• Bug detection: Identify and report errors or inconsistencies.
+
+===== PAGE 4 =====
+4 Semantic Web 17(4)
+2.2 A Brief History of LLMs
+LLMs are AI systems able to generate coherent and contextually relevant language outputs that have demonstrated remark-
+able performance across tasks like text generation (Mishra et al., 2025; Wu, 2024), question answering (Arefeen et al.,
+2024; Balepur et al., 2025), translation (Brown et al., 2020), summarization (Azher et al., 2025), and sentiment analysis
+(Kheiri & Karimi, 2024). LLMs are trained on large amounts of textual data, and are built predominantly on deep learning
+architectures such as transformers (V aswani et al., 2017).
+The evolution of LLMs began with foundational advancements in sequential data processing. Rumelhart et al. (1986)
+introduced recurrent neural networks, which were later enhanced by the long short-term memory (LSTM) model developed
+by Hochreiter and Schmidhuber (1997), signiﬁcantly improving long-range dependency modeling (Mienye et al., 2024).
+The release of the Generative Pre-trained Transformer (GPT) by OpenAI in 2018 marked a pivotal moment. Subsequent
+iterations (GPT-2, GPT-3, and GPT-3.5) demonstrated increasingly sophisticated generative capabilities (Brown et al.,
+2020; Radford et al., 2019). GPT-3, for instance, was trained on 45TB of data and contained 175 billion parameters.
+In 2023, Meta introduced Large Language Model Meta AI (LLaMA), an open-source LLM trained on 1.4 trillion tokens
+across multiple model sizes (Raiaan et al., 2024). Since then, models such as Google Gemini (Team et al., 2024), OpenAI’s
+GPT-4 (OpenAI et al., 2024), Meta LLaMA2 (Touvron et al., 2023b), and LLaMA3 (Grattaﬁori et al., 2024) have further
+advanced the ﬁeld. These models exhibit state-of-the-art performance in reasoning (Wei et al., 2022), code generation
+(Jiang et al., 2024; V aithilingam et al., 2022), and multimodal tasks (Wu et al., 2023; Zhang et al., 2024a, 2023b), driven
+by larger datasets and increasingly sophisticated architectures. Their ongoing evolution continues to expand the application
+landscape for AI-driven systems across diverse domains (Johnsen, 2025).
+Prompt engineering has emerged as a key methodology for enhancing the performance of pre-trained LLMs (Debnath
+et al., 2025). It involves the careful design of instructions, conveyed through text, images, audio, or other modalities, that
+serve as the primary interface to guide LLMs in downstream tasks (Marvin et al., 2023). A wide variety of prompting
+strategies have been developed to steer models toward accurate and contextually appropriate outputs. For example, zero-
+shot prompting is based exclusively on a task description, allowing models to generalize to unseen tasks without any
+examples (Radford et al., 2019). In contrast, one-shot (Kojima et al., 2022) and few-shot (Brown et al., 2020) prompting
+incorporate one or several demonstrations, helping the model better infer input–output relationships (Kadam & V aidya,
+2018).
+Other techniques aim to improve the structure and consistency of model outputs. Role prompting (Olea et al., 2024;
+Zheng et al., 2024) assigns the model a speciﬁc persona or professional role, thus shaping its reasoning style and lexical
+choices. Template-based prompting (Shin et al., 2020) employs predeﬁned templates populated with task-speciﬁc variables
+to enforce structured formats such as JSON, tables, or logical expressions.
+Chain-of-Thought (CoT) prompting (Wei et al., 2022) augments few-shot learning by guiding models to articulate inter-
+mediate reasoning steps before delivering ﬁnal answers. Also referred to as CoTs in some studies (Besta et al., 2024; Chen
+et al., 2023), this approach has been shown to substantially enhance LLM performance in mathematical and reasoning
+tasks. Typical CoT prompts include exemplar questions paired with reasoning traces and correct answers. The Reasoning
+and Acting (ReAct) framework (Y ao et al., 2022) extends CoT by interleaving reasoning with executable actions. When
+solving a problem, the model iteratively generates a thought, takes an action, and observes the outcome, maintaining a
+contextual memory by incorporating past reasoning steps, actions, and observations into the prompt. Further advancing
+multi-step reasoning, self-consistent sampling enhances output reliability by selecting the most consistent answer from
+multiple reasoning trajectories. Building on these foundations, frameworks such as ReAct (Y ao et al., 2022) and Tree-
+of-Thought (Y ao et al., 2023) integrate systematic reasoning with action execution or structured search, supporting more
+sophisticated decision-making processes.
+Fine-tuning is a process in which a pretrained model, such as an LLM, is further trained on a custom data set to
+adapt it for specialized tasks or domains. Complementing prompt-based approaches, ﬁne-tuning provides a parameter-
+level adaptation mechanism that aligns LLMs with speciﬁc domains or tasks (Anisuzzaman et al., 2025). Methods such
+as instruction tuning (Zhang et al., 2023a), domain-speciﬁc ﬁne-tuning (Gajulamandyam et al., 2025), and parameter-
+efﬁcient (Liu et al., 2022) approaches such as LoRA (Hu et al., 2022) or adapter tuning (Le et al., 2021) enable models
+to internalize task patterns beyond the reach of prompts alone. Fine-tuning enhances output stability, mitigates prompt
+sensitivity, and ensures consistent performance in scenarios that require specialized knowledge or complex reasoning.
+Overall, prompting techniques have evolved into a ﬂexible and reusable interaction layer that complements advances in
+LLM architectures. By enabling more accurate, controllable, and domain-aligned outputs, prompt engineering has become
+central to the effective deployment of LLMs, serving as a key driver of innovation across AI applications.
+
+===== PAGE 5 =====
+Li et al. 5
+3 Research Methodology
+To achieve our research objectives, we conducted a systematic literature review following Kitchenham and Charters
+methodology Kitchenham et al. (2009): Section 3.1 deﬁnes the research questions (RQs) of our study, Section 3.2 describes
+the selection of data sources, Section 3.3 presents the search strategy, Section 3.4 explains the ﬁltering criteria, and
+Section 3.5 details data extraction and synthesis. The following subsections describe each step.
+3.1 Research Questions
+Our study investigates how LLMs have been adapted for ontology development by systematically reviewing existing
+approaches to understand their capabilities and limitations. We formulate the following RQs to guide our review:
+RQ1 What are the key activities in ontology development where LLMs have been applied?
+RQ2 How do LLM-based approaches support different ontology development activities?
+RQ2.a What roles do LLMs play in these activities?
+RQ2.b What types of LLMs are used?
+RQ2.c What LLM prompt techniques are employed to support OE activities (e.g., zero-shot prompt, iterative prompt,
+and ﬁne-tuning)?
+RQ2.d What are the typical inputs to the LLMs?
+RQ2.e What outputs are generated by the LLMs?
+RQ2.f What are the roles of humans involved in these activities (e.g., domain experts and ontology engineers)?
+RQ3 How is the performance of LLMs in ontology development evaluated?
+RQ3.a Are there evaluation experiments reported?
+RQ3.b What datasets are used in the evaluations?
+RQ3.c What evaluation methods are adopted (e.g., qualitative, quantitative, or hybrid)?
+RQ3.d What metrics (e.g., F1-score and recall) are used, and what are the reported performance results?
+RQ4 What are the main application domains where LLMs have been applied in ontology development?
+3.2 Source Libraries
+During this phase, we perform a systematic search in open-access digital libraries to ensure comprehensive coverage of
+the area under investigation (Vieira & Gomes, 2009). We selected Google Scholar, Web of Science, and Scopus for their
+broad multidisciplinary reach, along with the ACM Digital Library and IEEE Xplore, to speciﬁcally cover the computer
+science domain (Hull et al., 2008). The selected sources and their corresponding access points are Google Scholar,2 Web
+of Science,3 Scopus,4 ACM Digital Library,5 and IEEE Xplore.6
+3.3 Search Strategy
+The selection of primary studies depends on the following inclusion and exclusion criteria:
+1. Publication time frame: We focus on papers published between 2018 and May 2025 to capture the most recent
+advances in ontology development driven by LLMs. The year 2018 marks a pivotal milestone in NLP , correspond-
+ing to the introduction of the Transformer architecture and the release of foundational models such as BERT (Devlin
+et al., 2019) and GPT (Radford & Narasimhan, 2018), which laid the foundations for the modern LLM paradigm.
+2. Peer-review status: The selection of peer-reviewed articles ensures rigorous expert evaluation, improving the high
+quality, credibility, and reliability of our ﬁndings (Kelly et al., 2014).
+3. Language: We focus on papers, books, and book chapters published in English for accessibility and consistency.
+4. Search keywords: Our search focuses on two categories of terms:
+(a) Semantic-related (SR) terms: Keywords related to semantic technologies, such as ontolog*, ontology develop-
+ment, and vocabulary.
+(b) Model-telated (MR) terms: Keywords associated with LLMs, including language model, LM, and LLM*.
+The particularities of each source were considered during the review. Logical operators (OR, AND) combined
+terms into search strings, such as (‘‘ontolog*” OR ‘‘ontology development”) AND (‘‘LM” OR ‘‘LLM*”), applied
+to meta-ﬁelds searched from Section 3.2. Depending on each source, the search strings were tailored to content,
+title, abstract, and keywords.
+
+===== PAGE 6 =====
+6 Semantic Web 17(4)
+3.4 Filtering Process
+In this step, we apply our search criteria to the selected library sources through a two-stage ﬁltering process.
+1. Automated ﬁltering: We ﬁrst applied automated ﬁlters based on predeﬁned search standards and removed duplicate
+papers by matching their titles.
+2. Manual ﬁltering: To further ensure relevance, we conducted a multi-stage manual review, comprising the following
+steps:
+(a) Title screening: We initially reviewed the titles of the retrieved papers to eliminate papers that were clearly
+unrelated to our research topic.
+(b) Abstract screening: For the remaining papers, we examined the abstracts to assess their alignment with
+our research objectives. Only peer-reviewed papers that explicitly addressed the role of LLMs in ontology
+development were retained.
+3.5 Data Extraction
+To extract relevant information, we aligned the data extraction process with the RQs deﬁned in Section 3.1. Since a single
+paper may involve multiple ontology development activity experiments, each activity was recorded as a separate row in
+the dataset.
+The complete dataset is publicly available in our open repository at https://github.com/oeg-upm/llm4oe-slr and archived
+on Zenodo (Li et al., 2025). Speciﬁcally, we extracted the following information from each entry:
+• Article metadata: Publication title, authors, publication year, peer-reviewed status, and language.
+• Ontology activity (RQ1): The ontology development activity supported by LLMs and its deﬁnition (if provided).
+• LLM technology (RQ2): Role of the LLM in the activity, type of LLM used, technique of prompt used, inputs
+provided to the LLM, outputs generated, whether human-in-the-loop involvement was present (yes/no), role of the
+human (e.g., ontology engineers and others), and tasks performed by human participants.
+• Performance evaluation (RQ3): Existence of evaluation experiments, links to experiments (if available), datasets
+used, dataset types, baselines compared, evaluation methods (quantitative, qualitative, or hybrid), metrics applied
+(e.g., F1-score and recall), and performance results, including whether humans participated in the evaluation.
+• Application domains (RQ4): Domains in which LLMs were applied, such as healthcare, education, and ﬁnance.
+4 Search Results
+Our search retrieved 15, 688 records, with 7, 179 unique papers after removing duplicates. We then conducted a manual
+screening in four stages. The ﬁrst stage involved title screening to exclude clearly irrelevant studies (e.g., general LLM
+applications, safety/governance work, and ontology systems without explicit OE goals), resulting in 271 papers. The
+second stage was an abstract screening process, which further reduced the set to 70 papers by excluding studies that did not
+genuinely address LLM-based ontology development (e.g., those primarily focusing on ontology information extraction
+or ontology extension). The third stage included a peer-review status check, which yielded 46 eligible papers. Finally, in
+stage four, a full screening of the eligible papers was conducted. As a result, a total of 10 papers were excluded for ﬁnal
+analysis: two papers discussed the requirements for benchmarks rather than introducing a new evaluation/method (Alharbi
+et al., 2024a; Plu et al., 2024), two were review papers (Garijo et al., 2024; Perera & Liu, 2024), and six were domain
+studies primarily focused on extraction/population of knowledge graphs (KGs) (Funk et al., 2023; Mukanova et al., 2024;
+Sahbi et al., 2024; Straková et al., 2023; Tian et al., 2023; Usmanova & Usbeck, 2024). Consequently, 36 papers were
+retained for the ﬁnal analysis.
+Figures 1 and 2 show an overview of the reviewed works, grouping tasks into four OE phases (requirements speciﬁ-
+cation, implementation, publication, and maintenance) to reﬂect the staged OE lifecycle. In total, our analysis covers 49
+task-level studies extracted from the 36 included papers. It also summarizes the key dimensions examined in our RQs,
+including LLM inputs and outputs, model types, prompting strategies, the extent of human participation, LLM functional
+roles, and the availability of evaluation evidence and datasets. In the ﬁgure, rounded rectangles denote LLM inputs (e.g.,
+NL text and CQs) and corresponding outputs, while icons indicate human involvement and whether experiments or datasets
+are reported. Task and step labels (e.g., Task A and Step 2) mark LLM-involved workﬂow steps within a task, including
+cases where a task is decomposed into sub-tasks or sequential steps. To ensure clear alignment with the research design
+described in Section 3.1, the ﬁndings are organized by RQ: Section 4.1 addresses RQ1; Section 4.2 reports results for RQ2
+(RQ2.a to RQ2.e); Section 4.3 presents ﬁndings for RQ3 (RQ3.a to RQ3.d); and Section 4.4 addresses RQ4.
+
+===== PAGE 7 =====
+Li et al. 7
+Figure 1. Paper selection process based on our methodology. From 15,688 papers retrieved across ﬁve libraries, 36 papers related
+to our LLM-based OE tasks were selected after applying an automated ﬁlter and a manual ﬁlter . LLM = large language model; OE =
+ontology engineering.
+4.1 RQ1: Overview of LLM-Supported Ontology Development Activities
+The ﬁrst step in our study is to analyze in which OE activities are LLMs applied. Table 1 compiles the activities addressed
+in each of the analyzed approaches, including the input and outputs provided to the LLM for each activity. A paper may
+address more than one ontology development activity, and, therefore, the same paper may lead to multiple rows in the table.
+As shown in Figure 3, most of the attention is focused on activities related to ontology implementation tasks (encoding,
+conceptualization, matching, or evaluation) as well as the generation of requirements. Each approach is summarized in the
+following section, grouping them by the OE activity addressed.
+4.1.1 Ontology Requirements Speciﬁcation. In the task of functional requirements speciﬁcation, Fathallah et al. (2024a)
+proposed a method leveraging LLMs such as GPT-3.5, LLaMA, and PaLM to generate ontology requirements from NL
+text and CQs, within the framework of the NeOn-GPT methodology, using a wine ontology as a case study. CQ reverse
+engineering has received growing attention by creating CQs directly from ontologies.
+Alharbi et al. (2024b) proposed RETROFIT-CQs, which extracts RDF triples from existing ontologies and uses them
+to instantiate prompt templates for automatically generating candidate CQs. In the follow-up work, Alharbi et al. (2024d)
+extended this CQ generation work, by systematically comparing prompt variants (P1–P3), ranging from a minimal baseline
+(P1) to progressively enriched prompts with additional guidance and CQ deﬁnitions (P2) and role-augmented prompts
+(P3). Rebboud et al. (2024a) introduced a benchmarking strategy that includes generating CQs from ontologies, using
+tools such as LangChain and Ollama.
+Several additional contributions enrich this area. For example, Ciroku et al. (2024a) developed RevOnt, a system to
+extract CQs from KGs. Rebboud et al. (2024b) conducted a feasibility study comparing LLM-generated CQs with ground-
+truth examples. Antia and Keet (2023) presented AgOCQs, a pipeline that combines a text corpus with CQ templates
+with NLP techniques to generate CQs. Pan et al. (2024) used a retrieval augmented generation approach (Arslan et al.,
+2024) to generate CQs for two OE tasks, incorporating retrieved scientiﬁc passages as contextual input in the prompt for
+CQ-generation.
+Once requirements and CQs are established, requirement formalization can automate the transfer of CQs into exe-
+cutable queries, a crucial step in ontology development. Kholmska et al. (2024) investigated the role of LLMs (e.g.,
+ChatGPT, Bard, and Perplexity AI) in OE with active learning, demonstrating their ability to generate SPARQL queries
+from CQs. Similarly, Rebboud et al. (2024a) benchmarked LLM-generated ontology-aligned queries, evaluating them
+using structural metrics such as tree edit distance (TED) (Pawlik & Augsten, 2016). Their results show that LLMs are
+able to capture ontology structure and user intent. Further supporting this, Tufek et al. (2024) successfully automated
+SPARQL query generation from NL requirements, showing that LLMs can effectively connect human requirements with
+machine-readable formalisms in OE.
+4.1.2 Ontology Implementation. The conceptualization task in the ontology implementation phase involves identifying
+the core terms, relationships, taxonomies, and early constraints/axioms that capture the intended semantics. Our analysis
+identiﬁed 11 task-level studies investigating the potential of LLMs in supporting these activities, highlighting it as one of
+the most prominent research areas in the ﬁeld.
+One key aspect of ontology development is to ﬁnd the candidate concepts from domain sources. In addition, LLMs have
+also improved taxonomy discovery and relationship extraction. Studies by Goyal et al. (2024) and Babaei Giglou et al.
+
+===== PAGE 8 =====
+8 Semantic Web 17(4)
+Figure 2. Overview of LLM-supported OE tasks based on 49 task-level studies from 36 papers. LLM = large language model; OE =
+ontology engineering.
+
+===== PAGE 9 =====
+Li et al. 9
+Ta b l e 1 .Summary of Ontology Development Phases, T asks, Resources, Inputs, and Outputs Supported by LLMs. For Studies Applying LLMs Across Multiple Workﬂow Stages
+(e.g., Doumanas et al., 2024; Kholmska et al., 2024), We List Each T ask Separately to Capture Distinct Contributions.
+Phase T ask Resource Inputs Outputs
+Requirements speciﬁcation Functional requirements writing Fathallah et al. (2024a) Natural language text Natural language text
+Antia and Keet (2023) Natural language text CQs
+CQ reverse engineering Rebboud et al. (2024a) Ontologies CQs
+Alharbi et al. (2024b) T riples CQs
+Ciroku et al. (2024a) KGs CQs
+Rebboud et al. (2024b) Ontologies CQs
+Alharbi et al. (2024c) T riples CQs
+Pan et al. (2024) Natural language text CQs
+Kholmska et al. (2024) Concepts SPARQL Queries
+Requirement formalization Rebboud et al. (2024a) Ontologies and CQs Queries
+T ufek et al. (2024) Natural language text or CQs SPARQL Queries
+Kholmska et al. (2024) Concepts SPARQL Queries
+Ontology implementation Conceptualization Rebboud et al. (2024a) CQs Ontologies
+Goyal et al. (2024) Natural language text Binary decision
+Coutinho (2024) Natural language text Summarization
+Kholmska et al. (2024) Step 2: Natural language text Step 2: Classes
+Step 3: Natural language text Step 3: Concepts
+Dong et al. (2024) Natural language text, Ontologies Natural language text
+Babaei Giglou et al. (2023) T ask A: Natural language text, lexical term T ask A: T erm type
+T ask B: Natural language text T ask B: Binary decision
+T ask C: Natural language text T ask C: Binary decision
+T oro et al. (2024) T erm JSON
+Pisu et al. (2024) Natural language text Relationships
+Val-Calvo et al. (2025) JSON Schema
+Arevalo et al. (2024) Natural language text JSON
+Doumanas et al. (2025) Natural language text JSONL
+Encoding Doumanas et al. (2024) Phase 1: Natural language text Phase 1: Ontologies
+Phase 2: Domain documents Phase 2: Ontologies
+Phase 3: Natural language text and CQs Phase 3: Ontologies
+Fathallah et al. (2024a) Natural language text CQs, T riples, and Ontologies
+Cauﬁeld et al. (2024) Natural language text Ontologies
+Eells et al. (2024) Natural language text Natural language text and RDF
+Saeedizade and Blomqvist (2024) CQs Ontologies
+Mateiu and Groza (2023) Natural language text Axioms
+T ang et al. (2023) Natural language text Ontologies, JSON, and T riples
+da Silva et al. (2024) Natural language text and Ontologies Ontologies
+Lippolis et al. (2024) CQs Ontologies
+Val-Calvo et al. (2025) JSON and Schema Ontologies
+Doumanas et al. (2025) Natural language text and CQs Ontologies
+(Continued)
+
+===== PAGE 10 =====
+10 Semantic Web 17(4)
+Ta b l e 1 .Continued.
+Phase T ask Resource Inputs Outputs
+Ontology matching Zamazal (2024) Natural language text and verbalized
+candidates
+Binary decision
+Kholmska et al. (2024) Step 4: Natural language text Step 4: Documentation
+Step 6: Concepts, Ontologies, Natural
+language text
+Step 6: Mapping
+Hertling and Paulheim (2023) Ontologies and Natural language text Mapping
+He et al. (2023) Natural language text Binary decision
+Norouzi et al. (2023) Natural language text Mapping
+Ontology evaluation Tsaneva et al. (2024) Natural language text Axioms
+Kholmska et al. (2024) Step 5: Ontologies Step 5: Natural language text
+Fathallah et al. (2024a) Natural language text Ontologies and axioms
+Zhang et al. (2025) Ontologies and CQs Binary decision
+Ontology publication Ontology documentation Bischof et al. (2024) Natural language text T erms
+Rebboud et al. (2024a) Ontologies Documentation
+Kholmska et al. (2024) Step 9: Ontology extensions andnatural
+language text
+Step 9: Documentation
+Fathallah et al. (2024a) Natural language text and ontologies Documentation
+Giri et al. (2024) T erms Documentation
+Maintenance Bug issue Kholmska et al. (2024) Step 8: Natural language text Step 8: Natural language text
+LLM = large language model; KGs = knowledge graphs; CQs = competency questions.
+
+===== PAGE 11 =====
+Li et al. 11
+Figure 3. Distribution of large language model (LLM)-supported tasks across ontology development phases based on 49 task-level
+studies from 36 papers. Numbers represent the total number of tasks identiﬁed for each phase, and percentages indicate their
+proportion relative to all tasks. Most tasks focus on ontology implementation (31 studies, 63.3%), followed by requirements
+speciﬁcation (12 studies, 24.5%), publication (ﬁve studies, 10.2%), and maintenance (one study, 2.0%).
+(2023) employed LLMs to support ontology conceptualization through the identiﬁcation of semantic relations, showing
+that LLMs can detect both taxonomic and non-taxonomic relationships between concepts.
+Several researchers have also proposed integrated frameworks for the ontology conceptualization task. For instance,
+Coutinho (2024) proposed a system that integrated LLMs with textual ontology representations to generate candidate
+concepts from context, guided by the Uniﬁed Foundational Ontology (UFO) (Guizzardi et al., 2015). Further contributions
+include Rebboud et al. (2024a), who framed this task as the construction of an ontology by generating missing classes
+and properties. Kholmska et al. (2024) applied LLMs to generate nearly 200 core concepts in the ﬁeld of active learning,
+organize them hierarchically, and produce deﬁnitions to support concept veriﬁcation and reﬁnement, demonstrating the
+potential of LLMs for concept discovery and structuring.
+Dong et al. (2024) explored concept generation, while Toro et al. (2024) introduced techniques to complete ontology
+terms. Pisu et al. (2024) investigated the use of LLMs for the generation and construction of taxonomies of research
+topics. More recently, V al-Calvo et al. (2025) proposed a schema-level conceptualization step using an LLM-based agent
+to reﬁne the high-level ontology structure into detailed prompts that guide ontology building. In parallel, Arevalo et al.
+(2024) demonstrated automatic extraction of key concepts and relations to construct a domain ontology from NLP-focused
+OpenAlex7 articles. Doumanas et al. (2025) extracted concepts and relations from domain texts to construct supervision
+data for ﬁne-tuning LLMs, which were then used in their ontology generation pipeline.
+Encoding refers to the translation of conceptual models into formal ontology representation languages. Our survey
+identiﬁed 11 task-level studies that investigated how LLMs can support this process. In the context of domain-speciﬁc
+formalization, Doumanas et al. (2024) and Doumanas et al. (2025) employed LLMs to develop an OWL ontology for
+search and rescue missions (SAR). Their evaluation was performed against the gold reference ontology in the SAR domain
+(Masa et al., 2022).
+Several studies focus on transforming NL into OWL artifacts. Mateiu and Groza (2023) developed a Protégé plugin 8
+that converts NL sentences into OWL axioms using LLMs. Similarly, Cauﬁeld et al. (2024) proposed a pipeline to extract
+procedural knowledge from web sources (e.g., recipes) and encode it into ontology structures. Eells et al. (2024) prompted
+LLMs to generate ontologies for common nouns and assessed syntactic validity and structural completeness. Saeedi-
+zade and Blomqvist (2024) investigated OWL generation from structured narratives, and Tang et al. (2023) demonstrated
+domain-speciﬁc encoding for road-trafﬁc knowledge in autonomous-driving settings.
+Recent work also highlights CQ/schema-driven encoding pipelines. Lippolis et al. (2024) used a gold-standard dataset
+of CQ-SPARQL-OWL pairs to support staged ontology reﬁnement under the eXtreme Design methodology (Blomqvist
+et al., 2016), where LLM interpreted CQs are used to derive classes, properties, and restrictions. Complementarily, V al–
+Calvo et al. (2025) introduced a modular workﬂow in which an Ontology Building module generates a ﬁnal ontology from
+the structure deﬁned in earlier schema-design stages.
+In addition, da Silva et al. (2024) proposed an LLM-based method for transforming capability descriptions into onto-
+logical models, reducing manual effort in ontology creation from NL inputs. Fathallah et al. (2024a) further presented a
+pipeline that automates ontology encoding by generating structured triples and ontology artifacts from textual inputs.
+LLMs have also been applied to ontology matching tasks, which are key to ensuring interoperability in diverse knowl-
+edge domains. Zamazal (2024) evaluated the effectiveness of LLMs in validating complex mapping candidates, indicating
+
+===== PAGE 12 =====
+12 Semantic Web 17(4)
+promising results in correspondence validation tasks. Hertling and Paulheim (2023) introduced OLaLa, a system that uses
+LLMs to generate high precision ontology mappings. Additionally, studies by Norouzi et al. (2023) and He et al. (2023)
+benchmarked the performance of LLMs in ontology alignment against reference mappings, revealing that modern LLMs
+can perform comparable to specialized alignment systems. Kholmska et al. (2024) further explored LLMs in generating
+initial mapping suggestions to support ontology extension, assessing concept coverage and inter-model consistency.
+In the ontology evaluation task, LLMs have been applied to assess the quality, consistency, and correctness of ontolo-
+gies. Tsaneva et al. (2024) utilized ChatGPT-4 to verify ontology restrictions, achieving high accuracy in detecting logical
+inconsistencies and structural problems. Fathallah et al. (2024a) explored a different approach, proposing an evaluation
+framework that leverages ChatGPT in ontology syntax correction, using parsing errors detected by RDFLib and pitfall
+descriptions from the OOPS! API (Poveda-Villalón et al., 2014), particularly focusing on the missing disjointness axioms.
+This demonstrates that LLMs can not only identify ontology issues but also suggest corrective actions. Similarly, Zhang
+et al. (2025) introduced OntoChat, a framework for ontology verbalization and validation through prompt driven unit tests,
+aiming to make ontology evaluation more accessible. Kholmska et al. (2024) provided a broader evaluation of ontology
+quality, focusing on relevance, consistency of content, and structural soundness in the development of LLM-supported
+ontology.
+4.1.3 Ontology Publication. The generation of human-readable documentation is essential for understanding the def-
+initions and relationships of an ontology. Our analysis identiﬁed ﬁve task-level studies applying LLMs to ontology
+documentation tasks.
+Bischof et al. (2024) employed LLMs to produce context-sensitive annotations aligned with domain-speciﬁc conven-
+tions. Rebboud et al. (2024a) explored the use of LLM to generate structured documentation of key ontology components,
+such as classes and properties; their evaluation, based on semantic similarity metrics, showed that the LLM-generated
+documentation is accurate and relevant. Fathallah et al. (2024a) further addressed NL generation for ontology entities and
+properties, enhancing comprehensibility for both technical and non-technical users. In more specialized domains, Giri et al.
+(2024) applied the T5 language model to summarize functional descriptions of Gene Ontology (GO) terms, while Kholm-
+ska et al. (2024) leveraged LLMs to create comprehensive documentation for extended ontologies, supporting knowledge
+sharing and reuse.
+4.1.4 Ontology Maintenance. Among the studies reviewed, only one speciﬁcally addressed maintenance tasks related to
+bug or detection of issues. Kholmska et al. (2024) investigated the potential of LLMs to extract key improvement sugges-
+tions, reﬁne task lists, and identify missing concepts from human-evaluated reports (step 8 of their proposed workﬂow).
+Their ﬁndings suggest that LLMs can effectively support ontology maintenance.
+4.1.5 Summary. Based on the analysis of 49 OE task-level studies from 36 papers, LLMs have been applied unevenly in
+different ontology development phases. The implementation phase dominates, with 31 studies focused on conceptualiza-
+tion, encoding, matching, and evaluation. Requirements speciﬁcation ranks second, represented by 12 studies addressing
+functional requirements, CQ generation, and formalization into SPARQL queries. Later stages receive limited attention:
+ﬁve studies focus on ontology publication through documentation generation, while only one addresses maintenance tasks.
+4.2 RQ2: LLM-Based Approaches to Ontology Development
+Following the identiﬁcation of ontology development tasks supported by LLMs in Section 4.1, we now examine how
+LLMs are conﬁgured to contribute to these tasks. This includes analyzing their functional roles (as ontology engineers
+or domain experts, etc.), model choices (from GPT series or other open-source tools), input and output types utilized by
+LLMs, and whether the studies collaborate with humans in the LLM-based activities. Table 1 displays the inputs and
+outputs associated with each ontology development activity. For a more detailed breakdown, including speciﬁc model
+names, functional roles, and human collaboration status, refer to Table 2 in the Appendix.
+4.2.1 RQ2.a: Role of LLMs in OE Activities. Based on the reviewed studies, LLMs take on several key collaborative roles
+within OE tasks, either complementing or, in some cases, replicating tasks traditionally performed by human knowledge
+engineers. These contributions can be grouped into four main categories:
+1. Ontology engineer: LLMs are increasingly functioning as automated Ontology Engineers, actively supporting the
+design, development, and maintenance of ontologies throughout the entire development lifecycle. More precisely,
+LLMs are utilized to (a) parse unstructured domain texts and generate structured requirement speciﬁcations, thereby
+
+===== PAGE 13 =====
+Li et al. 13
+facilitating automated requirement elicitation (Alharbi et al., 2024b, 2024d; Ciroku et al., 2024a); (b) transform
+CQs into structured queries (e.g., SPARQL) (Rebboud et al., 2024a; Tufek et al., 2024); (c) discover axioms, par-
+ticularly identifying hierarchical relationships between concept pairs during the conceptualization activity (Babaei
+Giglou et al., 2023; Goyal et al., 2024); (d) translate unstructured or semi-structured texts directly into OWL code
+(Doumanas et al., 2024, 2025; Eells et al., 2024; Lippolis et al., 2024; Saeedizade & Blomqvist, 2024; Tang et al.,
+2023); and (e) support the entire ontology lifecycle, from conceptualization through to documentation, or provide
+end-to-end assistance under methodologies such as the NeOn-GPT approach (Fathallah et al., 2024a; Kholmska
+et al., 2024).
+2. Domain experts: LLMs act as domain experts by supporting knowledge extraction, term deﬁnition, and ontology
+content validation. They perform tasks requiring domain-speciﬁc understanding, such as (a) generating domain-
+relevant concepts (Dong et al., 2024); (b) producing context-sensitive term annotations (Bischof et al., 2024); (c)
+generating structured ontology documentation (Giri et al., 2024; Rebboud et al., 2024a); and (d) summarizing
+functional descriptions (Consortium, 2006). They are also used in evaluation tasks requiring both technical and
+domain expertise to assess the consistency and correctness of ontology content (Fathallah et al., 2024a; Tsaneva
+et al., 2024). (e) Additionally, LLMs assist in validating or suggesting domain-speciﬁc relations and constraints,
+ensuring alignment with established domain semantics (Babaei Giglou et al., 2023; Goyal et al., 2024).
+3. Human evaluator: In some cases, LLMs have been placed as human evaluators, for example, to verify ontology
+axioms and assess their logical soundness (Tsaneva et al., 2024).
+4.2.2 RQ2.b: Types of LLMs Are Used in OE Activities. The LLMs employed in OE span a range of architectures and
+capacities. Based on our analysis, these models can be grouped into four major categories, each playing distinct roles in
+the OE lifecycle.
+• GPT series (GPT-3.5, GPT-4, and GPT-4 Turbo/4o): The GPT series is among the most widely used for tasks
+involving CQ reverse engineering, encoding, and evaluation, due to their strong capabilities in NL understanding
+and generation (Arevalo et al., 2024; Fathallah et al., 2024a; Rebboud et al., 2024b; Tufek et al., 2024; V al-Calvo
+et al., 2025). In particular, GPT-4/Turbo/4o has been leveraged for more complex tasks requiring multi-formalism
+reasoning, such as verifying axioms across heterogeneous logical representations (Zamazal, 2024).
+• Open-source LLMs (LLaMA, Mistral, etc.): Open source LLMs such as LLaMA (Touvron et al., 2023a), Mistral 9
+are also used mainly in ontology development tasks, including functional requirement writing, conceptualization,
+encoding, and so on.
+Hertling and Paulheim (2023) ﬁne-tuned LLaMA for ontology matching and reuse, aligning anatomy ontolo-
+gies in the OAEI benchmark. Goyal et al. (2024) used LLaMA3 and Mistral to detect hierarchical relations in
+GeoNames and Schema.org. Saeedizade and Blomqvist (2024) combined LLaMA-generated outputs with expert
+feedback to iteratively reﬁne an SAR ontology. da Silva et al. (2024) demonstrated that Claude 3 and Gemini Pro
+can effectively convert NL descriptions into OWL axioms, supporting the ontology encoding process. Additionally,
+LLaMA and PaLM were integrated into the NeOn-GPT framework proposed by Fathallah et al. (2024a), which
+supported multiple stages of ontology development, including functional requirements, encoding, evaluation, and
+documentation.
+• Lightweight instruction-tuned models (e.g., Mistral-7B, Falcon-7B-Instruct, etc.): Lightweight instruction-tuned
+models have been applied in OE tasks, as demonstrated in two recent studies. Alharbi et al. (2024c) used models
+such as LLaMA-2-70B, Mistral 7B (Jiang et al., 2023), and Flan-T5-XL to generate CQ by embedding RDF triples
+into prompt templates enriched with varying levels of contextual information. The resulting CQs were then ﬁltered
+to produce a ﬁnal set of relevant, non-redundant questions. Saeedizade and Blomqvist (2024) further explored the
+use of lightweight open-source models including LLaMA-7B, LLaMA-13B, LLaMA-2-70B, Alpaca, Falcon-7B,
+and Falcon-7B-Instruct for ontology encoding. Their study demonstrated the ability of these models to process
+narrative ontology descriptions and associated CQs for automated ontology creation, compared to models such as
+GPT-3.5, GPT-4, and Bard.
+• Transformer-based architectures (T5 and BERT): Beyond large-scale LLMs, pre-trained transformer models, such
+as T5 and BERT, are powerful in supporting sentence encoding, classiﬁcation, and structured generation. Ciroku
+et al. (2024a) used T5 and SBERT within the RevOnt framework to automatically extract CQs from KGs. Giri
+et al. (2024) applied T5 to the GO2Sum system to generate human-readable functional descriptions of GO terms,
+supporting ontology documentation and publication. Furthermore, Pisu et al. (2024) proposed the use of SciBERT
+for the generation of taxonomy of research publication topics, with the objective of integrating domain-adapted
+language models into ontology encoding and KG construction workﬂows.
+
+===== PAGE 14 =====
+14 Semantic Web 17(4)
+4.2.3 RQ2.c: LLMs Prompt T echniques Employed to Support OE Activities. To understand how LLMs are operationalized
+within OE workﬂows, this subsection examines the prompting techniques used in the reviewed studies. The analysis
+covers the full range of strategies used to guide or adapt LLM behavior, including zero-shot and few-shot prompting,
+role-based prompting, template-based and representational prompting, reasoning-driven prompting, iterative reﬁnement,
+retrieval-augmented prompting, and ﬁne-tuning.
+• Zero-shot prompting: Zero-shot prompting is the most frequently used strategy and is applied when tasks can be
+speciﬁed purely through NL instructions. It is used across requirements speciﬁcation, conceptualization, encoding,
+and ontology matching. In many cases, zero-shot prompting is combined with structural templates to constrain out-
+put formats. Examples include CQs generation from textual descriptions or triples (Alharbi et al., 2024b; Rebboud
+et al., 2024b), SPARQL query generation using instruction-only templates (Tufek et al., 2024), and type classiﬁ-
+cation using only local context (Goyal et al., 2024). In ontology encoding, NL deﬁnitions are translated into OWL
+axioms via zero-shot templates specifying the expected syntax Cauﬁeld et al. (2024). Alignment approaches rely-
+ing solely on verbalized labels also follow a pure zero-shot setup (He et al., 2023; Norouzi et al., 2023). Zero-shot
+prompting is further used for capability modeling based on TBox grounding (da Silva et al., 2024).
+• Few-shot and one-shot prompting: Few-shot prompting augments instructions with a small number of examples,
+improving structural ﬁdelity and reducing hallucinations. One-shot prompting provides a single demonstration when
+minimal scaffolding sufﬁces. These techniques are widely used for CQ generation, conceptualization, evaluation,
+and matching. Few-shot examples improve CQ extraction (Rebboud et al., 2024b), guide entity–relation extrac-
+tion in NeOn-GPT (Fathallah et al., 2024a), and support axiom evaluation and alignment (Hertling & Paulheim,
+2023; Tsaneva et al., 2024). One-shot prompting is used to illustrate user-state structures (Zhang et al., 2025) or
+capability modeling patterns (da Silva et al., 2024). In several workﬂows, example-driven prompting interacts with
+decomposition strategies.
+• Template-based prompting: Template-based prompting uses ﬁxed syntactic or structural scaffolds such as JSON
+schemas, CQ templates, SPARQL skeletons, or OWL functional syntax to constrain and standardize model out-
+puts. This technique often appears in combination with zero-shot or few-shot prompting. Documentation templates
+specify ﬁelds such as labels and deﬁnitions (Bischof et al., 2024). Triple-based templates standardize CQ phrasing
+(Alharbi et al., 2024b, 2024b, 2024d). Encoding pipelines frequently use JSON schemas specifying IRIs, deﬁni-
+tions, and axioms (Toro et al., 2024). SPARQL templates enforce good form and reduce ambiguity (Tufek et al.,
+2024). Many workﬂows combine templates with iterative correction loops. Tsaneva et al. (2024) showed that pro-
+viding axioms in the Rector or Turtle format improves the veriﬁcation accuracy. V erbalized labels, deﬁnitions, and
+structural fragments are also used in matching workﬂows (Hertling & Paulheim, 2023).
+• Role-based prompting: Role-based prompting frames the model as an “ontology engineer,” “domain expert,” or
+“SPARQL specialist,” grounding instructions in domain expertise. This technique often appears in combination with
+zero-shot, few-shot, CoT, or template-based prompting. Role prompts are used in requirement speciﬁcation (Alharbi
+et al., 2024b, 2024c, 2024d; Pan et al., 2024), SPARQL generation (Kholmska et al., 2024), conceptualization
+(Fathallah et al., 2024a), documentation (Bischof et al., 2024), ontology matching (Kholmska et al., 2024), and
+evaluation (Fathallah et al., 2024a).
+• Multi-step reasoning prompting (CoT, GoT, and decomposition): Reasoning-oriented prompting guides models
+through intermediate steps or decomposed subtasks. Chain-of-thought prompting supports term extraction, clas-
+siﬁcation, and axiom justiﬁcation (Fathallah et al., 2024a). Graph-of-Thoughts prompting enables multi-branch
+exploration of ontology structures (Saeedizade & Blomqvist, 2024). Decomposition strategies, often combined
+with templates or examples, break workﬂows into sequential steps (e.g., concepts → deﬁnitions → properties →
+axioms) as in ontology encoding (Tang et al., 2023). Multi-step reasoning is also used in the validation of axioms
+(Tsaneva et al., 2024).
+• Iterative and conversational reﬁnement prompting: Many OE workﬂows employ multi-turn reﬁnement, in which
+model outputs are progressively revised based on constraints or feedback. In the conceptualization stage, recent
+studies use iterative reﬁnement to improve high-level ontology design. For example, OntoGenix (V al-Calvo et al.,
+2025) followed a human-agent loop in which an agent generates schema-level prompts (e.g., a Prompt Crafter),
+another agent plans revisions (e.g., a Plan Sage ), and the prompts are iteratively updated based on this feedback
+before building the ontology. Similarly, AutOnto (Arevalo et al., 2024) applied iterative prompt reﬁnement to derive
+concepts and relations from NLP corpora before ontology construction.
+Iterative reﬁnement is also widely used in encoding-related tasks, including multi-phase encoding pipelines
+(Doumanas et al., 2024), multi-turn axiom correction (Fathallah et al., 2024a), and SAR OE workﬂows. RevOnt
+(Ciroku et al., 2024a) further implemented staged reﬁnement for verbalization, abstraction, generalization, and CQ
+
+===== PAGE 15 =====
+Li et al. 15
+ﬁltering. In addition, conversational reﬁnement systems enable users to interactively adjust the generated CQs or
+alignments (Zhang et al., 2025).
+• Fine-tuning and model adaptation: A small subset of studies use supervised ﬁne-tuning to adapt models to OE
+tasks. GPT-4 and Mistral-7B were trained on OE-speciﬁc JSONL datasets to support ontology generation tasks
+(Doumanas et al., 2025). GPT-3 has been adapted for NL-to-OWL translation tasks through task-speciﬁc prompting
+or tuning (Mateiu & Groza, 2023). T5 is ﬁne-tuned on GO annotations for documentation (Giri et al., 2024). The
+placement of Domain-speciﬁc concepts is enhanced through a ﬁne-tuned BERT cross-encoder (Dong et al., 2024).
+SciBERT is ﬁne-tuned for the extraction of scientiﬁc relationships (Pisu et al., 2024). According to Rebboud et al.
+(2024b), most models are used in ﬁne-tuned conﬁgurations, including FusionNet_7Bx2_MoE_14B SOLAR-10.7B-
+Instruct-v1.0, Mistral-7B, and another Mistral-7B-v0.1. Although rare in general, ﬁne-tuning yields notable gains
+for tasks requiring high structural or domain precision.
+4.2.4 RQ2.d: Inputs for LLMs and Outputs From LLMs. To better analyze how LLMs are used across the OE lifecycle, we
+examine the inputs provided to LLMs and the outputs they generate in relation to the speciﬁc OE tasks they support. In this
+section, we summarize the recurring input–output patterns reported across the reviewed studies. We structure the analysis
+according to the OE activities identiﬁed in Section 4.1, as these activities naturally determine the expected output types.
+• During the ontology requirement speciﬁcation phase, common patterns are depending on the activity at hand.
+More precisely: (a) taking as input NL text to write functional requirements either in the shape of CQs (Antia &
+Keet, 2023) or NL afﬁrmative statements (Fathallah et al., 2024a); (b) transforming structured inputs (ontologies,
+triples, or KGs) to write CQs through reverse engineering (Alharbi et al., 2024b, 2024c; Ciroku et al., 2024a;
+Rebboud et al., 2024a, 2024b); and (c) taking ontologies and NL (including CQs) to generate queries as part of the
+requirement formalization activity (Rebboud et al., 2024a; Tufek et al., 2024).
+• For the ontology implementation phase, there are common patterns for activities with clear output formats, such
+as ontology encoding and ontology matching. However, approaches addressing less restricted activities, such as
+ontology conceptualization or evaluation, present higher variability. More precisely:
+◦ While all approaches take NL text as input in different formats, as is typically the case for OE projects, the
+ontology conceptualization activity leads to various types of outputs. Some approaches generated machine-
+readable representations, such as ontologies in OWL (Rebboud et al., 2024a) or structured schemas in JSON
+(Arevalo et al., 2024; Toro et al., 2024; V al-Calvo et al., 2025). Others produced concepts or terms intended for
+ontology integration (Babaei Giglou et al., 2023; Kholmska et al., 2024). Also, some approaches generated NL
+descriptions (Dong et al., 2024), or binary decisions to validate semantic relations or classify term types (Babaei
+Giglou et al., 2023; Goyal et al., 2024). A special classiﬁcation task presented by Pisu et al. (2024), to predict
+semantic relations (e.g., supertopic, subtopic, same-as, and other) between topic pairs extracted from an existing
+ontology.
+◦ For the ontology encoding activity, most analyzed approaches (Cauﬁeld et al., 2024; da Silva et al., 2024;
+Doumanas et al., 2024; Eells et al., 2024; Fathallah et al., 2024a; Mateiu & Groza, 2023; Tang et al., 2023)
+took NL descriptions as input to generate ontology artifacts in OWL, RDF, or related formats. Two exceptions
+were Saeedizade and Blomqvist (2024) and Lippolis et al. (2024), which used CQs as input to guide ontology
+generation in alignment with user information needs. Regarding outputs, most approaches produced complete
+ontology code, with exceptions such as Mateiu and Groza (2023), which focused speciﬁcally on generating OWL
+axioms. According to Eells et al. (2024), the LLM was prompted with a single noun (e.g., “air” and “book”) and
+returned a mix of NL text and RDF ontology content.
+◦ To address ontology matching , some of the analyzed works took NL inputs to produce binary decisions
+indicating semantic alignment. For example, Zamazal (2024) used LLMs to classify verbalized complex cor-
+respondence candidates as (probably) positive or negative, while He et al. (2023) evaluated the equivalence
+of concept pairs based on their names and hierarchical contexts, outputting a ‘‘Y es” or ‘‘No” response. Other
+approaches directly generate ontology mappings. Norouzi et al. (2023) took structured representations of two
+ontologies (in the form of subject–predicate–object triples), and outputs a set of proposed alignments between
+classes or properties. Kholmska et al. (2024) approached ontology reuse through a multi-step process: Step 4
+employed LLMs to extract key features, such as purpose, reused elements, and formats from existing ontolo-
+gies to support reuse decisions; Step 6 involved using LLMs to map new concepts to the previously identiﬁed
+ontologies by analyzing their deﬁnitions, relationships, and properties. The output consisted of explicit mappings
+expressed as owl:sameAs, owl:equivalentClass, and owl:equivalentProperty statements.
+
+===== PAGE 16 =====
+16 Semantic Web 17(4)
+Similarly, Hertling and Paulheim (2023) combined textual and structural information to generate formal ontology
+alignments.
+◦ For ontology evaluation some approaches take NL text as input (Fathallah et al., 2024a; Tsaneva et al., 2024),
+which may include evaluation reports (Fathallah et al., 2024a; Kholmska et al., 2024), while others also utilize
+structured ontology-related information or ontologies (Kholmska et al., 2024; Zhang et al., 2025). The ontology
+evaluation activity results in various types of output. Some approaches generate machine-readable corrections or
+modiﬁcations, such as class value replacements or the addition of disjointness axioms (Fathallah et al., 2024a).
+Others produce NL assessments regarding ontology relevance, structural completeness, and alignment with stan-
+dard frameworks such as CRISP-DM (Kholmska et al., 2024). Another line of work focuses on classifying and
+verifying individual axioms as correct or defective, optionally specifying the type of modeling defect (Tsaneva
+et al., 2024). Alternatively, one study outputs binary decisions such as yes/no judgments to validate the coverage
+of CQs based on the ontology content (Zhang et al., 2025).
+• To address ontology documentation activity, all analyzed approaches focus on generating human-readable doc-
+umentation. They took ontologies or terms as input (Giri et al., 2024; Rebboud et al., 2024a), and optionally
+incorporate additional NL text sources (Fathallah et al., 2024a; Kholmska et al., 2024). Speciﬁcally, Rebboud
+et al. (2024a) emphasized the production of readable summaries highlighting key classes and properties. Giri et al.
+(2024) generated concise summaries from GO terms. Finally, Kholmska et al. (2024) leveraged LLMs to assist in
+the writing of technical reports.
+• The only work explicitly addressing ontology maintenance was Kholmska et al. (2024), where LLMs were used to
+support iterative reﬁnement. In Step 8 of their workﬂow, domain-expert feedback and validation reports served as
+input. These documents were provided to the LLM via an interface, where the model reviewed the content, extracted
+improvement suggestions, and generated reﬁned task lists. The output was human-readable text highlighting missing
+concepts, potential relationship issues, and areas requiring adjustment within the ontology. While the ontology itself
+was not provided as a direct input, its structure was implicitly referenced through the content of the validation
+reports.
+4.2.5 RQ2.e: Role of Humans in OE LLMs-Assisted Activities. Although many recent studies automate ontology development
+with LLMs, six studies explicitly involve human participants, typically domain experts or ontology engineers, to support
+tasks requiring judgment, contextual understanding, and reﬁnement.
+In conceptualization, V al-Calvo et al. (2025) introduced an explicit human-agent loop in which ontology engineers
+and domain experts iteratively reﬁne schema-design prompts before ontology building. Complementarily, Doumanas
+et al. (2025) highlighted the importance of human oversight during training data preparation, where extracted outputs
+are validated and corrected to ensure that the resulting supervision data accurately reﬂects the intended knowledge and
+excludes errors or irrelevant content. Together, these studies demonstrated how human critique can guide LLMs toward
+more suitable high-level ontology structures. Doumanas et al. (2024) emphasized the crucial role of domain experts dur-
+ing the ontology formalization/encoding. In particular, experts compare and evaluate the LLM-generated ontology against
+existing ontologies and, based on this human-driven and LLM-driven evaluation, propose a new ontology by combining
+existing and LLM-generated semantics. Similarly, Kholmska et al. (2024) described the involvement of domain experts
+and end-users during ontology maintenance and bug resolution. Their iterative feedback on errors and inconsistencies was
+critical to reﬁne the ontology structure and enhance overall quality. In the context of ontology evaluation, Zhang et al.
+(2025) demonstrated how ontology engineers curated user stories that were manually authored or derived from earlier
+development stages to support meaningful CQ extraction, emphasizing the need for human input to link technical outputs
+to real-world use cases. Finally, Alharbi et al. (2024b) reported interviewing human experts and ontology engineers to
+capture design intentions. These insights were then used to generate contextually accurate CQs, particularly in support of
+functional speciﬁcation and requirements engineering.
+4.2.6 Summary. Across the 49 reviewed task-level studies, LLMs assumed three functional roles in OE: Ontology Engi-
+neer, Domain Expert , and Human Evaluator . Most studies relied on general-purpose models such as GPT-3.5 and
+GPT-4, with growing adoption of open-source models including LLaMA, Mistral, and Falcon. Current workﬂows pre-
+dominantly use LLMs to automate the generation, transformation, and veriﬁcation of ontology artifacts, while human
+involvement remains limited. Building on these model choices, the studies applied a wide range of prompting strategies.
+Zero-shot and few-shot prompting were the most common, while template-based prompts were adopted when outputs
+needed to follow predeﬁned schemas. Role-based prompting contextualized instructions, and multi-step reasoning (e.g.,
+CoT, GoT, and decomposition), together with iterative reﬁnement, supported staged modeling and corrective workﬂows.
+Fine-tuning was used only in a minority of studies requiring domain adaptation or high syntactic precision. Across these
+
+===== PAGE 17 =====
+Li et al. 17
+prompting settings, inputs ranged from unstructured text and CQs to structured triples, KG fragments, and ontology mod-
+ules. Outputs included classes, properties, OWL axioms, SPARQL queries, CQs, NL deﬁnitions, and documentation. Only
+a small subset of studies involved explicit human feedback, typically through expert validation or interactive reﬁnement.
+4.3 RQ3: Evaluation of LLMs Performance in Ontology Development
+In this section, we analyze the experimental support provided in the reviewed studies to validate their proposed frameworks
+and methodologies. Speciﬁcally, we examine whether these studies include experiments and whether they are open-source,
+as transparency is essential for reproducibility and independent validation. We also investigate the datasets used in these
+studies to determine if a common benchmark was used across different studies. Most importantly, we assess the perfor-
+mance of LLMs in ontology development, focusing on the evaluation methods (quantitative, qualitative, or hybrid) and
+the speciﬁc metrics used, such as F1, Bilingual Evaluation Understudy (BLEU), or others. These details allow us to thor-
+oughly assess the reported performance results from these papers and evaluate the effectiveness of LLMs in addressing
+various OE challenges.
+Table 3 in Appendix 7 compiles and summarizes all information on the availability of experiments, datasets used,
+evaluation types, and evaluation metrics applied across reviewed studies.
+4.3.1 RQ3.a: Existence of Experiments. In this subsection, we examined whether the reviewed studies reported experimen-
+tal evidence. Of the 49 OE task-level studies, 14 reported no explicit experimental evaluation, whereas the remaining 35
+included experiments. Within these 35 task-level studies, Fathallah et al. (2024a) contributed four task-level entries (cov-
+ering four OE activities) but reported only isolated LLM tests without baselines or comparative analysis. A further three
+studies reported results but did not provide publicly accessible resource links (Alharbi et al., 2024c; Norouzi et al., 2023;
+Tsaneva et al., 2024). Overall, 32 studies provided accessible experiments with explicit evaluation metrics and comparative
+analysis.
+Note that some studies appeared several times in our task-level analysis because they addressed multiple OE tasks
+(e.g., Fathallah et al., 2024a; Kholmska et al., 2024; V al-Calvo et al., 2025), spanning requirements speciﬁcation,
+conceptualization, encoding, and bug-related issues.
+4.3.2 RQ3.b: Datasets Used. All studies except one, Bischof et al. (2024) reported the datasets used for training, exper-
+iments, or evaluation. Across the remaining 48 task-level studies, datasets are mainly drawn from established ontology
+repositories and benchmark suites, relying primarily on structured ontology artifacts (OWL/RDF) and curated bench-
+marks (e.g., OAEI 2022 and the LLMs4OL Challenge), with some use of unstructured text corpora. Several ontologies
+(e.g., Dem@Care, SNOMED CT, and the Wine Ontology) are reused across multiple studies, suggesting that they function
+as de facto community benchmarks.
+To examine the detailed datasets used, Alharbi et al. (2024c) selected four ontologies along with their associated
+CQ datasets to investigate CQ creation. Three of these ontologies: Video Game (entertainment) (Parkkila et al., 2017),
+Dem@care (healthcare) (Karakostas et al., 2016), and VICINITY Core (Internet of Things) (Cimmino et al., 2019) were
+obtained from the CORAL (Fernández-Izquierdo et al., 2019) repository, a comprehensive source for CQs. The fourth
+ontology, African Wildlife (Keet, 2019), was included to ensure diversity in both domain coverage and CQ styles.
+Meanwhile, Dong et al. (2024) applied the MM-S14-Disease and MM-S14-CPP datasets (Dong et al., 2023), both
+from the biomedical domain, to evaluate LLM performance in ontology mapping. After encoding the ontologies into
+OWL using syntax-aware concepts derived from textual descriptions, they leveraged version differences in SNOMED
+CT (Donnelly, 2006), a clinical terminology system, to deﬁne new concepts and construct ground-truth placement edges.
+Similarly, Kholmska et al. (2024) used the OntoDM suite (Panov et al., 2008), and IOF Core (Drobnjakovic et al., 2022),
+both rooted in the industrial engineering domain, due to their maturity, comprehensive documentation, and validation
+within real-world manufacturing settings.
+Ciroku et al. (2024a) introduced the ﬁrst implementation of RevOnt, which leverages the Web Data Visualizer (WDV)
+KG (Amaral et al., 2022) constructed from Wikidata (Vrandeˇci´c & Krötzsch, 2014), a collaborative knowledge base. WDV
+comprises 7.6K unique RDF triples and includes manually annotated CQs, providing explicit subject–predicate–object
+relationships that serve as ground truth for CQ derivation. Tsaneva et al. (2024) used Pizza Ontology related from food
+domain in Protégé, to benchmark LLM-driven defect detection in OWL axioms. Giri et al. (2024) focused on the sum-
+marization of protein functions in the bioinformatics domain, evaluating the generated outputs against GO (Consortium,
+2006), a fundamental resource in molecular biology. Similarly, Toro et al. (2024) evaluated the quality of LLM-generated
+deﬁnition generation for biomedical cell ontology (Diehl et al., 2016) using BERTScore, supplemented with manual expert
+review to ensure semantic validity.
+
+===== PAGE 18 =====
+18 Semantic Web 17(4)
+We also observed that several studies share common experimental ontologies, enabling standardized evaluation and
+comparative analysis. For ontology matching tasks, studies such as Zamazal (2024), Hertling and Paulheim (2023), and
+Norouzi et al. (2023) utilized datasets from the OAEI 2022 benchmark tracks, which provided ontologies and KGs
+across various domains. Similarly, Babaei Giglou et al. (2023) and Goyal et al. (2024) adopted the LLMs4OL chal-
+lenge benchmark dataset, designed to assess LLM in various ontology learning tasks. This challenge spaned multiple
+domains, including WordNet (lexical) (Miller, 1995), GeoNames (geospatial) (V olz et al., 2007), UMLS (Bodenreider,
+2004), SNOMED CT (biomedical) (Donnelly, 2006), and Schema.org (web) (Guha et al., 2016)10 ontologies. These shared
+benchmarks facilitated the consistent evaluation of LLM-based methods in structured knowledge engineering.
+In addition, several datasets have been reused in studies to allow a consistent evaluation of tasks and models. For
+example, Fathallah et al. (2024a) used the Wine Ontology as a gold standard in their NeOn-GPT pipeline, covering tasks
+such as requirements writing, OWL encoding, publication, and documentation. Rebboud et al. (2024a) and Rebboud
+et al. (2024b) evaluated LLM-generated outputs using a consistent set of ontologies: DOREMUS (Achichi et al., 2018),
+Polifonia (de Berardinis et al., 2023), Dem@Care (Karakostas et al., 2016), Odeuropa (Lisena et al., 2022), NORIA-O
+(Tailhardat et al., 2024), and FIBO (Bennett, 2013) in multiple tasks, including CQ reverse engineering, conceptualization,
+and ontology documentation.
+In addition to ontology ﬁles, several studies have explored the use of unstructured datasets and NL text as experimental
+input. Mateiu and Groza (2023) used 150 unstructured descriptions of ontological elements to evaluate a Protégé plugin
+that translates NL sentences into OWL axioms.
+In requirements speciﬁcation task studies, Antia and Keet (2023) fed COVID-19 scientiﬁc papers into an automated
+CQ reverse engineering pipeline to derive candidate queries for ontology validation. Similarly, Pan et al. (2024) generated
+CQs for two tasks (KG-EmpiRE (Karras, 2024) and human–computer interaction (HCI) (Costa et al., 2022) by retrieving
+relevant evidence from the corresponding scientiﬁc corpora and injecting it into the CQ-generation prompts.
+Beyond CQ generation, unstructured corpora have been leveraged for ontology construction. Arevalo et al. (2024) used
+NL text corpora together with the NLP subset of the CSO ontology (covering 156 deduplicated topics) to generate an
+ontology. In a commonsense setting, (Eells et al., 2024) prompted LLMs with 101 high-frequency nouns from the Corpus
+of Contemporary American English (COCA) (Davies, 2010) to induce ontological structures, which were then assessed
+for semantic coherence and alignment with human commonsense knowledge.
+To support further exploration of datasets used in LLM-based OE tasks, we provide Table 5 in the Appendix. The table
+lists acronyms and the full name of the datasets, the ofﬁcial or commonly used access link, and their associated domain,
+helping readers identify suitable datasets for speciﬁc domain applications.
+4.3.3 RQ3.c: Evaluation Methods. In this section, we summarize the evaluation methods employed in the reviewed stud-
+ies, as they are crucial for assessing the performance of LLM-driven OE activities. Speciﬁcally, we categorize evaluation
+designs as quantitative, qualitative, and mixed (hybrid). Quantitative evaluations typically compare model outputs against
+reference standards and report task-speciﬁc metrics (e.g., Precision/Recall/F1, BLEU, and cosine similarity). Qualita-
+tive evaluations rely on human judgment (e.g., expert review or manual inspection). Mixed (hybrid) designs combine
+automated metrics with human assessment.
+For this subsection, we consider only 39 studies that specify an explicit evaluation protocol (e.g., clearly deﬁned metrics,
+baselines, or comparison criteria), 10 studies without deﬁned metrics/baselines or experiments are not included (Bischof
+et al., 2024; Fathallah et al., 2024a; Kholmska et al., 2024; Mateiu & Groza, 2023; Tang et al., 2023). Taking into account
+the remaining studies, three main evaluation approaches emerge, as described below.
+• Quantitative evaluation approach: Most studies adopt quantitative methods, using automated metrics to assess LLM
+performance:
+◦ Performance-based evaluation: Metrics such as precision, recall, and F1-score are widely used, alongside spe-
+cialized metrics like inter-model consistency or error rate reduction, particularly in tasks like ontology matching
+and conceptualization. For example, Hertling and Paulheim (2023) evaluated ontology matching results using
+precision, recall, and the F1-score, compared to the OAEI datasets. Similarly, Goyal et al. (2024) and Babaei
+Giglou et al. (2023) applied the F1-score to measure the accuracy of LLM-generated output in ontology con-
+ceptualization tasks, as part of the LLMs4OL challenge. Alharbi et al. (2024c) and Kholmska et al. (2024)
+reported task-speciﬁc metrics such as consistency between models, reduction of errors, and coverage of con-
+cepts to assess the quality of generated ontologies. Dong et al. (2024) evaluated the predictions of hierarchical
+relationships using the insert rate at top k (InR@k), which reﬂected the precision with which new concepts are
+inserted into a taxonomy. Tufek et al. (2024) measured the accuracy of the exact match for the generation of
+SPARQL queries by comparing the outputs with predeﬁned targets.
+
+===== PAGE 19 =====
+Li et al. 19
+◦ Similarity-based evaluation: Some studies applied semantic similarity measures, such as SentenceBERT cosine
+similarity, to compare LLM-generated outputs with reference texts, reducing the need for manual comparisons.
+Rebboud et al. (2024b) used SentenceBERT cosine similarity to evaluate the semantic relationship between
+LLM-generated CQs and expert references. In a related setting, Rebboud et al. (2024a) proposed cosine similarity
+to compare the generated ontology documentation with expert deﬁnitions, supporting an efﬁcient and consistent
+quality assessment.
+◦ Ground truth-based evaluation: Structural ﬁdelity is evaluated using metrics such as TED (for SPARQL queries)
+(Rebboud et al., 2024a) or BLEU score for generated CQs (Ciroku et al., 2024a), ensuring alignment with gold
+standard datasets. Although BLEU focuses on surface-level lexical similarity, it remains a valuable metric of
+textual ﬁdelity in structured NL generation tasks, particularly in the context of CQ reverse engineering.
+• Qualitative evaluation approach: A smaller number of studies employ only human-based evaluation. Domain experts
+assess LLM outputs based on semantic precision, conceptual correctness, and domain relevance, providing critical
+insights beyond automated metrics. Zhang et al. (2025) utilized a qualitative assessment approach through expert-
+driven questionnaires, where ontology engineers and domain experts provide nuanced feedback. Bischof et al.
+(2024) incorporated a rigorous qualitative evaluation that relies on experts in their work, in which specialized
+experts meticulously assess the deﬁnitions generated by LLMs for semantic precision, conceptual precision, and
+domain-speciﬁc correctness.
+• Hybrid evaluation approach: Several studies adopt a hybrid evaluation strategy that integrates both quantitative and
+qualitative methods. By combining metric-based assessments with expert reviews, these approaches validate both
+the structural quality and practical usability of LLM outputs, thereby enhancing evaluation robustness.
+In the context of veriﬁcation and constraint checking, Tsaneva et al. (2024) compared the evaluation results
+generated by LLM with the majority vote of human experts to assess the feasibility and reliability of automated
+ontology restriction checking. da Silva et al. (2024) paired SHACL-based syntax validation with expert review
+to ensure logical consistency and eliminate redundancy in generated ontologies. Giri et al. (2024) incorporated
+human evaluation to validate the embedding-based conﬁdence scores used in assessing LLM-generated biomedical
+summaries, examining how well automated scores align with expert ratings when high-conﬁdence embeddings are
+observed.
+For ontology quality assessment, Lippolis et al. (2024) evaluated the LLM-based ontologies using standard qual-
+ity metrics supplemented by domain expert review. V al-Calvo et al. (2025) combined automated quality analysis
+with expert-based manual assessment, employing OQuaRE metrics and the OOPS! pitfall scanner (Poveda-Villalón
+et al., 2014) to quantitatively compare human-created and LLM-based ontologies, while ontology engineers qualita-
+tively evaluate domain-relevant class representation. Arevalo et al. (2024) measured completeness and conciseness
+through pairwise average similarity, mean aggregate similarity, and cosine similarity against reference embed-
+dings, complemented by qualitative assessment of accuracy, clarity, adaptability, and consistency via inspection
+of generated classes, properties, and relations.
+For broader evaluation, Coutinho (2024) integrated quantitative indicators such as task completion time and
+model quality metrics with qualitative insights from expert interviews and user satisfaction assessments, balancing
+automation with human feedback to improve inter-model consistency and overall usability. Alharbi et al. (2024b)
+similarly applied both paradigms. Quantitatively, they use metrics such as mean questions per triple, precision,
+recall, and F1-score to evaluate generated CQs. Qualitatively, they interviewed ontology developers to assess the
+intent and relevance of generated CQs, and invited ontology editors to rate predicted versus curated deﬁnitions.
+4.3.4 RQ3.d: Performance Results. As reported in previous sections, the reviewed works use different input datasets and
+metrics, and hence are not directly comparable. However, here we discuss the overall reported results, grouped by activity,
+to obtain a qualitative overview of the state-of-the-art.
+In the requirements speciﬁcation phase, multiple studies report that LLMs can effectively support CQ generation. Antia
+and Keet (2023) proposed AgOCQs, which feed COVID-19 scientiﬁc papers into an automated CQ generation pipeline
+to derive candidate questions for ontology validation. In a survey of 20 generated CQs, 70% were rated grammatically
+correct by at least 70% of participants. Ontology experts deemed 12/20 CQs answerable (50%–85% agreement across
+questions) and highly relevant (70%–93%), while 73% of users and 69% of experts agreed that the CQs provided clear
+domain coverage.
+For CQ reverse engineering, Rebboud et al. (2024b) evaluated precision by matching generated CQs to gold CQs
+using SentenceBERT cosine similarity with a ﬁxed threshold ( 𝜃 = 0.6). Among the evaluated LLMs, the open-source
+Mistral 7B models Zephyr𝛽 and UNA achieve strong best-case precision: Zephyr𝛽 reaches 0.90 on Odeuropa, while UNA
+reaches 0.31 on NORIA-O with few-shot prompting. Although UNA is not top-performing overall, it shows comparatively
+
+===== PAGE 20 =====
+20 Semantic Web 17(4)
+larger gains with few-shot prompting and remains competitive in schema-limited settings (i.e., when only classes and/or
+properties are provided rather than the full schema). Pan et al. (2024) further showed that a RAG approach improved CQ
+generation for the concrete KG-EmpiRE task, that is, constructing a KG of empirical research in Requirements Engineering
+to capture its state and evolution, achieving a precision of≈ 0.36 (vs.≈ 0.05 for zero-shot) using a single carefully selected
+“visionary” paper as the knowledge base. The RevOnt framework (Ciroku et al., 2024a) achieved strong performance,
+with a BLEU score of 0.41 in verbalization and 0.30 in question generation. More than 75% of its outputs were rated. In
+a complementary line of work, RETROFIT-CQ (Alharbi et al., 2024b) adapted CQs to existing ontologies by generating
+questions from RDF triples. More than 75% of the generated CQs were directly executable as SPARQL queries without
+manual revision, indicating high structural compatibility with the target ontologies. Furthermore, Alharbi et al. (2024d)
+extended RETROFIT-CQ by enriching the prompt and by comparing two creativity settings, denoted as CP (CP = 0.0:
+deterministic decoding; CP= 0.7: default). Precision improved in some settings, for example, on the Video Game ontology
+with gpt-3.5-turbo under deterministic decoding (CP = 0.0), precision increased from 45.2% with (P1) to 84.4% (P3).
+In the requirement formalization task, LLMs demonstrated strong performance in translating NL into SPARQL queries.
+Tufek et al. (2024) reported F1-scores ranging from 88% to 96%, with prompt template optimization signiﬁcantly enhanc-
+ing output quality. The execution modality also mattered: the use of a web interface yielded 100% F1, outperforming
+API-based execution (93%).
+In the ontology implementation phase, particularly in conceptualization, GPT-4o demonstrated strong zero-shot per-
+formance in the LLMs4OL challenge tasks, achieving an F1 of 72.78% and winning six subtasks (Babaei Giglou et al.,
+2023; Goyal et al., 2024). Fine-tuning of the Flan-T5 model led to substantial improvements, 25% in Task A and 45%
+on WordNet-related tasks. In domain-speciﬁc ontology construction, SciBERT achieved 91.29% F1 and over 91% accu-
+racy by supporting term typing and taxonomy discovery (Pisu et al., 2024). For hierarchical concept placement, models
+enhanced with explainability-driven instruction tuning, such as LLaMA-2-7B, outperformed larger general-purpose LLMs
+(Dong et al., 2024). Arevalo et al. (2024) proposed AutOnto to derive a compact set of domain topics from text and evaluate
+it against a CSO subset using pairwise average similarity (PAS), mean aggregate similarity (MAS), and cosine similarity
+with reference embedding (CSRE). On the NLP domain, AO-NLP scores 0.34 in PAS (vs. 0.35 for CSO-NLP) and 0.84 in
+MAS (vs. 0.85 for CSO-NLP), and CSRE is 0.84, close to 0.88 from CSO-NLP , while using far fewer topics (56 vs. 156
+deduplicated topics).
+During encoding, V al-Calvo et al. (2025) compared OntoGenix-generated ontologies with human-developed ontologies
+in six datasets using OQuaRE (Duque-Ramos et al., 2011) quality scores and OOPS! pitfalls and measure effort savings.
+OntoGenix yields time savings of 8.2%–58.3% for ontology development. In the SPIRES framework, GPT-3.5-turbo
+achieves perfect entity alignment; however, on the zero-shot chemical–disease relation task, SPIRES showed an F1-score
+of 43.8% (Cauﬁeld et al., 2024). Moreover, da Silva et al. (2024) reported a mean error score of 0.03 for Claude and 0.12
+for GPT under few-shot prompting, and completeness values of 0.90–1.00 for complex capabilities in few-shot settings.
+In SAR OE, Doumanas et al. (2024) reported the highest F1-score under the X-HCOME evaluation setting for Bard at
+48.21%, with precision 84% and recall 34.50%. Under the same setting, GPT-4 reached an F1-score of 30.92%, with a
+precision of 88% and a recall of 18.75%. They also reported that, when evaluated against a reduced gold-standard class
+hierarchy, the recall increases by 140% for GPT-4. In addition, Doumanas et al. (2025) ﬁne-tuned GPT-4 and Mistral 7B
+using OE-speciﬁc JSONL datasets curated from foundational OE textbooks and re-evaluated SAR ontology generation
+against a human-expert reference ontology; for class generation, successive ﬁne-tuning iterations improved GPT-4’s F1-
+score from 19.35% to 27.08%.
+In ontology matching and reuse, GPT-4o correctly validated complex alignments with 100% accuracy in rejecting false
+correspondences (Zamazal, 2024). The OLaLa study showed that improvements in the F1-score can achieve 90.2% with
+Llama-2-70b-instruct-v2, optimized for efﬁciency (Hertling & Paulheim, 2023). In the NCIT-DOID equivalence matching
+benchmarks (He et al., 2023), Flan-T5-XXL achieved the highest F1-score, reaching 72.1% with a threshold of 0.650, and
+also achieved the best Hits@1 of 88.0%. Norouzi et al. (2023) reported precision 37%, recall 92%, and F1-score 52% on
+the OAEI 2022 benchmark, with the highest recall and F1-score obtained using the iterative prompt design that queries
+matches per class and property.
+In ontology evaluation, ChatGPT-4 veriﬁed axioms with 92.2% accuracy, which increased to 96.7% using ensemble
+aggregation (Tsaneva et al., 2024). OntoChat achieved 87.5% positive expert ratings for CQ questions (Zhang et al., 2025).
+DRAGON-AI reported high precision but moderate recall, and its performance improved iteratively with user input (Toro
+et al., 2024). In a controlled educational setting, GPT-4 with CQ-by-CQ prompting achieved CQ pass rates of up to 100%
+across several CQ categories when evaluated by executable SPARQL query success (Saeedizade & Blomqvist, 2024).
+Finally, in the ontology maintenance task, GO2Sum (Giri et al., 2024) outperformed vanilla T5 for 95.5%–98.0%
+of targets under embedding-based similarity and for 95.3%–97.3% under mover-based similarity metrics. In predicted
+GO annotations, 73.7%, 79.9%, and 95.7% of the summaries for Function, Subunit Structure, and Pathway, respectively,
+
+===== PAGE 21 =====
+Li et al. 21
+achieved an average embedding score greater than or equal to 0.5. These results show that LLM-based summarization
+improves semantic alignment with reference descriptions for low-coverage GO predictions, indicating the effectiveness of
+LLMs in supporting ontology debugging and interpretation.
+4.3.5 Summary. Evaluation practices in LLM-based OE mainly adopt quantitative metrics such as precision, recall, F1-
+score, and semantic similarity. Several studies combine these with qualitative expert reviews to assess conceptual validity
+and domain relevance. Most evaluations focus on overall system output rather than isolating LLM performance, often
+using existing ontologies (e.g., SNOMED CT and FIBO) as benchmarks. Open-source datasets are increasingly used
+to improve reproducibility, while standardized protocols remain scarce. Several emerging initiatives, such as OAEI and
+LLMs4OL, have begun to deﬁne shared datasets and metrics. In general, evaluation remains fragmented in all studies,
+lacking uniﬁed criteria and alignment of standards.
+4.4 RQ4: Application Domains of LLM-Based Ontology Development
+In this section, we examine the domain-speciﬁc applications of LLMs in OE. Healthcare and life sciences represent one of
+the most extensively explored areas. LLMs have been applied to validate ontological constraints in major biomedical ter-
+minologies such as SNOMED CT and UMLS (Tsaneva et al., 2024), and to assist in the development of domain-speciﬁc
+ontologies such as DemCare for dementia care (Rebboud et al., 2024a, 2024b). Furthermore, they support biomedical
+knowledge enrichment tasks in widely adopted resources such as the GO, MONDO, and the Cell Ontology, either by gen-
+erating functional summaries (Giri et al., 2024) or extending axioms and class deﬁnitions (Cauﬁeld et al., 2024; Toro et al.,
+2024). Cultural heritage industries also beneﬁt from LLMs. Ontologies such as DOREMUS, Polifonia, and Odeuropa are
+enhanced for music and olfactory heritage representation (Rebboud et al., 2024a, 2024b; Zhang et al., 2025). In the ﬁnance
+domain, LLMs were used for automated CQ reverse engineering and benchmarking of ontologies such as the Financial
+Industry Business Ontology (FIBO) (Rebboud et al., 2024a, 2024b), thus contributing to a more systematic knowledge
+organization in regulatory and investment contexts. Within the emergency and safety domain, LLMs have been utilized
+to construct SAR ontologies based on related knowledge, including environmental conditions, hazard classiﬁcation, and
+resource planning through structured prompting strategies (Doumanas et al., 2024). In the autonomous systems and smart
+technologies domain, LLMs have been used to model trafﬁc scenarios in autonomous driving ontologies (Tang et al., 2023)
+and to deﬁne concepts for smart building systems (Bischof et al., 2024), allowing automation and validation processes.
+For academic and research domains , LLMs helped structure and classify research topics, as seen in the Computer Sci-
+ence Ontology (CSO) (Pisu et al., 2024), offering scalable solutions for scientiﬁc knowledge organization and retrieval. In
+the food ﬁeld, LLMs supported the enrichment of ontologies like FoodOn by extracting structured data from recipe texts
+(Cauﬁeld et al., 2024), aiding in the classiﬁcation of ingredients, preparation methods, and nutritional proﬁles.
+4.4.1 Summary. Overall, these applications highlighted the versatility of LLMs across diverse ontology-driven domains
+(see Table 4 in the Appendix for details). Most studies focused on life sciences and healthcare, followed by cultural
+heritage, ﬁnance, emergency management, autonomous systems, and academic knowledge organization. Typical applica-
+tions included ontology enrichment, documentation, CQ generation, and schema extension. Biomedical ontologies such as
+SNOMED CT, UMLS, and the GO were among the most frequently used datasets, while cultural and ﬁnancial ontologies
+(e.g., DOREMUS and FIBO) also recurred across multiple studies.
+5 Discussion
+Below, we explore the implications of our ﬁndings in relation to our RQs, highlighting the challenges and opportunities
+they present.
+5.1 Supporting Ontology Development Activities With LLMs
+Among the studies reviewed, LLMs have been integrated into various stages of the ontology development lifecycle, with
+research concentrated predominantly in the early and middle phases. Activities related to ontology implementation, par-
+ticularly conceptualization and encoding, have received the greatest attention, together representing about 87.8% of the
+reviewed works, while later stages such as evaluation and maintenance remain comparatively underexplored. In these core
+phases, LLMs demonstrated notable advantages by leveraging their strong NL understanding and generative reasoning
+capabilities. They can automatically extract domain-speciﬁc concepts, infer hierarchical relations, and identify semantic
+patterns from unstructured text. Empirical evidence indicates that the resulting concept taxonomies often approximate
+
+===== PAGE 22 =====
+22 Semantic Web 17(4)
+expert-curated ontologies in terms of scalability and semantic coherence (Cauﬁeld et al., 2024; da Silva et al., 2024;
+Doumanas et al., 2024), accelerating the creation of structured and high-quality knowledge representations in ontology
+development.
+Despite notable advances, the application of LLMs across the ontology lifecycle remains uneven. Later-stage activities,
+such as documentation, evaluation, and maintenance, receive limited attention, as they demand capabilities that current
+LLMs cannot reliably provide. Evaluation requires strict logical consistency veriﬁcation, which exceeds the intrinsic rea-
+soning capacity of LLMs without external validation mechanisms such as rule checkers or expert review (Liu et al., 2025b;
+Toro et al., 2024). Maintenance, in turn, depends on dynamic knowledge integration, whereas LLMs are statically trained
+and cannot incorporate new information without retraining, which limits their suitability for the long-term evolution of
+the ontology (Mundlamuri et al., 2025). Furthermore, while early-stage tasks beneﬁt from well-deﬁned and quantiﬁable
+metrics, later stages often involve complex, less formalized objectives such as semantic coverage robustness and sustained
+ontology reﬁnement.
+Addressing these limitations requires reframing later-stage OE not as autonomous LLM-driven processes but as collab-
+orative hybrid workﬂows. Future research should prioritize the development of hybrid architectures that integrate LLMs
+generated content with formal reasoning engines for constraint veriﬁcation, the use of retrieval augmented generation
+techniques to maintain knowledge currency without full model retraining, and the design of human-centered workﬂows
+in which LLMs assist experts in validation and reﬁnement rather than operating independently. Such approaches would
+leverage the generative ﬂexibility of LLMs while preserving the analytical discipline and domain expertise essential for
+sustainable and trustworthy OE.
+5.2 Conﬁguration Workﬂows of LLMs in Ontology Development Activities
+Our ﬁndings show that LLMs can effectively assume multiple roles within OE tasks, notably as ontology engineers and
+domain experts. In these roles, LLMs support the automation of ontology construction and the enrichment of domain-
+speciﬁc knowledge, aiming at reducing the manual effort and transfer of domain-speciﬁc expertise traditionally required
+by ontology engineers.
+In the surveyed literature, a consistent trend can be observed regarding model selection and application. GPT-series
+models are predominantly employed for reasoning-intensive tasks, whereas open-source and lightweight models (e.g.,
+LLaMA and Mistral) are increasingly favored for tasks like ontology matching and conceptualization. This reﬂects a
+rapidly diversifying LLM ecosystem where model choice is strategically aligned with task demands. For instance, tuned
+variants of LLMs like GPT-3 have been used to produce ontological constructs for knowledge formalization, while smaller
+models such as Mistral-7B offer faster inference and perform efﬁciently on smaller or domain-speciﬁc datasets. Prompting
+techniques have a signiﬁcant impact on performance in all models. Zero-shot prompting is widely used for its efﬁciency in
+well-deﬁned tasks, while template-based prompting is essential for enforcing strict output schemas such as OWL axioms
+and SPARQL queries. Role-based prompting enhances semantic reliability in specialized domains, and more advanced
+strategies, including chain-of-thought reasoning, task decomposition, and iterative reﬁnement, are adopted in heteroge-
+neous or multi-stage workﬂows to stabilize outputs and improve accuracy. Furthermore, the interaction between prompting
+and model behavior is further demonstrated by the input and output conﬁgurations of the OE workﬂows. LLMs can han-
+dle unstructured, semi-structured, and fully structured data, producing outputs ranging from NL descriptions and CQs
+to executable queries and formal axioms. Although NL remains the most common input modality, there is a clear shift
+toward structured formats that better constrain model behavior and ensure the production of machine-actionable results.
+These structured formats often operate in tandem with the prompting strategies discussed above, constituting an integrated
+conﬁguration approach that enhances the reliability and usability of LLM-generated ontological artifacts.
+Building on these foundations, the integration of LLMs introduces more conversational and iterative workﬂows com-
+pared to traditional methodologies. LLMs enable broader participation from engineers, domain experts, and non-specialists
+through NL inputs, which the models transform into ontology fragments, reﬁnements, or validation feedback. This shift
+increases ﬂexibility, accelerates development cycles, and improves the scalability and accessibility of OE practices.
+Despite these advantages, several limitations remain. LLMs require substantial computational resources for access
+and ﬁne-tuning, which restricts their scalability (Hoffmann et al., 2022; Treviso et al., 2023). Their generalization across
+specialized domains is often poor unless guided by carefully designed prompts, and without such guidance they may
+produce incomplete or semantically irrelevant outputs (Barman et al., 2024). Parameter adaptation methods, including full
+ﬁne-tuning and parameter-efﬁcient approaches such as Low-Rank Adaptation (LoRA), still demand considerable human
+expertise for data preparation, supervision, and quality control, thereby further increasing costs and resource limitations
+(Wang et al., 2025). Compared with formal logic systems (Baader et al., 2017; Heindorf et al., 2022), LLM reasoning
+abilities remain shallow, and issues such as hallucinations, limited transparency and violations of fundamental ontological
+
+===== PAGE 23 =====
+Li et al. 23
+constraints persist (Huang et al., 2025; Petroni et al., 2019; West et al., 2022; Xu et al., 2025). These shortcomings require
+external validation, post-processing, and expert correction to ensure logical and semantic soundness.
+Notably, only six studies in our review involve human participants in LLM-based OE tasks, revealing a clear gap in
+current research. Human experts remain essential because LLMs often struggle to accurately interpret specialized knowl-
+edge. Expert review and iterative validation are therefore necessary throughout OE tasks to ensure the accuracy, clarity,
+and overall reliability of the outputs. The limited use of human participation can be attributed to methodological and
+resource-related constraints, such as the high cost of involving expert participation, the difﬁculty in standardizing human-
+involved interaction workﬂows and the prevailing tendency to prioritize automation. Few studies that incorporate human
+input focus on tasks that require semantic judgment or complex reasoning, areas where LLMs remain less reliable. This
+pattern indicates that future research should integrate expert participation more systematically to maintain semantic and
+logical integrity and improve the reliability and usability of LLM-generated ontology output.
+To address these limitations, a broader and more coordinated research agenda is required. Future work should empha-
+size hybrid neuro-symbolic architectures that integrate the generative capabilities of LLMs with the formal precision of
+symbolic reasoners, enabling continuous validation of logical constraints (Hitzler et al., 2022; Servantez et al., 2024; West
+et al., 2022). Given the limited use of ﬁne-tuning in current practice, an important direction is the development and adop-
+tion of parameter-efﬁcient ﬁne-tuning (PEFT) techniques (Wang et al., 2025). Such approaches support more stable and
+focused adaptation of LLMs to ontological structures while avoiding the substantial cost of full model retraining.
+In parallel, more robust prompting strategies that can adapt to evolving knowledge contexts are needed to mitigate
+hallucinations and semantic drift (Liu et al., 2025a; Zhang et al., 2024b). To improve the scalability of validation pro-
+cesses, automated veriﬁcation pipelines should combine ontology checks with streamlined expert oversight. To address
+the human involvement gap, future methodologies should establish clear and systematic frameworks for integrating human
+validation into LLM-supported workﬂows, reducing the cost of expert participation and incorporating human judgment
+into evaluation practices.
+Finally, enhancing the transparency of LLMs remains an open challenge to build trust and support the long-term main-
+tenance of the OE based on LLMs (Zhao et al., 2024). For example, enabling models to explain how each answer is
+generated and to trace the provenance of every produced result would not only increase user trust but also facilitate the
+future reuse and maintenance of outputs from OE activities.
+In general, achieving the full potential of LLMs in OE requires technical advances in both models and workﬂows, along
+with stronger human oversight, richer domain knowledge, and reliable formal veriﬁcation.
+5.3 Evaluation Gaps and Challenges for LLMs in Ontology Development Activities
+Our review shows that empirical validation has become a central practice in research on the use of large language models
+in OE. Nearly two-thirds of the surveyed task-level studies include full experimental evaluations, often built on open
+source domain ontologies in OWL or RDF that serve as expert-curated benchmarks. Most papers employ quantitative,
+qualitative or combined evaluation methods, reporting metrics such as precision, recall, F1-score, and semantic similarity,
+while complementing these with expert assessments of conceptual soundness and domain relevance. It is important to
+note that these evaluations usually assess entire pipelines rather than isolating the contribution of the LLM component.
+Since each study adopts its own baselines and datasets, direct comparisons across papers are rarely meaningful. However,
+evaluation practices consistently indicate that the use of LLMs increases automation and often improves task performance
+across several stages of the OE lifecycle.
+Across the reviewed studies, we also observe a growing use of publicly available datasets, which supports the devel-
+opment of more reproducible evaluation frameworks. Shared ontologies increasingly function as common baselines that
+later research can replicate or extend, and several studies employ gold standard datasets to ensure fairness and compa-
+rability. Early efforts toward standardized and transparent evaluation protocols have begun to emerge. Initiatives such as
+the OAEI 11 and LLMs4OL (Giglou et al., 2024) challenge explicitly deﬁne datasets, subtasks, and evaluation metrics,
+marking a move toward greater consistency and reproducibility within the ﬁeld. More recently, dedicated benchmarking
+frameworks have been proposed for CQs (Alharbi et al., 2024a) and LLM-generated ontologies (Plu et al., 2024), contribut-
+ing to the growing infrastructure for standardized evaluation. From a methodological perspective, quantitative evaluations
+provide scalable, reproducible and transparent measurements of system performance (Ioannidis & Maniadis, 2024; Liu,
+2008). Qualitative assessments by domain experts capture semantic coherence, contextual relevance, and conceptual cor-
+rectness that numerical metrics often overlook (Denzin et al., 2006; Parfenova et al., 2025; Patton, 2014). Integrating both
+forms of evaluation combines statistical rigor with semantic depth, thereby helping to ensure that the resulting ontologies
+are not only formally sound but also contextually meaningful and usable.
+
+===== PAGE 24 =====
+24 Semantic Web 17(4)
+Despite these advances and initial benchmarking efforts, several limitations remain. Existing initiatives are still frag-
+mented and often target speciﬁc OE sub-tasks. Most studies deﬁne their own tasks, datasets, metrics, and benchmarks.
+This lack of uniformity makes the results difﬁcult to compare, and even minor differences in prompt design or corpus
+selection can lead to result bias. More fundamentally, a coherent evaluation framework has yet to be established in the
+ﬁeld. In addition, many studies do not standardize task deﬁnitions or input and output formats, which further complicates
+comparisons between different works. The lack of benchmark datasets for evaluating different OE tasks and the absence
+of clear and comprehensive evaluation metrics continue to constrain the development of the LLM-based OE community.
+Another important limitation is that the performance of LLMs is often conﬂated with the behavior of the entire pipeline.
+Many studies assess only the ﬁnal output, making it difﬁcult to identify the model’s actual strengths and weaknesses.
+Although the use of both quantitative metrics and expert evaluations has improved current practice, challenges remain.
+Quantitative metrics do not capture deeper semantic or domain-speciﬁc nuances, and qualitative assessments are time-
+consuming (Queirós et al., 2017), require expertise and introduce subjectivity, which limits scalability.
+To address these limitations, future research should prioritize the development of standard evaluation protocols for
+LLM-based OE. A ﬁrst step is the creation of uniﬁed benchmarks with clearly deﬁned datasets, tasks and metrics that
+enable consistent comparisons across studies and across different OE activities. Standardizing task deﬁnitions and the
+formats of inputs and outputs would further reduce variability and support greater reproducibility. In addition, modular
+evaluation frameworks (Wu & Y u, 2024) are needed to separate the contribution of the LLM from other components
+of the pipeline. Such frameworks would help evaluate speciﬁc capabilities, identify failure cases and provide a clearer
+understanding of model behavior. Evaluation metrics should also be reﬁned to capture semantic correctness, conceptual
+validity and domain relevance, rather than relying mainly on surface level accuracy measures. More systematic error
+analysis would help to identify and address model issues.
+Finally, new evaluation strategies should be explored to improve both depth and scalability. These may include auto-
+mated semantic validation tools, structured expert review procedures, and hybrid approaches that combine statistical
+measures with targeted human validation. Together, these efforts can contribute to a more robust and reliable evaluation
+ecosystem for LLM-based OE.
+5.4 Application Domains of LLM-Based Ontology Development
+Across the reviewed studies, a clear trend emerges: while early applications were concentrated in healthcare and life sci-
+ences, the adoption of LLMs is rapidly expanding into domains such as cultural heritage, ﬁnance, emergency management,
+autonomous systems, and academic research. This highlights the inherent adaptability of models to address core ontology
+tasks from extraction and enrichment to validation and conceptual modeling in highly heterogeneous knowledge domains.
+However, a cross-domain analysis reveals that the speciﬁc role of LLMs varies signiﬁcantly from one domain to another.
+The uneven distribution of this progress provides important insight into the conditions that enable successful LLM–OE
+integration. For instance, Life sciences (Fathallah et al., 2024b) and healthcare (Y ang et al., 2023) remain methodologically
+mature, supported by a powerful combination of factors such as abundant high-quality textual corpora (e.g., scientiﬁc
+literature and clinical documentation), an urgent need for interoperability, and, critically, the availability of mature, gold-
+standard ontologies such as SNOMED CT and the GO. These well-established resources offer the structural scaffolding
+and authoritative examples needed to guide LLMs effectively, supporting tasks that include constraint validation and axiom
+generation.
+In contrast, domains such as ﬁnance, disaster response, and cultural heritage often lack mature vocabularies and
+established development workﬂows. In these settings, LLMs are used less for reﬁning existing ontologies and more for
+constructing domain knowledge from the beginning, including tasks such as knowledge extraction, conceptual model-
+ing and ontology completion. Examples range from interpreting regulatory documents for ﬁnancial ontologies (FIBO)
+to synthesizing search and rescue procedures in SAR ontology development. These studies show that LLMs can extract
+useful information from domain-speciﬁc resources and that expert validation helps improve the quality of the results. With
+access to large amounts of unstructured text, LLMs support domain experts in transforming NL descriptions into initial
+conceptual structures.
+LLMs have been consistently used as intermediaries that bridge unstructured text and formal representations, although
+their efﬁcacy remains contingent upon the clarity of target schemas. Therefore, robust domain-speciﬁc adaptation remains
+a signiﬁcant challenge (Mai et al., 2024). Models trained on general corpora often struggle with specialized terminolo-
+gies and evolving knowledge structures, leading to semantic imprecision. Furthermore, scalability issues arise because
+LLMs, being statically trained, struggle to dynamically incorporate new knowledge without retraining, which restricts their
+long-term applicability (Du et al., 2024). Consequently, ensuring formal consistency in regulated domains still requires
+substantial expert validation (Perera & Liu, 2024).
+
+===== PAGE 25 =====
+Li et al. 25
+To address these limitations, future research should focus on improving the ability of LLMs to adapt to specialized
+and evolving knowledge domains. This involves developing methods that support the creation and reﬁnement of domain-
+speciﬁc vocabularies, schema templates and conceptual patterns, particularly in areas where consolidated ontologies are
+not yet available. At the same time, more effective mechanisms for integrating iterative expert feedback are needed so that
+domain specialists can actively shape and validate emerging conceptual structures throughout the development process.
+To ensure the long-term applicability and accuracy of LLM-driven systems, techniques for dynamic knowledge updating
+and domain-aware adaptation are also essential. This includes continued advancement of continual learning strategies
+(Shi et al., 2025) and dynamic update mechanisms (Fan et al., 2024) that enable models to incorporate new terminology,
+regulatory changes and evolving domain understanding without requiring complete retraining.
+By advancing these directions, the community can better leverage the generative scalability of LLMs while ensuring
+that the resulting ontological knowledge remains precise, reliable, and sustainable across domains with different levels of
+knowledge maturity.
+6 Conclusion
+Our study employs a systematic literature review methodology to examine the technical applications and current state of
+LLMs in OE. After searching multiple academic databases for literature published from 2018 to May 2025 using keywords
+related to LLMs and OE, 36 papers covering 49 independent task-level studies were selected through a multi-stage screen-
+ing process. It should be noted that earlier Transformer-based studies not explicitly identiﬁed as language models may fall
+outside the scope of this review. Four RQs (RQs 1 to 4) were formulated around the dimensions of LLM involvement in
+ontology development, focusing on supported core activities, technical implementation methods, performance evaluation
+strategies, and application domains. Key information was systematically extracted, including research context, details of
+LLM usage (roles, model types, prompting strategies, input/output formats, and if human involved in OE tasks), evaluation
+settings, and target domains.
+Across the 49 examined task-level studies, LLMs show clear strengths in early and middle stages of ontology develop-
+ment, especially in domain conceptualization, requirements speciﬁcation, and ontology implementation. Models such as
+GPT and LLaMA, often used with zero-shot, template-based, or role-based prompts, can generate CQs, formal axioms,
+and documentation. In these settings, they effectively take on responsibilities traditionally carried out by ontology engi-
+neers or domain experts. Their use in ﬁelds such as healthcare, cultural heritage, and autonomous systems illustrates the
+broad adaptability of current LLM-based approaches.
+Although these ﬁndings highlight signiﬁcant potential, several limitations remain. The support provided by current
+LLMs throughout the ontology lifecycle is uneven, and subsequent activities, such as documentation and long-term main-
+tenance, receive comparatively little attention. Their reasoning remains shallow, often leading to hallucinated facts and
+limited transparency (Bakker et al., 2024; Manda, 2025), which requires expert correction to ensure logical and semantic
+soundness. Evaluation practices also present substantial difﬁculties. Existing studies rely on heterogeneous tasks, datasets,
+and metrics, leading to inconsistent and often incomparable results. Current evaluation measures capture only part of the
+semantic or conceptual quality of the generated content, and the lack of uniﬁed and contamination-free benchmark datasets
+restricts systematic comparison between studies (Paulheim, 2025).
+These limitations are particularly pronounced in application domains that lack mature and stable ontological resources.
+In such contexts, vocabularies and schemas are still evolving, making it difﬁcult for LLMs to interpret specialized termi-
+nology and preserve semantic consistency. Their static training further limits the timely incorporation of newly emerging
+knowledge, and in regulated or safety-critical settings, expert validation remains essential to ensure correctness.
+Given these challenges, several research directions have become urgent:
+• Lifecycle coverage expansion: Extend LLM applications to underrepresented ontology lifecycle stages, particularly
+documentation, maintenance, to ensure long-term sustainability and continuous evolution of ontology development.
+• Hybrid neuro-symbolic reasoning: Develop hybrid systems that integrate LLM-generated content with formal
+logic validation, including OWL reasoning, ontology constraint checking, and semantic consistency veriﬁcation,
+improving semantic accuracy, maintaining constraint consistency, and reducing hallucinations.
+• Enhancing LLM adaptability: Improve prompt methods and reduce the reliance on structured inputs to make LLMs
+more adaptable in OE tasks. Using PEFT can further help models adjust to ontological structures without the high
+cost of full retraining.
+• Standardized evaluation frameworks: Establish reproducible benchmarks based on expert-curated and publicly
+documented datasets, and evaluation metrics that combine quantitative measures with expert validation. Such
+expert-supported benchmarks are essential for reliably evaluating LLM-based OE systems, coping with dataset
+
+===== PAGE 26 =====
+26 Semantic Web 17(4)
+contamination and ensuring fair comparisons across different methods, ultimately contributing to a more robust and
+trustworthy evaluation ecosystem.
+• Continuous learning and dynamic adaptation: Develop domain-adaptive LLMs that can integrate evolving knowl-
+edge without requiring full retraining. This requires effective mechanisms for dynamic knowledge updates and
+domain-aware adaptation, supported by advances in continuous learning and dynamic update methods. These
+improvements help models maintain scalability and relevance in dynamic domains.
+The dispersed nature of the reviewed tasks reﬂects the early stage of LLM-based OE research. As the ﬁeld matures, we
+expect convergence toward more uniﬁed frameworks, shared resources, and standardized workﬂows.
+By addressing these challenges, LLMs may progress from task-speciﬁc assistants to reliable collaborators in OE, sup-
+porting scalable, transparent, and high-quality knowledge representation across different domains. Achieving this vision
+will require not only technical innovation but also stronger methodological foundations, richer models of human and
+model interaction, and robust community standards.
+Funding
+This work was supported by the grant “SOEL: Supporting Ontology Engineering with Large Language Models” (PID2023-152703NA-
+I00) funded by MCIN/AEI/10.13039/501100011033 and by ERDF/UE.
+Conﬂicting Interests
+The authors declared no potential conﬂicts of interest with respect to the research, authorship and/or publication of this article.
+ORCID iDs
+Jiayi Li https://orcid.org/0009-0001-9475-8159
+Daniel Garijo https://orcid.org/0000-0003-0454-7145
+María Poveda-Villalón https://orcid.org/0000-0003-3587-0367
+Notes
+1. https://github.com/oeg-upm/llm4oe-slr
+2. https://scholar.google.com
+3. https://www.webofscience.com
+4. https://www.scopus.com
+5. https://dl.acm.org
+6. https://ieeexplore.ieee.org
+7. https://openalex.org/
+8. https://protege.stanford.edu/
+9. https://mistral.ai/
+10. https://schema.org
+11. https://oaei.ontologymatching.org/
+References
+Achichi, M., Lisena, P ., Todorov, K., Troncy, R., & Delahousse, J. (2018). Doremus: A graph of linked musical works. Springer-V erlag.
+https://doi.org/10.1007/978-3-030-00668-6_1
+Alharbi, R., de Berardinis, J., Grasso, F., Payne, T., & Tamma, V . (2024a). Characteristics and desiderata for competency question
+benchmarks. In The Semantic Web-ISWC.
+Alharbi, R., Tamma, V ., Grasso, F., & Payne, T. (2024b). An experiment in retroﬁtting competency questions for existing ontologies. In
+Proceedings of the 39th ACM/SIGAPP symposium on applied computing (pp. 1650–1658). https://doi.org/10.1145/3605098.3636053
+Alharbi, R., Tamma, V ., Grasso, F., & Payne, T. R. (2024c). Investigating open source LLMs to retroﬁt competency questions in ontology
+engineering. In Proceedings of the AAAI symposium series (V ol. 4, pp. 188–198). https://doi.org/10.1609/aaaiss.v4i1.31793
+Alharbi, R., Tamma, V ., Grasso, F., & Payne, T. R. (2024d). The role of generative AI in competency question retroﬁtting. In European
+semantic web conference (pp. 3–13). Springer.
+Amaral, G., Rodrigues, O., & Simperl, E. (2022). WDV: A broad data verbalisation dataset built from wikidata. In International
+semantic web conference (pp. 556–574). Springer. https://doi.org/10.1007/978-3-031-19433-7_3
+Anisuzzaman, D., Malins, J. G., Friedman, P . A., & Attia, Z. I. (2025). Fine-tuning LLMs for specialized use cases. Mayo Clinic
+Proceedings: Digital Health, 3(1), 100184. https://doi.org/10.1016/j.mcpdig.2024.11.005
+
+===== PAGE 27 =====
+Li et al. 27
+Antia, M. J., & Keet, C. M. (2023). Automating the generation of competency questions for ontologies with AgOCQs. In Iberoamerican
+knowledge graphs and semantic web conference (pp. 213–227). Springer. https://doi.org/10.1007/978-3-031-47745-4_16
+Arefeen, M. A., Debnath, B., & Chakradhar, S. (2024). Leancontext: Cost-efﬁcient domain-speciﬁc question answering using LLMs.
+Natural Language Processing Journal, 7, 100065. https://doi.org/10.1016/j.nlp.2024.100065
+Arevalo, K. M. A., Ambre, S., & Dorsch, R. (2024). Autonto: Towards a semi-automated ontology engineering methodology. In
+International knowledge graph and semantic web conference (pp. 225–241). Springer.
+Arslan, M., Ghanem, H., Munawar, S., & Cruz, C. (2024). A survey on rag with LLMs. Procedia Computer Science, 246, 3781–3790.
+https://doi.org/10.1016/j.procs.2024.09.178
+Ashburner, M., Ball, C. A., Blake, J. A., Botstein, D., Butler, H., Cherry, J. M., Davis, A. P ., Dolinski, K., Dwight, S. S., Eppig, J. T.,
+Harris, M. A., Hill, D. P ., Issel-Tarver, L., Kasarskis, A., Lewis, S., Matese, J. C., Richardson, J. E., Ringwald, M., Rubin, G. M.,
+& Sherlock, G. (2000). Gene ontology: Tool for the uniﬁcation of biology. The gene ontology consortium. Nature Genetics, 25(1),
+25–9. https://doi.org/10.1038/75556
+Azher, I. A., Seethi, V . D. R., Akella, A. P ., & Alhoori, H. (2025). Limtopic: LLM-based topic modeling and text summarization for
+analyzing scientiﬁc articles limitations. In Proceedings of the 24th ACM/IEEE joint conference on digital libraries .N e wY o r k ,N Y ,
+USA: Association for Computing Machinery. https://doi.org/10.1145/3677389.3702605
+Baader, F., Horrocks, I., Lutz, C., & Sattler, U. (2017). An introduction to description logic . Cambridge University Press.
+https://doi.org/10.1017/9781139025355
+Babaei Giglou, H., D’Souza, J., & Auer, S. (2023). Llms4ol: Large language models for ontology learning. In International semantic
+web conference (pp. 408–427). Springer. https://doi.org/10.1007/978-3-031-47240-4_22
+Bakker, R. M., Di Scala, D. L., & de Boer, M. (2024). Ontology learning from text: An analysis on LLM performance. In Proceedings of
+the 3rd NLP4KGC international workshop on natural language processing for knowledge graph creation, colocated with semantics
+(pp. 17–19).
+Balepur, N., Gu, F., Ravichander, A., Feng, S., Boyd-Graber, J. L., & Rudinger, R. (2025). Reverse question answering: Can an LLM
+write a question so hard (or bad) that it can’t answer? In Proceedings of the 2025 conference of the nations of the Americas chapter of
+the association for computational linguistics: Human Language Technologies (V olume 2: Short Papers) (pp. 44–64). Albuquerque,
+New Mexico: Association for Computational Linguistics. https://doi.org/10.18653/v1/2025.naacl-short.5
+Barman, K. G., Wood, N., & Pawlowski, P . (2024). Beyond transparency and explainability: On the need for adequate and contextualized
+user guidelines for LLM use. Ethics and Information Technology, 26(3), 47. https://doi.org/10.1007/s10676-024-09778-2
+Bennett, M. (2013). The ﬁnancial industry business ontology: Best practice for big data. Journal of Banking Regulation, 14(3), 255–268.
+https://doi.org/10.1057/jbr.2013.13
+Besta, M., Blach, N., Kubicek, A., Gerstenberger, R., Podstawski, M., Gianinazzi, L., Gajda, J., Lehmann, T., Niewiadomski, H.,
+Nyczyk, P ., & Hoeﬂer, T. (2024). Graph of thoughts: Solving elaborate problems with large language models. In Proceedings of the
+AAAI conference on artiﬁcial intelligence (V ol. 38, pp. 17682–17690). https://doi.org/10.1609/aaai.v38i16.29720
+Bischof, S., Filtz, E., Parreira, J. X., & Steyskal, S. (2024). LLM-based guided generation of ontology term deﬁnitions. In European
+semantic web conference (pp. 133–137). Springer. https://doi.org/10.1007/978-3-031-78952-6_13
+Bittner, T., Donnelly, M., & Winter, S. (2005). Ontology and semantic interoperability. In Large-scale 3D data integration (pp.
+139–160). CRC Press. https://doi.org/10.1007/978-3-031-39650-2_17
+Blomqvist, E., Hammar, K., & Presutti, V . (2016). Engineering ontologies with patterns - The extreme design methodology. Ontology
+Engineering with Ontology Design Patterns , 25, 23–50. https://doi.org/10.3233/978-1-61499-676-7-23
+Bodenreider, O. (2004). The uniﬁed medical language system (UMLS): Integrating biomedical terminology. Nucleic Acids Research ,
+32(suppl_1), 267–270. https://doi.org/10.1093/nar/gkh061
+Brown, T. B., Mann, B., Ryder, N., Subbiah, M., Kaplan, J., Dhariwal, P ., Neelakantan, A., Shyam, P ., Sastry, G., Askell, A., Agarwal, S.,
+Herbert-V oss, A., Krueger, G., Henighan, T., Child, R., Ramesh, A., Ziegler, D. M., Wu, J., Winter, C., & Hesse, C.,... & Amodei, D.
+(2020). Language models are few-shot learners. In Proceedings of the 34th international conference on neural information processing
+systems. Red Hook, NY , USA: Curran Associates Inc. https://doi.org/10.5555/3495724.3495883
+Cauﬁeld, J. H., Hegde, H., Emonet, V ., Harris, N. L., Joachimiak, M. P ., Matentzoglu, N., Kim, H., Moxon, S., Reese, J. T., Haen-
+del, M. A., Robinson, P . N., & Mungall, C. J. (2024). Structured prompt interrogation and recursive extraction of semantics
+(SPIRES): A method for populating knowledge bases using zero-shot learning. Bioinformatics (Oxford, England) , 40(3), btae104.
+https://doi.org/10.1093/bioinformatics/btae104
+Chen, Z., Zhou, K., Zhang, B., Gong, Z., Zhao, X., & Wen, J. R. (2023). ChatCoT: Tool-augmented chain-of-thought reasoning on chat-
+based large language models. In Findings of the association for computational linguistics: EMNLP 2023 . Singapore: Association for
+Computational Linguistics. https://doi.org/10.18653/v1/2023.ﬁndings-emnlp.985
+Ciatto, G., Agiollo, A., Magnini, M., & Omicini, A. (2025). Large language models as oracles for instantiating ontologies with domain-
+speciﬁc knowledge. Knowledge-Based Systems, 310(C), 112940. https://doi.org/10.1016/j.knosys.2024.112940
+
+===== PAGE 28 =====
+28 Semantic Web 17(4)
+Cimmino, A., Oravec, V ., Serena, F., Kostelnik, P ., Poveda-Villalón, M., Tryferidis, A., García-Castro, R., V anya, S., Tzovaras, D., &
+Grimm, C. (2019). Vicinity: IoT semantic interoperability based on the web of things. In 2019 15th International conference on
+distributed computing in sensor systems (DCOSS) (pp. 241–247). IEEE. https://doi.org/10.1109/DCOSS.2019.00061
+Ciroku, F., de Berardinis, J., Kim, J., Meroño-Peñuela, A., Presutti, V ., & Simperl, E. (2024a). Revont: Reverse engineer-
+ing of competency questions from knowledge graphs via language models. Journal of Web Semantics , 82(1), 100822.
+https://doi.org/10.1016/j.websem.2024.100822
+Consortium, G. O. (2006). The gene ontology (GO) project in 2006. Nucleic Acids Research , 34(suppl_1), D322–D326.
+https://doi.org/10.1093/nar/gkj021
+Costa, S. D., Barcellos, M. P ., de Almeida Falbo, R., Conte, T., & de Oliveira, K. M. (2022). A core ontology on the human–computer
+interaction phenomenon. Data & Knowledge Engineering , 138, 101977. https://doi.org/10.1109/ESEM56168.2023.10304795
+Coutinho, M. L. (2024). Leveraging LLMs in text-based ontologydriven conceptual modeling.
+da Silva, L. M. V ., Kocher, A., Gehlhoff, F., & Fay, A. (2024). On the use of large language models to generate capability ontolo-
+gies. In 2024 IEEE 29th international conference on emerging technologies and factory automation (ETF A) (pp. 1–8). IEEE.
+https://doi.org/10.1109/ETFA61755.2024.10710775
+Davies, M. (2010). The corpus of contemporary American English as the ﬁrst reliable monitor corpus of English. Literary and Linguistic
+Computing, 25(4), 447–464. https://doi.org/10.1093/llc/fqq018
+de Berardinis, J., Carriero, V . A., Jain, N., Lazzari, N., Meroño-Peñuela, A., Poltronieri, A., & Presutti, V . (2023). The Polifonia
+Ontology Network: Building a semantic backbone for musical heritage. In International semantic web conference (pp. 302–322).
+Springer. https://doi.org/10.1007/978-3-031-47243-5_17
+Debnath, T., Siddiky, M. N. A., Rahman, M. E., Das, P ., & Guha, A. K. (2025). A comprehensive survey of prompt engineering
+techniques in large language models. TechRxiv https://doi.org/10.36227/techrxiv.174140719.96375390/v2
+Denzin, N. K., Lincoln, Y . S., & Giardina, M. D. (2006). Disciplining qualitative research. International Journal of Qualitative Studies
+in Education, 19(6), 769–782. https://doi.org/10.1080/09518390600975990
+De V ergara, J. E. L., Villagrá, V . A., & Berrocal, J. (2004). Applying the web ontology language to management information deﬁnitions.
+IEEE Communications Magazine, 42(7), 68–74. https://doi.org/10.1109/MCOM.2004.1316535
+Devlin, J., Chang, M. W., Lee, K., & Toutanova, K. (2019). Bert: Pre-training of deep bidirectional transformers for language under-
+standing. In Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics:
+human language technologies, volume 1 (long and short papers) (pp. 4171–4186). https://doi.org/10.18653/v1/N19-1423
+Diehl, A. D., Meehan, T. F., Bradford, Y . M., Brush, M. H., Dahdul, W. M., Dougall, D. S., He, Y ., Osumi-Sutherland, D., Rut-
+tenberg, A., Sarntivijai, S., V an Slyke, C. E., V asilevsky, N. A., Haendel, M. A., Blake, J. A., & Mungall, C. J. (2016). The
+cell ontology 2016: Enhanced content, modularization, and ontology interoperability. Journal of Biomedical Semantics , 7, 1–10.
+https://doi.org/10.1186/s13326-016-0088-7
+Dimitropoulos, K., & Hatzilygeroudis, I. (2024). An ontology-knowledge graph based context representation scheme for robotic prob-
+lems. In Proceedings of the 13th hellenic conference on Artiﬁcial Intelligence (pp. 1–7). https://doi.org/10.1145/3688671.3688735
+Dong, H., Chen, J., He, Y ., Gao, Y ., & Horrocks, I. (2024). A language model based framework for new concept placement in ontologies.
+Berlin, Heidelberg: Springer-V erlag. p. 79–99. https://doi.org/10.1007/978-3-031-60626-7_5
+Dong, H., Chen, J., He, Y ., & Horrocks, I. (2023). Ontology enrichment from texts: A biomedical dataset for concept discovery and
+placement. In Proceedings of the 32nd ACM international conference on information and knowledge management (pp. 5316–5320).
+Association for Computing Machinery. https://doi.org/10.1145/3583780.3615126
+Donnelly, K. (2006). Snomed-ct: The advanced terminology and coding system for eHealth. Studies in Health Technology and
+Informatics, 121, 279.
+Doumanas, D., Soularidis, A., Kotis, K., & V ouros, G. (2024). Integrating LLMs in the engineering of a SAR ontol-
+ogy. In IFIP international conference on Artiﬁcial Intelligence applications and innovations (pp. 360–374). Springer.
+https://doi.org/10.1007/978-3-031-63223-5_27
+Doumanas, D., Soularidis, A., Spiliotopoulos, D., V assilakis, C., & Kotis, K. (2025). Fine-tuning large language models for ontology
+engineering: A comparative analysis of GPT-4 and mistral. Applied Sciences, 15(4), 2146. https://doi.org/10.3390/app15042146
+Drobnjakovic, M., Kulvatunyou, B., Ameri, F., Will, C., Smith, B., & Jones, A. (2022). The industrial ontologies foundry (IOF) core
+ontology https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=935068.
+Du, M., Luu, A. T., Ji, B., & Ng, S. K. (2024). From static to dynamic: Knowledge metabolism for large language models. AAAI Press.
+https://doi.org/10.1609/aaai.v38i21.30564
+Duque-Ramos, A., Fernández-Breis, J. T., Stevens, R., & Aussenac-Gilles, N. (2011). Oquare: A square-based approach for evaluating
+the quality of ontologies. Journal of Research and Practice in Information Technology , 43(2), 159–176.
+Eells, A., Dave, B., Hitzler, P ., & Shimizu, C. (2024). Commonsense ontology micropatterns. In International conference on neural-
+symbolic learning and reasoning (pp. 51–59). Springer. https://doi.org/10.1007/978-3-031-71170-1_6
+
+===== PAGE 29 =====
+Li et al. 29
+Fan, L., Hua, W., Li, L., Ling, H., & Zhang, Y . (2024). NPHardEval: Dynamic benchmark on reasoning ability of large language models
+via complexity classes. In Proceedings of the 62nd annual meeting of the association for computational linguistics (V olume 1: Long
+Papers). Bangkok, Thailand: Association for Computational Linguistics. https://doi.org/10.18653/v1/2024.acl-long.225
+Fathallah, N., Das, A., Giorgis, S. D., Poltronieri, A., Haase, P ., & Kovriguina, L. (2024a). Neon-gpt: A large lan-
+guage model-powered pipeline for ontology learning. In European semantic web conference (pp. 36–50). Springer.
+https://doi.org/10.1007/978-3-031-78952-6_4
+Fathallah, N., Staab, S., & Algergawy, A. (2024b). LLMs4Life: Large language models for ontology learning in life
+sciences. In Proceedings of the EKA W 2024 workshops, tutorials, posters and demos , CEUR Workshop Proceedings.
+https://ceur-ws.org/ELMKE_2024_paper_3.pdf
+Fernández-Izquierdo, A., Poveda-Villalón, M., & García-Castro, R. (2019). CORAL: A corpus of ontological requirements annotated
+with lexico-syntactic patterns. In The Semantic Web: 16th international conference, ESWC 2019, Portorož, Slovenia, June 2–6, 2019,
+Proceedings 16 (pp. 443–458). Springer. https://doi.org/10.1007/978-3-030-21348-0_29
+Fernández-López, M., Gómez-Pérez, A., & Juristo, N. (1997). Methontology: From ontological art towards ontological engineering.
+Funk, M., Hosemann, S., Jung, J. C., & Lutz, C. (2023). Towards ontology construction with language models.
+In Proceedings of the workshop on ontology learning and population , CEUR Workshop Proceedings , (V ol. 3577).
+https://ceur-ws.org/V ol-3577/paper16.pdf.
+Gajulamandyam, D. K., V eerla, S., Emami, Y ., Lee, K., Li, Y ., Mamillapalli, J. S., & Shim, S. (2025). Domain speciﬁc ﬁnetuning of
+LLMs using peft techniques. In 2025 IEEE 15th annual computing and communication workshop and conference (CCWC) (pp.
+00484–00490). https://doi.org/10.1109/CCWC62904.2025.10903789
+Gangemi, A., & Presutti, V . (2009). Ontology design patterns. In Handbook on ontologies (pp. 221–243). Springer.
+https://doi.org/10.1007/978-3-540-92673-3_10
+Garijo, D., Poveda-Villalón, M., Amador-Dominguez, E., Wang, Z., García-Castro, R., & Corcho, O. (2024). Llms for ontology engi-
+neering: A landscape of tasks and benchmarking challenges. In Proceedings of the special session on harmonising generative AI
+and semantic web technologies (HGAIS 2024) co-located with the 23rd International Semantic Web Conference (ISWC 2024) .
+https://ceur-ws.org/V ol-3953/364.pdf
+Giglou, H. B., D’Souza, J., Sadruddin, S., & Auer, S. (2024). Llms4ol 2024 datasets: Toward ontology learning with large language
+models. In Open conference proceedings (V ol. 4, pp. 17–30). https://doi.org/10.52825/ocp.v4i.2480
+Giri, S. J., Ibtehaz, N., & Kihara, D. (2024). Go2sum: Generating human-readable functional summary of proteins from GO terms. NPJ
+Systems Biology and Applications , 10(1), 29. https://doi.org/10.1038/s41540-024-00358-0
+Glauer, M., Memariani, A., Neuhaus, F., Mossakowski, T., & Hastings, J. (2024). Interpretable ontology extension in chemistry.
+Semantic Web, 15(4), 937–958. https://doi.org/10.3233/SW-233183
+Gómez-Pérez, A. (1999). Ontological engineering: A state of the art. Expert Update: Knowledge Based Systems and Applied Artiﬁcial
+Intelligence, 2(3), 33–43. https://doi.org/10.1007/978-3-031-07969-6_5
+Goyal, P . K., Singh, S., & Tiwary, U. S. (2024). silp_nlp at llms4ol 2024 tasks a, b, and c: Ontology learning through prompts with
+LLMs. In Open conference proceedings (V ol. 4, pp. 31–38). https://doi.org/10.52825/ocp.v4i.2485
+Grattaﬁori, A., Dubey, A., Jauhri, A., Pandey, A., Kadian, A., Al-Dahle, A., Letman, A., Mathur, A., Schelten, A., V aughan, A., Y ang,
+A., Fan, A., Goyal, A., Hartshorn, A., Y ang, A., Mitra, A., Sravankumar, A., Korenev, A., Hinsvark, A., & Rao, A. (2024). The llama
+3 herd of models. arXiv preprint arXiv:2407.21783.
+Gruninger, M. (1995). Methodology for the design and evaluation of ontologies. In Proceeding of the IJCAI’95, workshop on basic
+ontological issues in knowledge sharing .
+Guha, R. V ., Brickley, D., & Macbeth, S. (2016). Schema.org: Evolution of structured data on the web. Communications of the ACM ,
+59(2), 44–51. https://doi.org/10.1145/2844544
+Guizzardi, G., Wagner, G., Almeida, J. P . A., & Guizzardi, R. S. (2015). Towards ontological foundations for conceptual modeling: The
+uniﬁed foundational ontology (UFO) story. Applied Ontology, 10(3-4), 259–271. https://doi.org/10.3233/AO-150157
+He, Y ., Chen, J., Dong, H., & Horrocks, I. (2023). Exploring large language models for ontology alignment. In Proceedings of the ISWC
+2023 posters, demos and industry tracks: From novel ideas to industrial practice co-located with 22nd International Semantic Web
+Conference (ISWC 2023). CEUR Workshop Proceedings.
+Heindorf, S., Blübaum, L., Düsterhus, N., Werner, T., Golani, V . N., Demir, C., & Ngonga Ngomo, A. C. (2022). Evolearner:
+Learning description logics with evolutionary algorithms. In Proceedings of the ACM web conference 2022 (pp. 818–828).
+https://doi.org/10.1145/3485447.3511925
+Hertling, S., & Paulheim, H. (2023). Olala: Ontology matching with large language models. In Proceedings of the 12th knowledge
+capture conference 2023. (pp. 131–139). https://doi.org/10.1145/3587259.3627571
+Hitzler, P ., Eberhart, A., Ebrahimi, M., Sarker, M. K., & Zhou, L. (2022). Neuro-symbolic approaches in artiﬁcial intelligence. National
+Science Review, 9(6), nwac035. https://doi.org/10.1093/nsr/nwac035
+
+===== PAGE 30 =====
+30 Semantic Web 17(4)
+Hochreiter, S., & Schmidhuber, J. (1997). Long short-term memory. Neural Computation , 9(8), 1735–1780. https://doi.org/10.
+1162/neco.1997.9.8.1735
+Hoffmann, J., Borgeaud, S., Mensch, A., Buchatskaya, E., Cai, T., Rutherford, E., de Las Casas, D., Hendricks, L. A., Welbl, J., Clark,
+A., Hennigan, T., Noland, E., Millican, K., den Driessche, G., Damoc, B., Guy, A., Osindero, S., Simonyan, K., Elsen, E., & Vinyals,
+O.,... & Sifre, L. (2022). Training compute-optimal large language models. In Advances in neural information processing systems .
+https://doi.org/10.5555/3600270.3602446
+Hu, E. J., Shen, Y ., Wallis, P ., Allen-Zhu, Z., Li, Y ., Wang, S., Wang, L., & Chen, W. (2022). Lora: Low-rank adaptation of large
+language models. ICLR. https://openreview.net/forum?id=nZeVKeeFYf9
+Huang, L., Y u, W., Ma, W., Zhong, W., Feng, Z., Wang, H., Chen, Q., Peng, W., Feng, X., Qin, B., & Liu, T. (2025). A survey on
+hallucination in large language models: Principles, taxonomy, challenges, and open questions. ACM Transactions on Information
+Systems, 43(2), 1–55. https://doi.org/10.1145/3703155
+Hull, D., Pettifer, S. R., & Kell, D. B. (2008). Defrosting the digital library: Bibliographic tools for the next generation web. PLoS
+Computational Biology, 4(10), e1000204. https://doi.org/10.1371/journal.pcbi.1000204
+Ioannidis, J. P ., & Maniadis, Z. (2024). Quantitative research assessment: Using metrics against gamed metrics.Internal and Emergency
+Medicine, 19(1), 39–47. https://doi.org/10.1007/s11739-023-03447-w
+Janowicz, K., Haller, A., Cox, S. J., Le Phuoc, D., & Lefrançois, M. (2019). Sosa: A lightweight ontology for sensors, observations,
+samples, and actuators. Journal of Web Semantics, 56, 1–10. https://doi.org/10.1016/j.websem.2018.06.003
+Jiang, A. Q., Sablayrolles, A., Mensch, A., Bamford, C., Chaplot, D. S., de las Casas, D., Bressand, F., Lengyel, G., Lample, G.,
+Saulnier, L., Renard Lavaud, L., Lachaux, M. A., Stock, P ., Le Scao, T., Lavril, T., Wang, T., Lacroix, T., & El Sayed, W. (2023).
+Mistral 7b. arXiv preprint arXiv:2310.06825.
+Jiang, X., Dong, Y ., Wang, L., Fang, Z., Shang, Q., Li, G., Jin, Z., & Jiao, W. (2024). Self-planning code generation with large language
+models. ACM Transactions on Software Engineering and Methodology , 33(7), 182. https://doi.org/10.1145/3672456
+Joachimiak, M. P ., Miller, M. A., Cauﬁeld, J. H., Ly, R., Harris, N. L., Tritt, A., Mungall, C. J., & Bouchard, K. E. (2024).
+The artiﬁcial intelligence ontology: LLM-assisted construction of AI concept hierarchies. Applied Ontology 15705838241304103.
+https://doi.org/10.1177/15705838241304103
+Johnsen, M. (2025). Developing AI applications with large language models . Maria Johnsen.
+Kadam, S., & V aidya, V . (2018). Review and analysis of zero, one and few shot learning approaches. In International conference on
+intelligent systems design and applications (pp. 100–112). Springer. https://doi.org/10.1007/978-3-030-16657-1_10
+Karakostas, A., Briassouli, A., Avgerinakis, K., Kompatsiaris, I., & Tsolaki, M. (2016). The dem@ care experiments and datasets: A
+technical report. arXiv preprint arXiv:1701.01142.
+Karras, O. (2024). KG-empire: A community-maintainable knowledge graph for a sustainable literature review on the state and evolution
+of empirical research in requirements engineering. In 2024 IEEE 32nd International requirements engineering conference (RE)
+(pp. 500–501). IEEE. https://doi.org/10.1109/ESEM56168.2023.10304795
+Keet, C. M. (2019). The african wildlife ontology tutorial ontologies. Journal of Biomedical Semantics , 11 https://doi.org/10.1186/
+s13326-020-00224-y
+Kelly, J., Sadeghieh, T., & Adeli, K. (2014). Peer review in scientiﬁc publications: Beneﬁts, critiques, & a survival guide. European
+Journal of the International Federation of Clinical Chemistry , 25(3), 227–243.
+Kheiri, K., & Karimi, H. (2024). Sentimentgpt: Exploiting GPT for advanced sentiment analysis and its depar-
+ture from current machine learning. In 2024 IEEE international conference on big data (bigdata) (pp. 7051–7060).
+https://doi.org/10.1109/BigData62323.2024.10825350
+Kholmska, G., Kenda, K., & Rozanec, J. (2024). Enhancing ontology engineering with LLMs: From search to active learning extensions.
+Proceedings of Data Mining and Data Warehauses – Sikdd 2024 . https://doi.org/10.70314/is.2024.sikdd.28
+Kitchenham, B., Brereton, O. P ., Budgen, D., Turner, M., Bailey, J., & Linkman, S. (2009). Systematic literature
+reviews in software engineering – A systematic literature review. Information and Software Technology , 51(1), 7–15.
+https://doi.org/10.1016/j.infsof.2008.09.009
+Kojima, T., Gu, S. S., Reid, M., Matsuo, Y ., & Iwasawa, Y . (2022). Large language models are zero-shot reasoners. Advances in Neural
+Information Processing Systems, 35, 22199–22213.
+Kotis, K. I., V ouros, G. A., & Spiliotopoulos, D. (2020). Ontology engineering methodologies for the evolution of liv-
+ing and reused ontologies: Status, trends, ﬁndings and recommendations. The Knowledge Engineering Review , 35,e 4 .
+https://doi.org/10.1017/S0269888920000065
+Krötzsch, M., & Thost, V . (2016). Ontologies for knowledge graphs: Breaking the rules. In The Semantic Web–ISWC 2016: 15th
+international semantic web conference, Kobe, Japan, October 17–21, 2016, Proceedings, Part I 15 (pp. 376–392). Springer.
+https://doi.org/10.1007/978-3-319-46523-4_23
+Le, H., Pino, J., Wang, C., Gu, J., Schwab, D., & Besacier, L. (2021). Lightweight adapter tuning for multilingual speech transla-
+tion. In Proceedings of the 59th annual meeting of the association for computational linguistics and the 11th international joint
+
+===== PAGE 31 =====
+Li et al. 31
+conference on natural language processing (V olume 2: Short Papers) (pp. 817–824). Association for Computational Linguistics.
+https://doi.org/10.18653/v1/2021.acl-short.103
+Li, J., Garijo, D., & Poveda Villalón, M. (2025). oeg-upm/llm4oe-slr: Release v1.0.0—Initial release of llm4oe-slr dataset and materials.
+https://doi.org/10.5281/zenodo.15313672
+Lippolis, A. S., Ceriani, M., Zuppiroli, S., & Nuzzolese, A. G. (2024). Ontogenia: Ontology generation with
+metacognitive prompting in large language models. In European semantic web conference (pp. 259–265). Springer.
+https://doi.org/10.1007/978-3-031-78952-6_38
+Lippolis, A. S., Saeedizade, M. J., Keskisärkkä, R., Zuppiroli, S., Ceriani, M., Gangemi, A., Blomqvist, E., & Nuzzolese, A. G. (2025).
+Ontology generation using large language models. Springer-V erlag. https://doi.org/10.1007/978-3-031-94575-5_18
+Lisena, P ., Schwabe, D., van Erp, M., Troncy, R., Tullett, W., Leemans, I., Marx, L., & Ehrich, S. C. (2022). Capturing the
+semantics of smell: The odeuropa data model for olfactory heritage information. In The Semantic Web: 19th international
+conference, ESWC 2022, Hersonissos, Crete, Greece, May 29–June 2, 2022, Proceedings . Berlin, Heidelberg: Springer-V erlag.
+https://doi.org/10.1007/978-3-031-06981-9_23
+Liu, H., Tam, D., Muqeeth, M., Mohta, J., Huang, T., Bansal, M., & Raffel, C. A. (2022). Few-shot parameter-efﬁcient ﬁne-
+tuning is better and cheaper than in-context learning. Advances in Neural Information Processing Systems , 35, 1950–1965.
+https://doi.org/10.5555/3600270.3600412
+Liu, H. H. (2008). Software performance and scalability: A quantitative approach . John Wiley & Sons.
+https://doi.org/10.1002/9780470465394
+Liu, Y ., Y ang, Q., Tang, J., Guo, T., Wang, C., Li, P ., Xu, S., Gao, X., Li, Z., Liu, J. et al (2025a). Reducing
+hallucinations of large language models via hierarchical semantic piece. Complex & Intelligent Systems , 11(5), 1–19.
+https://doi.org/10.1007/s40747-025-01833-9
+Liu, Z., Gan, C., Wang, J., Zhang, Y ., Bo, Z., Sun, M., Chen, H., & Zhang, W. (2025b). Ontotune: Ontology-driven self-training
+for aligning large language models. In Proceedings of the ACM on web conference 2025 . Association for Computing Machinery.
+https://doi.org/10.1145/3696410.3714816
+Lo, A., Jiang, A. Q., Li, W., & Jamnik, M. (2024). End-to-end ontology learning with large language models. In Proceedings
+of the 38th international conference on neural information processing systems . Red Hook, NY , USA: Curran Associates Inc.
+https://doi.org/10.5555/3737916.3740683
+Mai, H. T., Chu, C. X., & Paulheim, H. (2024). Do LLMs really adapt to domains? An ontology learning perspective. In International
+semantic web conference (pp. 126–143). Springer. https://doi.org/10.1007/978-3-031-77844-5_7
+Manda, P . (2025). Large language models in bio-ontology research: A review. Bioengineering, 12(11), 1260.
+https://doi.org/10.3390/bioengineering12111260
+Marvin, G., Hellen, N., Jjingo, D., & Nakatumba-Nabende, J. (2023). Prompt engineering in large language models. In International
+conference on data intelligence and cognitive informatics (pp. 387–402). Springer. https://doi.org/10.1007/978-981-99-7962-2_30
+Masa, P ., Meditskos, G., Kintzios, S., Vrochidis, S., & Kompatsiaris, I. (2022). Ontology-based modelling and reasoning for forest ﬁre
+emergencies in resilient societies. In Proceedings of the 12th hellenic conference on Artiﬁcial Intelligence (pp. 1–9).
+Mateiu, P ., & Groza, A. (2023). Ontology engineering with large language models. In 2023 25th international
+symposium on symbolic and numeric algorithms for scientiﬁc computing (SYNASC) (pp. 226–229). IEEE.
+https://doi.org/10.1109/SYNASC61333.2023.00038
+Mienye, I. D., Swart, T. G., & Obaido, G. (2024). Recurrent neural networks: A comprehensive review of architectures, variants, and
+applications. Information, 15(9), 517. https://doi.org/10.3390/info15090517
+Miller, G. A. (1995). Wordnet: A lexical database for English. Communications of the ACM , 38(11), 39–41.
+https://doi.org/10.1145/219717.219748
+Mishra, A., Shukla, S., Torres, J., Gwizdka, J., & Roychowdhury, S. (2025). Thought2Text: Text generation from EEG signal using large
+language models (LLMs). In Findings of the association for computational linguistics: NAACL 2025 . Albuquerque, New Mexico:
+Association for Computational Linguistics. https://doi.org/10.18653/v1/2025.ﬁndings-naacl.207
+Mukanova, A., Milosz, M., Dauletkaliyeva, A., Nazyrova, A., Y elibayeva, G., Kuzin, D., & Kussepova, L. (2024). LLM-powered natural
+language text processing for ontology enrichment. Applied Sciences, 14(13), 5860. https://doi.org/10.3390/app14135860
+Mundlamuri, R., Gunnam, G. R., Mysari, N. K., & Pujuri, J. (2025). The evolution of AI: From classical machine learning to modern
+large language models. IEEE access, 13, 178302. https://doi.org/10.1109/ACCESS.2025.3621344
+Norouzi, S. S., Mahdavinejad, M. S., & Hitzler, P . (2023). Conversational ontology alignment with chatgpt. In Proceedings
+of the 18th international workshop on ontology matching co-located with the 22nd International Semantic Web Conference
+(ISWC 2023), Athens, Greece, November 7, 2023 , CEUR Workshop Proceedings , (V ol. 3591, pp. 61–66). CEUR-WS.org.
+https://ceur-ws.org/V ol-3591/om2023_STpaper1.pdf
+Noy, N. F., & McGuinness, D. L. (2001). Ontology development 101: A guide to creating your ﬁrst ontology. Knowledge Systems
+Laboratory, 32.
+
+===== PAGE 32 =====
+32 Semantic Web 17(4)
+Olea, C., Tucker, H., Phelan, J., Pattison, C., Zhang, S., Lieb, M., Schmidt, D., & White, J. (2024). Evaluating persona prompting for
+question answering tasks. In Proceedings of the 10th international conference on artiﬁcial intelligence and soft computing, Sydney,
+Australia. https://doi.org/10.5121/csit.2024.141106
+Open, A. I., Achiam, J., Adler, S., Agarwal, S., Ahmad, L., Akkaya, I., Aleman, F. L., Almeida, D., Altenschmidt, J., Altman, S.,
+Anadkat, S., Avila, R., Babuschkin, I., Balaji, S., Balcom, V ., Baltescu, P ., Bao, H., Bavarian, M., Belgum, J., & Bello, I.,..., & Zoph,
+B. (2024). Gpt-4 technical report. https://arxiv.org/abs/2303.08774
+Pan, X., de Boer, V ., Ossenbruggen, J. V ., & Huang, Z. (2024). A rag approach for generating competency questions in ontology
+engineering. In Research conference on metadata and semantics research (pp. 70–81). Springer.
+Panov, P ., Džeroski, S., & Soldatova, L. (2008). Ontodm: An ontology of data mining. In 2008 IEEE international conference on data
+mining workshops (pp. 752–760). IEEE. https://doi.org/10.1109/ICDMW.2008.62
+Parfenova, A., Marfurt, A., Pfeffer, J., & Denzler, A. (2025). Text annotation via inductive coding: Comparing human experts to
+LLMs in qualitative data analysis. In Findings of the association for computational linguistics: NAACL 2025 (pp. 6456–6469).
+https://doi.org/10.18653/v1/2025.ﬁndings-naacl.361
+Parkkila, J., Radulovic, F., Garijo, D., Poveda-Villalón, M., Ikonen, J., Porras, J., & Gómez-Pérez, A. (2017). An ontology for videogame
+interoperability. Multimedia Tools and Applications, 76(4), 4981–5000. https://doi.org/10.1007/s11042-016-3552-6
+Patel, A., & Debnath, N. C. (2024). A comprehensive overview of ontology: Fundamental and research directions. Current Materials
+Science: F ormerly: Recent Patents on Materials Science, 17(1), 2–20. https://doi.org/10.2174/2666145415666220914114301
+Patton, M. Q. (2014). Qualitative research & evaluation methods: Integrating theory and practice . Sage publications.
+Paulheim, H. (2025). Towards evaluating knowledge graph construction and ontology learning with llms without test data leakage. In
+3rd workshop on knowledge base construction from pre-trained language models (KBC-LM) .
+Pawlik, M., & Augsten, N. (2016). Tree edit distance: Robust and memory-efﬁcient. Information Systems , 56, 157–173.
+https://doi.org/10.1016/j.is.2015.08.004
+Perera, O., & Liu, J. (2024). Exploring large language models for ontology learning. Issues in Information Systems , 25, 299–310.
+https://doi.org/10.48009/4_iis_2024_124
+Petroni, F., Rocktäschel, T., Riedel, S., Lewis, P ., Bakhtin, A., Wu, Y ., & Miller, A. (2019). Language models as knowledge bases?
+In Proceedings of the 2019 conference on empirical methods in natural language processing and the 9th International Joint
+Conference on Natural Language Processing (EMNLP-IJCNLP) . Hong Kong, China: Association for Computational Linguistics.
+https://doi.org/10.18653/v1/D19-1250
+Pinto, H. S., Staab, S., & Tempich, C. (2004). Diligent: Towards a ﬁne-grained methodology for distributed, loosely-controlled and
+evolving engineering of ontologies. (pp. 393–397).
+Pisu, A., Pompianu, L., Salatino, A., Osborne, F., Riboni, D., Motta, E., & Recupero, D. R. (2024). Leveraging language models
+for generating ontologies of research topics. Text2KG 2024: International workshop on knowledge graph generation from text
+https://ceur-ws.org/V ol-3747/text2kg%5fpaper6.pdf
+Plu, J., Escobar, O. M., Trouillez, E., Gapin, A., & Troncy, R. (2024). A comprehensive benchmark for evaluating LLM-generated
+ontologies. In Proceedings of the ISWC 2024 Special Session on Harmonising Generative AI and Semantic Web Technologies (HGAIS
+2024). CEUR Workshop Proceedings. https://ceur-ws.org/V ol-3953/362.pdf
+Poveda-Villalón, M., Fernández-Izquierdo, A., Fernández-López, M., & García-Castro, R. (2022). LOT: An indus-
+trial oriented ontology engineering framework. Engineering Applications of Artiﬁcial Intelligence , 111, 104755.
+https://doi.org/10.1016/j.engappai.2022.104755
+Poveda-Villalón, M., Gómez-Pérez, A., & Suárez-Figueroa, M. C. (2014). Oops! (ontology pitfall scanner!): An on-line tool for ontology
+evaluation. International Journal on Semantic Web and Information Systems, 10(2), 7–34. https://doi.org/10.4018/ijswis.2014040102
+Queirós, A., Faria, D., & Almeida, F. (2017). Strengths and limitations of qualitative and quantitative research methods. European
+Journal of Education Studies . https://doi.org/10.5281/zenodo.887089
+Radford, A., & Narasimhan, K. (2018). Improving language understanding by generative pre-training.
+Radford, A., Wu, J., Child, R., Luan, D., Amodei, D., & Sutskever, I. (2019). Language models are unsupervised multitask learners.
+https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
+Raiaan, M. A. K., Mukta, M. S. H., Fatema, K., Fahad, N. M., Sakib, S., Mim, M. M. J., Ahmad, J., Ali, M. E., & Azam, S.
+(2024). A review on large language models: Architectures, applications, taxonomies, open issues and challenges. IEEE access ,
+12, 26839–26874. https://doi.org/10.1109/ACCESS.2024.3365742
+Rebboud, Y ., Lisena, P ., Tailhardat, L., & Troncy, R. (2024a). Benchmarking LLM-based ontology conceptualization: A proposal. In
+ISWC 2024, 23rd International semantic web conference .
+Rebboud, Y ., Tailhardat, L., Lisena, P ., & Troncy, R. (2024b). Can LLMs generate competency questions? In ESWC 2024, Extended
+semantic web conference. https://doi.org/10.1145/3549737.3549765
+Rodríguez-Doncel, V ., Myles, S., Iannella, R., & Steidl, M. (2018). ODRL vocabulary & expression 2.2. W3C recommendation, W3C.
+https://www.w3.org/TR/2018/REC-odrl-vocab-20180215/.
+
+===== PAGE 33 =====
+Li et al. 33
+Rumelhart, D. E., Hinton, G. E., & Williams, R. J. (1986). Learning representations by back-propagating errors. Nature, 323(6088),
+533–536. https://doi.org/10.1038/323533a0
+Saeedizade, M. J., & Blomqvist, E. (2024). Navigating ontology development with large language models. In European semantic web
+conference (pp. 143–161). Springer. https://doi.org/10.1007/978-3-031-60626-7_8
+Sahbi, A., Alec, C., & Beust, P . (2024). Automatic ontology population from textual advertisements: LLM vs. semantic approach.
+Procedia Computer Science, 246, 3083–3092. https://doi.org/10.1016/j.procs.2024.09.364
+Salamon, J. S., & Barcellos, M. P . (2022). Towards a framework for continuous ontology engineering. In ONTOBRAS (pp. 158–165).
+https://doi.org/10.1145/3422392.3422469
+Servantez, S., Barrow, J., Hammond, K., & Jain, R. (2024). Chain of logic: Rule-based reasoning with large language models. In
+Findings of the association for computational linguistics: ACL 2024. Bangkok, Thailand: Association for Computational Linguistics.
+https://doi.org/10.18653/v1/2024.ﬁndings-acl.159
+Shi, H., Xu, Z., Wang, H., Qin, W., Wang, W., Wang, Y ., Wang, Z., Ebrahimi, S., & Wang, H. (2025). Continual learning of large
+language models: A comprehensive survey. ACM Computing Surveys, 58(5), 1–42. https://doi.org/10.1145/3735633
+Shin, T., Razeghi, Y ., Logan, I. V . R. L., Wallace, E., & Singh, S. (2020). AutoPrompt: Eliciting Knowledge from Language Models
+with Automatically Generated Prompts. In Proceedings of the 2020 conference on empirical methods in natural language processing
+(EMNLP). Online: Association for Computational Linguistics. https://doi.org/10.18653/v1/2020.emnlp-main.346
+Staab, S., Studer, R., Schnurr, H. P ., & Sure, Y . (2001). Knowledge processes and ontologies. IEEE Intelligent Systems , 16(1), 26–34.
+https://doi.org/10.1109/5254.912382
+Straková, J., Fucíková, E., Hajic, J., & Uresová, Z. (2023). Extending an event-type ontology: Adding verbs and classes using ﬁne-tuned
+LLMs suggestions. In Proceedings of the 17th linguistic annotation workshop (LA W-XVII) (pp. 85–95).
+Studer, R., Benjamins, V . R., & Fensel, D. (1998). Knowledge engineering: Principles and methods. Data & Knowledge Engineering ,
+25(1-2), 161–197. https://doi.org/10.1016/S0169-023X(97)00056-6
+Suárez-Figueroa, M. C., & Gómez-Pérez, A. (2008). Towards a glossary of activities in the ontology engineering ﬁeld. In Proceedings
+of the sixth international conference on language resources and evaluation (LREC’08) . Marrakech, Morocco: European Language
+Resources Association (ELRA). http://www.lrec-conf.org/proceedings/lrec2008/
+Suárez-Figueroa, M. C., Gómez-Pérez, A., & Fernández-López, M. (2012). The neon methodology for ontology engineering. In
+Ontology engineering in a networked world (pp. 9–34). https://doi.org/10.1007/978-3-642-24794-1_2
+Suárez-Figueroa, M. C., Gómez-Pérez, A., & Villazón-Terrazas, B. (2009). How to write and use the ontology requirements
+speciﬁcation document. In On the move to meaningful internet systems: OTM 2009: Confederated international conferences,
+CoopIS, DOA, IS, and ODBASE 2009, Vilamoura, Portugal, November 1–6, 2009, Proceedings, Part II (pp. 966–982). Springer.
+https://doi.org/10.1007/978-3-642-05151-7_16
+Tailhardat, L., Chabot, Y ., & Troncy, R. (2024). Noria-o: An ontology for anomaly detection and incident management in ICT systems.
+In European semantic web conference (pp. 21–39). Springer. https://doi.org/10.1007/978-3-031-60635-9_2
+Tan, H., Kebede, R., Moscati, A., & Johansson, P . (2024). Semantic interoperability using ontologies and standards for building product
+properties. In 12th Linked data in architecture and construction workshop, Bochum, Germany, June 13–14, 2024(pp. 23–35). CEUR-
+WS.
+Tang, Y ., Da Costa, A. A. B., Zhang, X., Patrick, I., Khastgir, S., & Jennings, P . (2023). Domain knowledge distillation from large
+language model: An empirical study in the autonomous driving domain. In 2023 IEEE 26th international conference on intelligent
+transportation systems (ITSC) (pp. 3893–3900). IEEE. https://doi.org/10.1109/ITSC57777.2023.10422308
+Team, G., Anil, R., Borgeaud, S., Wu, Y ., Alayrac, J., Y u, J., Soricut, R., Schalkwyk, J., Dai, A., Hauth, A., Millican, K., Silver, D.,
+Johnson, M., Antonoglou, I., Schrittwieser, J., Glaese, A., Chen, J., Pitler, E., Lillicrap, T., & Lazaridou, A. (2024). Gemini: A family
+of highly capable multimodal models, 2024. arXiv preprint arXiv:2312.11805.
+Tian, M., Giunchiglia, F., Song, R., Chen, X., & Xu, H. (2023). Enhancing ontology translation through cross-lingual agree-
+ment. In ICASSP 2023 – 2023 IEEE international conference on acoustics, speech and signal processing (ICASSP) (pp. 1–5).
+https://doi.org/10.1109/ICASSP49357.2023.10094574
+Toro, S., Anagnostopoulos, A. V ., Bello, S. M., Blumberg, K., Cameron, R., Carmody, L., Diehl, A. D., Dooley, D. M., Duncan, W. D.,
+Fey, P ., Gaudet, P ., Harris, N. L., Joachimiak, M. P ., Kiani, L., Lubiana, T., Munoz-Torres, M. C., O’Neil, S., Osumi-Sutherland,
+D., Puig-Barbe, A., Reese, J. T., & Mungall, C. J. (2024). Dynamic retrieval augmented generation of ontologies using artiﬁcial
+intelligence (DRAGON-AI). Journal of Biomedical Semantics , 15(1), 19. https://doi.org/10.1186/s13326-024-00320-3
+Touvron, H., Lavril, T., Izacard, G., Martinet, X., Lachaux, M. A., Lacroix, T., Rozière, B., Goyal, N., Hambro, E., & Azhar, F. (2023a).
+Llama: Open and efﬁcient foundation language models. arXiv preprint arXiv:2302.13971.
+Touvron, H., Martin, L., Stone, K., Albert, P ., Almahairi, A., Babaei, Y ., Bashlykov, N., Batra, S., Bhargava, P ., Bhosale, S., & Bikel,
+D. (2023b). Llama 2: Open foundation and ﬁne-tuned chat models. arXiv:2307.09288.
+Treviso, M., Lee, J., Ji, T., van Aken, B., Cao, Q., Ciosici, M., Hassid, M., Heaﬁeld, K., Hooker, S., Raffel, C., Martins, P ., Martins,
+A., Forde, J., Milder, P ., Simpson, E., Slonim, N., Dodge, J., Strubell, E., Balasubramanian, N., & Derczynski, L.,... & Schwartz, R.
+
+===== PAGE 34 =====
+34 Semantic Web 17(4)
+(2023). Efﬁcient methods for natural language processing: A survey. Transactions of the Association for Computational Linguistics ,
+11, 826–860. https://doi.org/10.1162/tacl_a_00577
+Tsaneva, S., V asic, S., & Sabou, M. (2024). LLM-driven ontology evaluation: V erifying ontology restrictions with chatgpt.The Semantic
+Web: ESWC Satellite Events, 2024. https://ceur-ws.org/V ol-3747/dqmlkg_paper3.pdf
+Tufek, N., Saissre, A., & Hanbury, A. (2024). V alidating semantic artifacts with large language models. In Proceedings of the 21th
+European semantic web conference (ESWC), Krete, Greece (pp. 24–30). https://doi.org/10.1007/978-3-031-78952-6_9
+Usmanova, A., & Usbeck, R. (2024). Structuring sustainability reports for environmental standards with LLMs guided by ontology.
+In Proceedings of the 1st workshop on natural language processing meets climate change (ClimateNLP 2024) (pp. 168–177).
+https://doi.org/10.18653/v1/2024.climatenlp-1.13
+V aithilingam, P ., Zhang, T., & Glassman, E. L. (2022). Expectation vs. experience: Evaluating the usability of code generation
+tools powered by large language models. New Y ork, NY , USA: Association for Computing Machinery. ISBN 9781450391566.
+https://doi.org/10.1145/3491101.3519665
+V al-Calvo, M., Aranguren, M. E., Mulero-Hernández, J., Almagro-Hernández, G., Deshmukh, P ., Bernabé-Díaz, J. A., Espinoza-
+Arias, P ., Sánchez-Fernández, J. L., Mueller, J., & Fernández-Breis, J. T. (2025). Ontogenix: Leveraging large lan-
+guage models for enhanced ontology engineering from datasets. Information Processing & Management , 62(3), 104042.
+https://doi.org/10.1016/j.ipm.2024.104042
+V aswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., & Polosukhin, I. (2017). Attention is all you
+need. (pp. 6000–6010). https://doi.org/10.5555/3295222.3295349
+Vieira, E. S., & Gomes, J. A. (2009). A comparison of scopus and web of science for a typical university. Scientometrics, 81, 587–600.
+https://doi.org/10.1007/s11192-009-2178-0
+V olz, R., Kleb, J., & Mueller, W. (2007). Towards ontology-based disambiguation of geographical identiﬁers. In Proceed-
+ings of the WWW2007 Workshop I 3: Identity, identiﬁers, identiﬁcation, entity-centric approaches to information and knowl-
+edge management on the Web, Banff, Canada, May 8, 2007 , CEUR Workshop Proceedings , (V ol. 249). CEUR-WS.org.
+https://ceur-ws.org/V ol-249/submission_132.pdf
+Vrandeˇci´c, D., & Krötzsch, M. (2014). Wikidata: A free collaborative knowledgebase. Communications of the ACM , 57(10), 78–85.
+https://doi.org/10.1145/2629489
+Wang, L., Chen, S., Jiang, L., Pan, S., Cai, R., Y ang, S., & Y ang, F. (2025). Parameter-efﬁcient ﬁne-tuning in large language models: A
+survey of methodologies. Artiﬁcial Intelligence Review, 58(8), 227. https://doi.org/10.1007/s10462-025-11236-4
+Wei, J., Wang, X., Schuurmans, D., Bosma, M., Ichter, B., Xia, F., Chi, E. H., Le, Q. V ., & Zhou, D. (2022). Chain-of-thought prompting
+elicits reasoning in large language models. In Proceedings of the 36th international conference on neural information processing
+systems. Red Hook, NY , USA: Curran Associates Inc. ISBN 9781713871088. https://doi.org/10.5555/3600270.3602070
+West, P ., Bhagavatula, C., Hessel, J., Hwang, J., Jiang, L., Le Bras, R., Lu, X., Welleck, S., & Choi, Y . (2022). Symbolic knowledge
+distillation: From general language models to commonsense models. In Proceedings of the 2022 conference of the north ameri-
+can chapter of the association for computational linguistics: Human language technologies . Seattle, United States: Association for
+Computational Linguistics. https://doi.org/10.18653/v1/2022.naacl-main.341
+Wu, H., & Y u, X. (2024). The importance of modular structure in artiﬁcial intelligence algorithm evaluation. In 2024 International con-
+ference on intelligent education and intelligent research (IEIR) (pp. 1–6). IEEE. https://doi.org/10.1109/IEIR62538.2024.10959909
+Wu, J., Gan, W., Chen, Z., Wan, S., & Y u, P . S. (2023). Multimodal large language models: A survey. In 2023 IEEE international
+conference on big data (bigdata) (pp. 2247–2256). IEEE. https://doi.org/10.1109/BigData59044.2023.10386743
+Wu, Y . (2024).Large Language Model and Text Generation. (pp. 265–297). https://doi.org/10.1007/978-3-031-55865-8_10
+Xu, F., Lin, Q., Han, J., Zhao, T., Liu, J., & Cambria, E. (2025). Are large language models really good logical reason-
+ers? A comprehensive evaluation and beyond. IEEE Transactions on Knowledge and Data Engineering , 37(4), 1620–1634.
+https://doi.org/10.1109/TKDE.2025.3536008
+Y ang, R., Tan, T. F., Lu, W., Thirunavukarasu, A. J., Ting, D. S. W., & Liu, N. (2023). Large language models in health care:
+Development, applications, and challenges. Health Care Science, 2(4), 255–263. https://doi.org/10.1002/hcs2.61
+Y ao, S., Y u, D., Zhao, J., Shafran, I., Grifﬁths, T., Cao, Y ., & Narasimhan, K. (2023). Tree of thoughts: Deliber-
+ate problem solving with large language models. Advances in Neural Information Processing Systems , 36, 11809–11822.
+https://doi.org/10.5555/3666122.3666639
+Y ao, S., Zhao, J., Y u, D., Du, N., Shafran, I., Narasimhan, K. R., & Cao, Y . (2022). React: Synergizing reasoning and acting in language
+models. In The eleventh international conference on learning representations .
+Zamazal, O. (2024). Towards pattern-based complex ontology matching using SPARQL and LLM. In Proceedings of the 20th Interna-
+tional Conference on Semantic Systems (SEMANTiCS 2024) , Amsterdam, Netherlands. https://ceur-ws.org/V ol-3759/paper8.pdf
+Zhang, B., Carriero, V . A., Schreiberhuber, K., Tsaneva, S., González, L. S., Kim, J., & de Berardinis, J. (2025). Ontochat: A framework
+for conversational ontology engineering using language models. In The Semantic Web: ESWC 2024 satellite events (pp. 102–121).
+https://doi.org/10.1007/978-3-031-78952-6_10
+
+===== PAGE 35 =====
+Li et al. 35
+Zhang, D., Y u, Y ., Dong, J., Li, C., Su, D., Chu, C., & Y u, D. (2024a). MM-LLMs: Recent advances in multimodal large language
+models. In Findings of the association for computational linguistics: ACL 2024 . Bangkok, Thailand: Association for Computational
+Linguistics. https://doi.org/10.18653/v1/2024.ﬁndings-acl.738
+Zhang, S., Dong, L., Li, X., Zhang, S., Sun, X., Wang, S., Li, J., Hu, R., Zhang, T., Wang, G., & Wu, F. (2023a). Instruction tuning for
+large language models: A survey. ACM Computing Surveys, 58(7), 169. https://doi.org//10.1145/3777411
+Zhang, Y ., Y ang, H., Wang, H., & Zhao, J. (2024b). Zhang, Y ., Y ang, H., Wang, H., & Zhao, J. (2024b). Fast adaptation via
+prompted data: An efﬁcient cross-domain ﬁne-tuning method for large language models. In Proceedings of the 2024 Joint Inter-
+national Conference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024) (pp. 7117–7132).
+https://aclanthology.org/2024.lrec-main.625/
+Zhang, Z., Zhang, A., Li, M., Zhao, H., Karypis, G., & Smola, A. J. (2023b). Multimodal chain-of-thought reasoning in language
+models. Transactions on Machine Learning Research. https://api.semanticscholar.org/CorpusID:256504063
+Zhao, H., Chen, H., Y ang, F., Liu, N., Deng, H., Cai, H., Wang, S., Yin, D., & Du, M. (2024). Explainability for large language models:
+As u r v e y .ACM Transactions on Intelligent Systems and Technology, 15(2), 1–38. https://doi.org/10.1145/3639372
+Zheng, M., Pei, J., Logeswaran, L., Lee, M., & Jurgens, D. (2024). When “a helpful assistant” is not really helpful: Personas in system
+prompts do not improve performances of large language models. In Findings of the association for computational linguistics: EMNLP
+2024. https://doi.org/10.18653/v1/2024.ﬁndings-emnlp.888
+Appendix A
+This appendix presents additional material supporting the main text, including extended tables and detailed data referenced
+throughout the study.
+LLM-Supported Ontology Development Activities
+Table 2 provides a comprehensive mapping of how LLMs contribute to speciﬁc OE activities across the 49 reviewed task-
+level studies. Each row represents one distinct study, and several studies might belong to the same paper, that is, for the
+cases in which one paper uses LLMs to support more than one activity. The table highlights the role, model used, input
+and output formats, and whether human participants were involved in the LLMs-supported component.
+Experimental Setup and Evaluation Overview
+Table 3 summarizes the experimental validation practices across all 49 reviewed task-level studies. It records whether
+an experiment was performed, provides open-source access links when available, identiﬁes the datasets utilized, and
+details the evaluation methodology (quantitative, qualitative, or mixed by both) along with the speciﬁc metrics employed.
+By including dataset sources and tool repositories, the table aims to support reproducibility and offer insights into the
+evaluation rigor and maturity within the ﬁeld.
+Application Domains of LLMs in OE
+Table 4 presents a categorization of application domains where LLMs are used in ontology development. For each domain,
+we list representative ontologies and key studies that utilized them in our review. This offers insights into how LLM
+applications vary in domains such as healthcare, cultural heritage, and autonomous systems.
+Ontology Datasets Used Across Studies
+Table 5 lists all experiment datasets utilized in the reviewed task-level studies, with their corresponding names, access
+URLs, and associated domains. This compilation supports transparency and facilitates future replication or comparative
+benchmarking using the same datasets.
+
+===== PAGE 36 =====
+36 Semantic Web 17(4)
+Ta b l e 2 .Details of LLM-Supported Ontology Engineering Activities, Including the Assigned Roles of LLMs, Model T ypes Used, Input Formats, Generated Output s, and Whether
+Human Involvement Was Required (Indicated as YES/NO).
+Resource Role Model Prompt Inputs Outputs Human Involved
+Requirements Speciﬁcation—Functional Requirements Writing
+Fathallah et al.
+(2024a)
+Ontology Engineer GPT -3.5 LLaMA
+PaLM
+Few-shot Role-based
+CoT
+Natural language text Natural language text NO
+Antia and Keet
+(2023)
+Ontology Engineer T5 N/A Natural language text CQs NO
+Requirements Speciﬁcation—CQ Reverse Engineering
+Rebboud et al.
+(2024a)
+Domain Experts Not mentioned N/A Ontologies CQs NO
+Alharbi et al.
+(2024b)
+Ontology Engineer GPT -3.5-turbo
+GPT -4
+LLaMA2
+Zero-shot T riples CQs YES
+Ciroku et al.
+(2024a)
+Ontology Engineer MiniLM T5
+SBERT
+Zero-shot Iterative
+reﬁnement
+KGs CQs NO
+Rebboud et al.
+(2024b)
+Ontology Engineer DPO 1 SOLAR2
+UNA3
+Zephyr𝛽
+GPT -3.5
+GPT -4
+Zero-shot Few-shot
+Fine-tuned Fusion-
+Net_7Bx2_MoE_14B
+Fine-tuned SOLAR-
+10.7B-Instruct-v1.0
+Fine-tuned
+Mistral-7B
+Fine-tuned
+Mistral-7B-v0.1
+Ontologies CQs NO
+Alharbi et al.
+(2024c)
+Ontology Engineer GPT -3.5-turbo
+GPT -4
+LLaMA-2-70B
+Mistral 7B
+Flan-T5-XL
+Zero-shot Role-based
+T emplate-based
+T riples CQs NO
+Pan et al. (2024) Domain Expert GPT -4 Zero-shot Role-based Natural language text CQs NO
+Alharbi et al.
+(2024d)
+Ontology Engineer GPT -3.5-turbo
+GPT -4
+Zero-shot Role-based
+T emplate-based
+T riples CQs NO
+Requirements Speciﬁcation—Requirement Formalization
+Rebboud et al.
+(2024a)
+Ontology Engineer Not mentioned N/A Ontologies and CQs Queries NO
+Tu f e k e t a l .
+(2024)
+Ontology Engineer ChatGPT Zero-shot
+T emplate-based
+Natural language text or
+CQs
+SPARQL Queries NO
+Kholmska et al.
+(2024)
+Ontology Engineer ChatGPT Bard Zero-shot
+T emplate-based
+Role-based Iterative
+reﬁnement
+Concepts SPARQL Queries NO
+(Continued)
+
+===== PAGE 37 =====
+Li et al. 37
+Ta b l e 2 .Continued.
+Resource Role Model Prompt Inputs Outputs Human Involved
+Ontology Implementation—Conceptualization
+Rebboud et al.
+(2024a)
+Domain Experts Not mentioned N/A CQs Ontologies NO
+Goyal et al.
+(2024)
+Ontology Engineer LLaMA3
+GPT -4o
+Mistral
+Zero-shot Few-shot Natural language text Binary decision NO
+Coutinho (2024) Ontology Engineer Not mentioned Zero-shot Few-shot
+CoT
+Natural language text Summarization NO
+Kholmska et al.
+(2024)
+Step 2: Ontology
+Engineer Step 3:
+Ontology Engineer
+Step 2:
+ChatGPT and
+Bard Step 3:
+ChatGPT and
+Bard
+Zero-shot
+T emplate-based
+Role-based Iterative
+reﬁnement
+Step 2: Natural language
+text Step 3: Natural
+language text
+Step 2: Classes Step 3:
+Concepts
+Step 2: NO
+Step 3:
+NO
+Dong et al.
+(2024)
+Domain Expert,
+Ontology Engineer
+GPT -3.5
+LLaMA2
+FLAN-T5
+GPT -4
+Zero-shot
+T emplate-based
+Fine-tuned PLM
+Natural language text,
+Ontologies
+Natural language text NO
+Babaei Giglou
+et al. (2023)
+Ontology Engineer BERT , BLOOM
+LLaMA GPT -3
+GPT -3.5
+GPT -4 BART
+Flan-T5
+Zero-shot T ask A: Natural language
+text, lexical term T ask
+B: Natural language
+text T ask C: Natural
+language text
+T ask A: T erm type T ask B:
+Binary decision T ask C:
+Binary decision
+NO
+To r o e t a l .
+(2024)
+Ontology Engineer GPT -4 GPT -3.5-
+turbo
+Few-shot
+T emplate-based
+T erm JSON NO
+Pisu et al. (2024) Ontology Engineer BERT Fine-tuned SciBERT Natural language text Relationships NO
+Val-Calvo et al.
+(2025)
+Ontology Engineer GPT -4 Iterative reﬁnement JSON Schema YES
+Arevalo et al.
+(2024)
+Ontology Engineer GPT -4-1106-
+preview
+Iterative reﬁnement Natural language text JSON NO
+Doumanas et al.
+(2025)
+Ontology Engineer GPT -4 Mistral
+7B
+Iterative reﬁnement Natural language text JSONL YES
+Ontology Implementation—Encoding
+Doumanas et al.
+(2024)
+Ontology Engineer GPT -4 GPT -3.5
+Bard LLaMA
+Zero-shot
+T emplate-based
+Iterative reﬁnement
+Phase 1: Natural language
+text Phase 2: Domain
+documents Phase 3:
+Natural language text
+and CQs
+Phase 1: Ontologies Phase
+2: Ontologies Phase 3:
+Ontologies
+YES
+Fathallah et al.
+(2024a)
+Ontology Engineer GPT -3.5 LLaMA
+PaLM
+Few-shot Role-based
+CoT
+Natural language text CQs, T riples and
+Ontologies
+NO
+(Continued)
+
+===== PAGE 38 =====
+38 Semantic Web 17(4)
+Ta b l e 2 .Continued.
+Resource Role Model Prompt Inputs Outputs Human Involved
+Cauﬁeld et al.
+(2024)
+Ontology Engineer OntoGPT Zero-shot Natural language text Ontologies NO
+Eells et al. (2024) Ontology Engineer GPT -4 Zero-shot
+T emplate-based
+Natural language text Natural language text NO
+Saeedizade and
+Blomqvist (2024)
+Ontology Engineer GPT -3.5 GPT -4
+Bard
+LLaMA-7B
+LLaMA-13B
+LLaMA2-70B
+Alpaca
+Falcon-7B
+Falcon-7B-
+Instruct
+WizardLM
+Alpaca-LoRA
+Zero-shot CoT GoT CQs Ontologies NO
+Mateiu and
+Groza (2023)
+Ontology Engineer GPT -3 Davinci
+model
+Zero-shot Few-shot
+Fine-tuned GPT -3
+Natural language text Axioms NO
+T ang et al. (2023) Ontology Engineer ChatGPT Zero-shot
+T emplate-based
+Iterative reﬁnement
+Decomposition
+Natural language text Ontologies, JSON, T riples NO
+da Silva et al.
+(2024)
+Ontology Engineer GPT -4, T urbo4,
+Claude3,
+Gemini Pro
+Zero-shot
+T emplate-based
+Few-shot One-shot
+Natural language text,
+Ontologies
+Ontologies NO
+Lippolis et al.
+(2024)
+Ontology Engineer GPT -4 T urbo
+API
+N/A CQs Ontologies NO
+Val-Calvo et al.
+(2025)
+Ontology Engineer
+Domain Expert
+GPT -4 N/A JSON and Schema Ontologies NO
+Doumanas et al.
+(2025)
+Ontology Engineer GPT -4 Mistral
+7B
+Iterative reﬁnement
+One-shot
+Role-based
+Fine-tuned GPT -4
+Fine-tuned Mistral
+7B
+Natural language text
+CQs
+Ontologies NO
+Ontology Development—Ontology Matching and Reuse
+Zamazal (2024) Domain Experts GPT -4o Zero-shot Natural language text and
+verbalized candidates
+Binary decision NO
+Kholmska et al.
+(2024)
+Ontology Engineer ChatGPT Bard Zero-shot
+T emplate-based
+Role-based Iterative
+reﬁnement
+Step 4: Natural language
+text Step 6: Concepts,
+Ontologies, Natural
+language text
+Step 4: Documentation
+Step 6: Mapping
+NO
+(Continued)
+
+===== PAGE 39 =====
+Li et al. 39
+Ta b l e 2 .Continued.
+Resource Role Model Prompt Inputs Outputs Human involved
+Hertling and
+Paulheim (2023)
+Ontology Engineer LLaMA Zero-shot Few-shot Ontologies and Natural
+language text
+Mapping NO
+He et al. (2023) Ontology Engineer Flan-T5-XXL
+GPT -3.5-
+turbo
+Zero-shot
+T emplate-based
+Natural language text Binary decision NO
+Norouzi et al.
+(2023)
+Ontology Engineer ChatGPT Zero-shot Natural language text Mapping NO
+Ontology Development—Ontology Evaluation
+Tsaneva et al.
+(2024)
+Domain Experts,
+Human Evaluator
+GPT -4 Few-shot Zero-shot Natural language text Axioms NO
+Kholmska et al.
+(2024)
+Ontology Engineer ChatGPT Bard Zero-shot
+T emplate-based
+Role-based Iterative
+reﬁnement
+Step 5: Ontologies Step 5: Natural language
+text
+NO
+Fathallah et al.
+(2024a)
+Domain Expert,
+Ontology Engineer
+GPT -3.5 LLaMA
+PaLM
+Few-shot Role-based
+CoT
+Natural language text Ontologies and Axioms NO
+Zhang et al.
+(2025)
+Ontology Engineer GPT -3 One-shot Few-shot
+Iterative reﬁnement
+Ontologies and CQs Binary decision YES
+Ontology Publication—Documentation
+Bischof et al.
+(2024)
+Domain Experts Mistral 7B Zero-shot
+T emplate-based
+Role-based
+Natural language text T erms NO
+Rebboud et al.
+(2024a)
+Domain Experts Not mentioned N/A Ontologies Documentation NO
+Kholmska et al.
+(2024)
+Ontology Engineer ChatGPT Bard Zero-shot
+T emplate-based
+Role-based Iterative
+reﬁnement
+Step 9: Ontology
+Extensions, Natural
+language text
+Step 9: Documentation NO
+Fathallah et al.
+(2024a)
+Ontology Engineer GPT -3.5 LLaMA
+PaLM
+Few-shot Role-based
+CoT
+Natural language text,
+Ontologies
+Documentation NO
+Giri et al. (2024) Domain Experts,
+Ontology Engineer
+T5 Fine-tuned T5 T erms Documentation NO
+Maintenance—Bug Issue
+Kholmska et al.
+(2024)
+Domain Expert ChatGPT Bard Zero-shot
+T emplate-based
+Role-based Iterative
+reﬁnement
+Step 8: Natural language
+text
+Step 8: Natural language
+text
+YES
+1T ruthful_DPO_T omGrc_FusionNet_7Bx2_MoE_13B
+2SOLAR-10B-OrcaDPO-Jawade
+3UNA-TheBeagle-7b-v1
+
+===== PAGE 40 =====
+40 Semantic Web 17(4)
+Ta b l e 3 .Summary of Experiments, Data Sources, Evaluation T ypes, and Evaluation Metrics Used in LLM-Supported Ontology
+Engineering Studies.
+Paper Resource Experiment Data Source Evaluation T ype Evaluation Metric
+Requirements speciﬁcation—Functional requirements writing
+Fathallah et al. (2024a) YES, a test 27 Wine N/A N/A
+Antia and Keet (2023) YES 1 Covid19 articles2 Qualitative Human comment
+Requirements speciﬁcation—CQ Reverse Engineering
+Rebboud et al. (2024a) N/A DOREMUS, Polifonia, DemCare,
+Odeuropa, NORIA-O, and FIBO
+Quantitative Cosine Similarity
+Ciroku et al. (2024a) YES 3 WDV4 Quantitative BLEU score
+Rebboud et al. (2024b) YES 26 DOREMUS, Polifonia, Dem@Care,
+Odeuropa, NORIA-O, and FIBO
+Quantitative Cosine Similarity
+Alharbi et al. (2024b) YES 35 VideoGame, Dem@Care, VICINITY
+Core, and African Wildlife
+Hybrid Number of CQs,
+Precision, Recall, and
+F1
+Alharbi et al. (2024c) YES Video Game, VICINITY Core,
+Dem@Care, and Solar System
+Ontology
+Quantitative Number of CQs,
+Precision, Recall, and
+F1
+Pan et al. (2024) YES 5 KG-EmpiRE paper ,6 Human–Computer
+Interaction paper7
+Quantitative Precision
+Alharbi et al. (2024d) YES 35 VideoGame, Dem@Care, VICINITY
+Core, and African Wildlife
+Quantitative Precision, Recall, and F1
+Requirements speciﬁcation—Requirement formalization
+Rebboud et al. (2024a) N/A DOREMUS, Polifonia, DemCare,
+Odeuropa, NORIA-O, and FIBO
+Quantitative T ree Edit Distance
+T ufek et al. (2024) YES 8 Smart Applications REFerence and
+OPC UA Robotics
+Quantitative Precision, Recall, and F1
+Kholmska et al. (2024) N/A OntoDM Quantitative Model Consistency, Error
+Rate Reduction, and
+Coverage of Relevant
+Concepts
+Ontology implementation—Conceptualization
+Rebboud et al. (2024a) N/A DOREMUS, Polifonia, DemCare,
+Odeuropa, NORIA-O, and FIBO
+Quantitative Precision, Recall, F1,
+Accuracy, and
+Consistent Ontology
+Goyal et al. (2024) YES 9 T ask B: GeoNames, Schema.org, UMLS,
+and GO, and T ask C: UMLS
+Quantitative Precision and F1-score
+Coutinho (2024) N/A UFO Hybrid Time, Model Quality
+Metrics, User
+Satisfaction, and
+Domain Experts
+Feedback
+Kholmska et al. (2024) N/A OntoDM Quantitative Inter-Model Consistency,
+Error Rate Reduction,
+and Coverage of
+Relevant Concepts
+Dong et al. (2024) YES 10 MM-S14-Disease and MM-S14-CPP Quantitative InRank@k and
+InRecall@k
+Babaei Giglou et al. (2023) YES 11 WordNet, GeoNames, UMLS, National
+Cancer Institute, MEDCIN,
+SNOMEDCT US, and Schema.org
+Quantitative MAP@K and F1-score
+T oro et al. (2024) YES 12 Cell Ontology, UBERON, GO, Human
+Phenotype Ontology, Mammalian
+Phenotype Ontology, MONDO,
+Environment Ontology, Food
+Ontology, Ontology of Biomedical
+Investigations, and Ontology of
+Biological Attributes
+Hybird Accuracy, Recall, F1, and
+Manual Assessment
+(Continued)
+
+===== PAGE 41 =====
+Li et al. 41
+Ta b l e 3 .Continued.
+Paper Resource Experiment Data Source Evaluation T ype Evaluation Metric
+Pisu et al. (2024) YES 13 Computer Science Ontology Quantitative Accuracy, Precision,
+Recall, and F1
+Val-Calvo et al. (2025) YES 28 Airlines Customer Satisfaction, 29
+Amazon Ratings,30 BigBasket
+Products,31 Brazilian E-commerce,32
+Customer Complaint,33
+E-commerce T ransactions34
+Hybrid N/A
+Arevalo et al. (2024) YES 14 Computer Science Ontology Hybrid Mean aggregate similarity,
+Cosine similarity,
+Number of concepts,
+relations and
+properties, and Dataset
+Size
+Doumanas et al. (2025) YES 36 Search and Rescue Ontology N/A N/A
+Ontology implementation—Encoding
+Doumanas et al. (2024) YES 15 Search and Rescue Ontology Hybrid Analysis of False Positives,
+Precision, Recall, and
+F1-score
+Fathallah et al. (2024a) YES, a test 27 Wine N/A N/A
+Cauﬁeld et al. (2024) YES 16 GO, EMAPA, and MONDO Disease
+Ontology
+Quantitative F1, Precision, and Recall
+Eells et al. (2024) YES 17 101 nouns from COCA N/A N/A
+Saeedizade and Blomqvist (2024) YES 18 Music, Theater , and Hospital Qualitative Score Evaluation
+Mateiu and Groza (2023) N/A 150 sentences N/A N/A
+T ang et al. (2023) N/A OpenXOntology N/A N/A
+da Silva et al. (2024) YES 19 CaSk Hybird Mean Error Score
+Lippolis et al. (2024) YES 20 African Wildlife Hybrid OntoMetric
+Val-Calvo et al. (2025) YES 28 Airlines Customer Satisfaction, 29
+Amazon Ratings,30 BigBasket
+Products,31 Brazilian E-commerce,32
+Customer Complaint,33
+E-commerce T ransactions34
+Hybrid OQuaRE metrics, Pitfalls
+from OOPS!, Human
+reviews for terms
+Doumanas et al. (2025) YES 36 Search and Rescue Ontology Hybrid Logical consistency,
+Hierarchy formation,
+Domain knowledge
+alignment, Precison,
+Recall, and F1
+Ontology development—Ontology matching and reuse
+Zamazal (2024) YES 21 EDOAL, Manchester from OAEI Hybrid Precision, Relaxed
+Precision, Recall
+Kholmska et al. (2024) N/A OntoDM N/A N/A
+Hertling and Paulheim (2023) YES 22 Ontologies from OAEI Quantitative Precision, Recall, F1, Size,
+and Time
+He et al. (2023) YES 23 NCIT -DOID and SNOMED-FMA Quantitative Precision, Recall, F1, Hits,
+MRR, and RR
+Norouzi et al. (2023) YES Ontologies from OAEI Quantitative Precision, Recall, and F1
+Ontology development—Ontology evaluation
+Tsaneva et al. (2024) YES Pizza Ontology Hybrid Accuracy, Precision,
+Recall, F1, and Majority
+V ote Aggregation
+Kholmska et al. (2024) N/A OntoDM N/A N/A
+Fathallah et al. (2024a) YES, a test 27 Wine N/A N/A
+Zhang et al. (2025) YES 24 Music Meta Qualitative Feedback Scores
+Ontology publication—Documentation
+Bischof et al. (2024) N/A N/A Qualitative Expert reviews
+Rebboud et al. (2024a) N/A DOREMUS, Polifonia, DemCare,
+Odeuropa, NORIA-O, FIBO
+Quantitative Cosine Similarity
+(Continued)
+
+===== PAGE 42 =====
+42 Semantic Web 17(4)
+Ta b l e 3 .Continued.
+Paper resource Experiment Data source Evaluation type Evaluation metric
+Kholmska et al. (2024) N/A OntoDM Quantitative Inter-Model Consistency,
+Error Rate Reduction,
+Coverage of Relevant
+Concepts
+Fathallah et al. (2024a) YES, a test 27 Wine N/A N/A
+Giri et al. (2024) YES 25 GO Hybird Correlation with
+Embedding Scores,
+Conﬁdence Scores
+Maintenance—Bug issue
+Kholmska et al. (2024) N/A OntoDM Quantitative Inter-Model Consistency,
+Error Rate Reduction,
+and Coverage of
+Relevant Concepts
+1https://github.com/pymj/AgOCQs
+2https://github.com/pymj/AgOCQs/tree/main/AgOCQs/inputT ext
+3https://github.com/King-s-Knowledge-Graph-Lab/revont
+4https://github.com/gabrielmaia7/WDV
+5https://github.com/XueliPan/GenCQs
+6https://10.1109/ESEM56168.2023.10304795
+7https://doi.org/10.1016/j.datak.2021.101977
+8https://github.com/Siemens-OKE/llm-query-pipeline
+9https://drive.google.com/drive/folders/1vRynlNH6LouIvcI1ymHsm6DwYKSOUoAa
+10https://github.com/KRR-Oxford/LM-ontology-concept-placement
+11https://github.com/HamedBabaei/LLMs4OL
+12https://github.com/monarch-initiative/dragon-ai-results
+13https://github.com/aleessiap/LeveragingLMforGeneratingOntologies
+14https://github.com/Kiaramarnitt/AutOnto
+15https://github.com/dimitrisdoumanas19/New-Experiments-LLMs.git
+16https://github.com/monarch-initiative/ontogpt
+17https://github.com/kastle-lab/commonsense-micropatterns
+18https://github.com/LiUSemWeb/LLMs4OntologyDev-ESWC2024
+19https://github.com/CaSkade-Automation/llm-capability-generation
+20https://github.com/dersuchendee/Ontogenia
+21https://github.com/OndrejZamazal/ComplexOntologyMatching-SEMANTiCS2024
+22https://ﬁgshare.com/articles/code/OLaLa_for_OAEI
+23https://github.com/KRR-Oxford/LLMap-Prelim
+24https://github.com/King-s-Knowledge-Graph-Lab/OntoChat
+25https://github.com/kiharalab/GO2Sum. 26https://github.com/D2KLab/llm4ke
+27https://github.com/andreamust/NEON-GPT
+28https://github.com/tecnomod-um/OntoGenix
+29https://labur .eus/SN5n1
+30https://labur .eus/voslX
+31https://labur .eus/tnqzt
+32https://labur .eus/WM3cS
+33https://labur .eus/NlmH7
+34https://labur .eus/AJ8bF
+35https://github.com/SemT ech23/RETROFIT -CQs
+36https://github.com/dimitrisdoumanas19/Fine-tuning-LLMS
+Ta b l e 4 .Key Application Domains, Example Ontologies, and Representative Studies Using LLMs for Ontology Development.
+Application Domain Example Ontologies Key Papers
+Healthcare & Medicine DemCare, SNOMED CT , and UMLS Tsaneva et al. (2024), He et al. (2023)
+Cultural Heritage DOREMUS, Polifonia, and Odeuropa Rebboud et al. (2024a, 2024b), Zhang et al. (2025)
+Finance & Banking FIBO Rebboud et al. (2024a, 2024b)
+Search & Rescue (SAR) SAR Ontology Doumanas et al. (2024)
+Biology & Life Sciences Gene Ontology (GO), MONDO Giri et al. (2024), Cauﬁeld et al. (2024)
+Autonomous Driving Road trafﬁc ontologies T ang et al. (2023)
+Education & Research Computer Science Ontology Pisu et al. (2024)
+Food & Agriculture FoodOn Cauﬁeld et al. (2024)
+
+===== PAGE 43 =====
+Li et al. 43
+Ta b l e 5 .Summary of Experiment Datasets Used Across the reviewed Studies, Including Their Names, Access Links, and Corresponding Application Domains.
+A c r o n y mN a m e F u l lN a m e U R L Domain
+African Wildlife African Wildlife Ontology http://www.meteck.org/teaching/ontologies-/AfricanWildlifeOntology1.owl Ecology
+CaSk Capability and Skill Ontology https://github.com/CaSkade-Automation/CaSkMan Robotics
+CL Cell Ontology https://github.com/obophenotype/cell-ontology Anatomy
+CSO Computer Science Ontology https://cso.kmi.open.ac.uk/home Computer Science
+DemCare Dementia Care Ontology https://demcare.eu/ontologies Healthcare
+DOREMUS Music Ontology http://data.doremus.org/ontology Arts
+EMAPA Mouse Developmental Anatomy https://obofoundry.org/ontology/emapa.html Anatomy
+ENVO Environment Ontology https://github.com/EnvironmentOntology/envo Environment
+FIBO Financial Industry Business
+Ontology
+https://github.com/edmcouncil/ﬁbo Business
+FOODON Food Ontology https://github.com/FoodOntology/foodon Food
+GO Gene Ontology http://geneontology.org Biology
+HP Human Phenotype Ontology https://github.com/obophenotype/human-phenotype-ontology Phenotype
+MONDO Mondo Disease Ontology https://github.com/monarch-initiative/mondo Disease
+MP Mammalian Phenotype Ontology https://github.com/obophenotype/mammalian-phenotype-ontology Phenotype
+MusicMeta Music Metadata Ontology https://w3id.org/polifonia/ontology/music-meta Music
+NORIA-O Norwegian AI Ontology https://w3id.org/noria AI
+OAIE Ontology Alignment Evaluation
+Initiative
+https://oaei.ontologymatching.org Benchmark
+OBA Ontology of Biological
+Attributes
+https://github.com/obophenotype/biological-attributes-ontology Attributes
+OBI Ontology for Biomedical
+Investigations
+https://github.com/obi-ontology/obi Methodology
+Odeuropa Odeuropa Ontology https://odeuropa.eu Cultural Heritage
+OntoDM Ontology of Data Mining https://lod-cloud.net/dataset/bioportal-ontodm Data Science
+OpenXOntology Open Exchange Ontology https://openxontology.org Business
+OPC-UA OPC Uniﬁed Architecture https://github.com/OPCFoundation/UA-Nodeset Industrial
+Polifonia Polifonia Ontology Network https://github.com/polifonia-project Music
+SAREF Smart Appliances Reference
+Ontology
+https://saref.etsi.org IoT
+UBERON Uberon Multi-species Anatomy
+Ontology
+https://github.com/obophenotype/uberon Anatomy
+UFO Uniﬁed Foundational Ontology https://ontouml.readthedocs.io/en/latest/intro/ufo.html Foundational
+UMLS Uniﬁed Medical Language System https://www.nlm.nih.gov/research/umls Medicine
+VICINITY IoT Core Ontology http://iot.linkeddata.es/def/core IoT
+WDV Web Data V ocabulary https://github.com/gabrielmaia7/WDV Web
+Pizza Pizza Ontology https://protege.stanford.edu/ontologies/pizza-/pizza.owl Food
+NCIT National Cancer Institute
+Thesaurus
+https://bioportal.bioontology.org/ontologies/NCIT Oncology
+(Continued)
+
+===== PAGE 44 =====
+44 Semantic Web 17(4)
+Ta b l e 5 .Continued.
+Acronym Name Full Name URL Domain
+DOID Human Disease Ontology https://bioportal.bioontology.org/ontologies/DOID Disease
+SNOMED CT Systematized Nomenclature of
+Medicine Clinical T erms
+https://www.snomed.org/ Medicine
+FMA Foundational Model of Anatomy https://bioportal.bioontology.org/ontologies/FMA Anatomy
+MEDCIN MEDCIN Ontology https://www.sciencedirect.com/topics/nursing-and-health-professions/medical-ontology Medicine
+SNOMEDCT US SNOMED CT United States
+Edition
+https://www.nlm.nih.gov/healthit/snomedct/ Medicine
+Schema.org Schema.org V ocabulary https://schema.org/ Web
+Video Game
+Ontology
+Video Game Ontology https://vocab.linkeddata.es/vgo/ Entertainment
+MM-S14-
+Disease/CPP
+MM-S14-Disease/CPP Dataset https://zenodo.org/records/10432003 Medicine
+Wine Ontology Wine Ontology https://github.com/UCDavisLibrary/wine-ontology/blob/master/wine-ontology.owl Food
+GeoNames GeoNames Geographical
+Database
+https://www.geonames.org/ Geography
+WordNet Princeton WordNet Lexical
+Database
+https://wordnet.princeton.edu/homepage Lexical Semantics
+COCA Corpus of Contemporary
+American English
+https://www.english-corpora.org/coca/ Linguistics
+COVID-19 Articles
+(AgOCQs)
+COVID-19 Article Corpus for
+AgOCQs
+https://github.com/pymj/AgOCQs/tree/main/AgOCQs/inputT ext Healthcare T ext Mining
+KG-EmpiRE
+Corpus
+KG-EmpiRE Paper T ext Corpus https://10.1109/ESEM56168.2023.10304795 Computer Science
+HCI Corpus Human–Computer Interaction
+Paper Corpus (used in
+GenCQs)
+https://doi.org/10.1016/j.datak.2021.101977 Computer Science
+Airline-CS Airline Customer Satisfaction
+Dataset
+https://www.kaggle.com/datasets/raminhuseyn/airline-customer-satisfaction T ransportation
+Amazon Ratings Amazon Ratings Dataset https://labur .eus/voslX E-commerce
+BigBasket Products BigBasket Products Dataset https://labur .eus/tnqzt E-commerce
+Brazilian
+E-commerce
+Brazilian E-commerce Dataset https://labur .eus/WM3cS E-commerce
+Customer
+Complaint
+Customer Complaint Dataset https://labur .eus/NlmH7 Customer Service
+E-commerce
+T ransactions
+E-commerce T ransactions
+Dataset
+https://labur .eus/AJ8bF E-commerce
