@@ -146,3 +146,30 @@ def test_missing_office_extra_is_explicit(folder, monkeypatch):
     docs = {d["name"]: d["text"] for d in a.read_docs()}
     assert "extra 'office'" in docs["docs/contratos/dicionario.docx"]
     assert "extra 'office'" in docs["docs/kickoff.pptx"]
+
+
+def test_find_in_sources_cites_documents_and_tables(folder):
+    from akme.tools.connect import find_in_sources
+
+    p = Project(folder)
+    uf = find_in_sources(p, "UF", case_sensitive=True)
+    docs = {(d["document"], d["page"]) for d in uf["documents"]}
+    assert docs == {("docs/contratos/dicionario.docx", 1), ("docs/kickoff.pptx", 1)}
+    hit = next(d for d in uf["documents"] if d["document"] == "docs/contratos/dicionario.docx")
+    assert hit["path"].endswith("data/docs/contratos/dicionario.docx")
+    assert "UF significa unidade federativa" in hit["excerpt"]
+    assert uf["tables"] == []
+    col = next(t for t in find_in_sources(p, "UF")["tables"] if t["column"] == "uf")
+    assert col["in_header"] and col["source"] == "vendas__clientes" and col["sheet"] == "Planilha1"
+
+    sp = find_in_sources(p, "SP")
+    values = next(t for t in sp["tables"] if t["column"] == "uf" and not t["in_header"])
+    assert values["matches"] == 1 and values["rows"] == [1] and values["values"] == ["SP"]
+    assert values["path"].endswith("data/vendas/clientes.xlsx")
+
+    assert find_in_sources(p, "Pergunta")["documents"][0]["label"] == "slide 1"
+    assert not find_in_sources(p, "Uf", case_sensitive=True)["found"]
+    assert not find_in_sources(p, "fatura")["found"]
+    assert find_in_sources(p, "fatura", whole_word=False)["found"]
+    capped = find_in_sources(p, "a", whole_word=False, max_hits=2)
+    assert len(capped["documents"]) == 2 and capped["truncated"]

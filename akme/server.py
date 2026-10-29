@@ -36,6 +36,15 @@ def read_document(name: str, page: int | None = None) -> dict[str, Any]:
 
 
 @mcp.tool()
+def find_in_sources(query: str, whole_word: bool = True, case_sensitive: bool = False,
+                    max_hits: int = 50) -> dict[str, Any]:
+    """Procura um termo em todos os documentos e planilhas do cliente. Devolve cada ocorrencia com caminho,
+    pagina ou slide e trecho; nas tabelas, fonte, aba, coluna, linhas de dados e valores. Use antes de afirmar
+    de onde vem uma informacao ou que algo nao aparece. Para siglas, use case_sensitive=true."""
+    return connect_tool.find_in_sources(project(), query, whole_word, case_sensitive, max_hits)
+
+
+@mcp.tool()
 def profile(sample_size: int = 500) -> dict[str, Any]:
     """Perfila as fontes: colunas, tipos, nulos, cardinalidade, chaves candidatas e convencoes. Grava docs/profile.json."""
     return profile_tool.profile(project(), sample_size).model_dump()

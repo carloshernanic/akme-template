@@ -17,6 +17,7 @@ Levar o consultor do primeiro contato com os dados do cliente ate uma camada sem
 4. **Toda proposta carrega proveniencia.** Preencha `requirement_id` (a CQ que motiva) e `evidence` (documento, tabela, coluna ou conversa de origem). O `apply_edit` grava isso em `changelog.yml` e na secao `evidence` do `content.yml`.
 5. **`publish` e `apply_edit` sao acoes com aprovacao por chamada.** `publish` roda em dry-run por padrao; executar no alvo exige o humano confirmar na CLI.
 6. **As tools nao chamam LLM.** O que exige julgamento semantico (redigir definicoes, propor classes, interpretar relatorios) e trabalho seu, sempre apresentado como proposta.
+7. **Toda hipotese, ambiguidade ou conflito mostrado ao humano diz de onde veio.** Antes de apresentar, chame `find_in_sources` com o termo (siglas com `case_sensitive=true`) e cite cada ocorrencia relevante com o `path` devolvido, a pagina ou slide, ou a aba e a coluna, e um trecho curto entre aspas. Nunca cite de memoria. Se a tool nao encontrar o termo por extenso, diga isso e mostre onde ele aparece abreviado. Separe sempre o que esta escrito na fonte do que e hipotese sua. Ver "Como apresentar ambiguidades".
 
 ## Preparacao
 
@@ -36,7 +37,7 @@ Cada etapa diz quais tools chamar, o que voce produz e onde parar para o humano 
 
 ### 1. Especificar (LOT: especificacao de requisitos)
 
-Tools: `connect`, `profile`, `read_document`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_requirement` e `add_competency_question`.
+Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_requirement` e `add_competency_question`.
 
 1. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas e convencoes detectadas. O profile traz so um excerto de cada documento: para o conteudo completo, chame `read_document` sem `page` para ver o indice e depois pagina a pagina. Cite arquivo e pagina na `evidence` (ex: `contratos/glossario.docx, pagina 3` ou `kickoff.pptx, slide 2`).
 2. Proponha proposito, escopo e usuarios (`add_requirement` com `field` purpose, scope ou users). Diferencie o que esta explicito nos documentos do que e hipotese sua.
@@ -103,6 +104,33 @@ Tools: `validate`, `eval`, `propose_edit`, `apply_edit`, `publish --release`.
 3. Liste o impacto: CQs, termos, mappings e publicacoes afetadas.
 
 **Pare e pergunte:** o humano decide o escopo da mudanca e quando ela entra em release.
+
+## Como apresentar ambiguidades
+
+Cada item tem: o termo, o problema em uma frase, as fontes com caminho e trecho, a sua hipotese marcada como hipotese, e uma pergunta fechada para o humano. O caminho e o que o humano usa para abrir o arquivo e conferir. Exemplo:
+
+```
+Ambiguidades que encontrei:
+
+1. CC e EX: nao aparecem por extenso em nenhum documento.
+   Onde aparecem:
+   - data/alunos.xlsx, aba Matriculas, coluna curso: 42 linhas (valores CC, EX)
+   Hipotese minha, sem fonte: CC = Ciencia da Computacao, EX = Engenharia Mecatronica.
+   Pergunta: esta certo?
+
+2. MG: dois significados no mesmo documento.
+   - data/plano_de_ensino.pdf, pagina 4: "...a MG (Media de Grupo) compoe 40% da nota..."
+   - data/plano_de_ensino.pdf, pagina 9: "...aprovado com MG, a media geral, igual ou superior a 6..."
+   Pergunta: qual significado vale para a ontologia, ou sao dois termos diferentes?
+
+3. Carga horaria: duas fontes divergem.
+   - data/regulamento.docx, pagina 2: "...carga horaria total de 360 h..."
+   - data/site_curso.md: "...300 horas de atividades..."
+   Sugestao: o Regulamento prevalece, e isso vira uma regra de precedencia na etapa 3.
+   Pergunta: concorda?
+```
+
+Use o mesmo formato na `evidence` do `propose_edit` (ex: `data/regulamento.docx, pagina 2: "carga horaria total de 360 h"`), para que a origem fique gravada no `changelog.yml` e no `content.yml`.
 
 ## Como interpretar o validate
 

@@ -9,8 +9,8 @@ artifacts:
 
 tools:
   - name: connect
-    description: Escolhe o adapter em akme.yml e testa a conexao. Lista fontes e documentos com o numero de paginas de cada um. read_document le um documento pagina a pagina ou slide a slide.
-    when: Inicio do projeto e sempre que a fonte mudar. read_document sempre que precisar do conteudo completo de um documento; o profile so traz um excerto.
+    description: Escolhe o adapter em akme.yml e testa a conexao. Lista fontes e documentos com o numero de paginas de cada um. read_document le um documento pagina a pagina ou slide a slide. find_in_sources localiza um termo em documentos e planilhas com caminho, pagina, coluna e trecho.
+    when: Inicio do projeto e sempre que a fonte mudar. read_document sempre que precisar do conteudo completo de um documento; o profile so traz um excerto. find_in_sources antes de mostrar ao humano qualquer hipotese, ambiguidade ou conflito, para citar arquivo, pagina ou coluna e trecho.
     requires_approval: false
     output_format: json
 

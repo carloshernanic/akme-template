@@ -100,7 +100,7 @@ class LocalFolderAdapter(Adapter):
     def _doc(self, name: str, file: Path) -> dict[str, Any]:
         pages = _doc_pages(file, self.encoding)
         text = pages[0]["text"] if len(pages) == 1 else "\n\n".join(f"[{p['label']}]\n{p['text']}" for p in pages)
-        return {"name": name, "text": text, "pages": pages}
+        return {"name": name, "path": file.as_posix(), "text": text, "pages": pages}
 
     def read_docs(self) -> list[dict[str, Any]]:
         return [self._doc(name, file) for name, file in self._doc_index().items()]
