@@ -18,7 +18,7 @@ OFFICE_MISSING = "[{} ignorado: instale o extra 'office' (uv sync --extra office
 class LocalFolderAdapter(Adapter):
     name = "local_folder"
 
-    def __init__(self, path: str | list[str] = ".", encoding: str = "utf-8", delimiter: str = ",",
+    def __init__(self, path: str | list[str] = "data", encoding: str = "utf-8", delimiter: str = ",",
                  recursive: bool = True) -> None:
         self.roots = [Path(p) for p in ([path] if isinstance(path, str) else path)]
         missing = [str(r) for r in self.roots if not r.is_dir()]

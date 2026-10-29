@@ -16,7 +16,7 @@ uv run akme init --demo
 uv run akme demo
 ```
 
-Depois abra `docs/index.html`. Os passos individuais sao `akme connect`, `akme profile`, `akme validate`, `akme eval`, `akme export` e `akme publish --target snowflake` (dry-run por padrao).
+Depois abra `docs/index.html`. Para um caso real, coloque os arquivos do cliente em `data/` (o git ignora o conteudo dessa pasta) e rode `uv run akme init` sem `--demo`. Os passos individuais sao `akme connect`, `akme profile`, `akme validate`, `akme eval`, `akme export` e `akme publish --target snowflake` (dry-run por padrao).
 
 ## Como adicionar um adapter
 

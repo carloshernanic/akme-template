@@ -38,10 +38,11 @@ def _dump(data: Any) -> None:
 
 @app.command()
 def init(adapter: str = typer.Option("local_folder", help="local_folder, postgres, snowflake ou databricks"),
-         path: str = typer.Option("examples/local_demo", help="pasta dos CSVs para local_folder"),
+         path: str = typer.Option(None, help="pasta dos dados para local_folder (padrao: data, ou examples/local_demo com --demo)"),
          demo: bool = typer.Option(False, help="usa uma copia da ontologia em examples/local_demo/ontology")) -> None:
     """Cria akme.yml e as pastas de trabalho."""
     config: dict[str, Any] = {"project": Path.cwd().name, "adapter": adapter}
+    path = path or ("examples/local_demo" if demo else "data")
     options = {
         "local_folder": {"path": path},
         "postgres": {"dsn": "env:AKME_PG_DSN", "schema": "public"},
@@ -63,6 +64,8 @@ def init(adapter: str = typer.Option("local_folder", help="local_folder, postgre
             if not (target / name).exists():
                 shutil.copy(Path("ontology") / name, target / name)
     write_yaml(Path(CONFIG_FILE), config)
+    if adapter == "local_folder":
+        Path(path).mkdir(parents=True, exist_ok=True)
     Path(config.get("ontology_dir", "ontology"), "pending").mkdir(parents=True, exist_ok=True)
     Path("docs").mkdir(exist_ok=True)
     console.print(f"[green]{CONFIG_FILE} criado[/] com adapter {adapter}")

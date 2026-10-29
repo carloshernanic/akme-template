@@ -21,13 +21,14 @@ Levar o consultor do primeiro contato com os dados do cliente ate uma camada sem
 ## Preparacao
 
 ```
-akme init --adapter local_folder --path <pasta>      (ou postgres, snowflake, databricks)
+akme init                                            (local_folder lendo a pasta data/)
+akme init --adapter local_folder --path <pasta>      (outra pasta; ou postgres, snowflake, databricks)
 akme connect
 ```
 
 Se `connect` falhar por falta de extra, instrua: `uv sync --extra <adapter>`. Para a demo: `akme init --demo` e `akme demo`.
 
-O adapter `local_folder` percorre subpastas e aceita uma lista de pastas em `path`. Planilhas `.csv` e `.xlsx` viram fontes; cada aba de um `.xlsx` com mais de uma aba vira uma fonte separada. O nome da fonte junta pastas, arquivo e aba com `__` (ex: `vendas__2026__pedidos__janeiro`) e o campo `origin` do profile guarda o caminho real. Documentos `.md`, `.txt`, `.pdf`, `.docx` e `.pptx` sao lidos por pagina ou slide. `.xlsx`, `.docx` e `.pptx` exigem `uv sync --extra office`; `.pdf` exige `--extra pdf`. Formatos antigos (`.xls`, `.doc`, `.ppt`) nao sao lidos: peca ao consultor para salvar no formato novo.
+Por padrao os dados do cliente ficam em `data/`, cujo conteudo o git ignora; nunca sugira commitar arquivos dessa pasta. O adapter `local_folder` percorre subpastas e aceita uma lista de pastas em `path`. Planilhas `.csv` e `.xlsx` viram fontes; cada aba de um `.xlsx` com mais de uma aba vira uma fonte separada. O nome da fonte junta pastas, arquivo e aba com `__` (ex: `vendas__2026__pedidos__janeiro`) e o campo `origin` do profile guarda o caminho real. Documentos `.md`, `.txt`, `.pdf`, `.docx` e `.pptx` sao lidos por pagina ou slide. `.xlsx`, `.docx` e `.pptx` exigem `uv sync --extra office`; `.pdf` exige `--extra pdf`. Formatos antigos (`.xls`, `.doc`, `.ppt`) nao sao lidos: peca ao consultor para salvar no formato novo.
 
 ## Fluxo em seis etapas
 

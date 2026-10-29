@@ -15,3 +15,7 @@ docs/publish/
 docs/ontology.js
 akme.yml
 !.env.example
+
+# dados do cliente ficam so na maquina do consultor
+data/*
+!data/.gitkeep
