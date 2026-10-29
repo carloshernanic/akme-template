@@ -70,6 +70,7 @@ class ColumnProfile(BaseModel):
 
 class SourceProfile(BaseModel):
     name: str
+    origin: str = ""
     rows_sampled: int
     columns: list[ColumnProfile]
     candidate_keys: list[str]

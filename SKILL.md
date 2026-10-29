@@ -27,15 +27,17 @@ akme connect
 
 Se `connect` falhar por falta de extra, instrua: `uv sync --extra <adapter>`. Para a demo: `akme init --demo` e `akme demo`.
 
+O adapter `local_folder` percorre subpastas e aceita uma lista de pastas em `path`. Planilhas `.csv` e `.xlsx` viram fontes; cada aba de um `.xlsx` com mais de uma aba vira uma fonte separada. O nome da fonte junta pastas, arquivo e aba com `__` (ex: `vendas__2026__pedidos__janeiro`) e o campo `origin` do profile guarda o caminho real. Documentos `.md`, `.txt`, `.pdf`, `.docx` e `.pptx` sao lidos por pagina ou slide. `.xlsx`, `.docx` e `.pptx` exigem `uv sync --extra office`; `.pdf` exige `--extra pdf`. Formatos antigos (`.xls`, `.doc`, `.ppt`) nao sao lidos: peca ao consultor para salvar no formato novo.
+
 ## Fluxo em seis etapas
 
 Cada etapa diz quais tools chamar, o que voce produz e onde parar para o humano decidir. A classificacao vem da tabela da secao 5 de `docs/research/lot-neon.md`.
 
 ### 1. Especificar (LOT: especificacao de requisitos)
 
-Tools: `connect`, `profile`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_requirement` e `add_competency_question`.
+Tools: `connect`, `profile`, `read_document`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_requirement` e `add_competency_question`.
 
-1. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas, convencoes detectadas e os excertos dos documentos do cliente.
+1. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas e convencoes detectadas. O profile traz so um excerto de cada documento: para o conteudo completo, chame `read_document` sem `page` para ver o indice e depois pagina a pagina. Cite arquivo e pagina na `evidence` (ex: `contratos/glossario.docx, pagina 3` ou `kickoff.pptx, slide 2`).
 2. Proponha proposito, escopo e usuarios (`add_requirement` com `field` purpose, scope ou users). Diferencie o que esta explicito nos documentos do que e hipotese sua.
 3. Proponha competency questions a partir da pergunta de negocio do cliente, dos documentos e das colunas. Cada CQ tem `id` (CQ-nnn), `priority` e `source`. Siga a regra do LOT: pergunta quando ha interrogacao de negocio, frase quando e fato, tabela quando e lista de atributos.
 4. Proponha entradas de glossario (`add_glossary`) para siglas vistas em `profile.conventions.acronyms_found` e nos documentos.

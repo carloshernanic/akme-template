@@ -29,6 +29,13 @@ def connect() -> dict[str, Any]:
 
 
 @mcp.tool()
+def read_document(name: str, page: int | None = None) -> dict[str, Any]:
+    """Le um documento do cliente (md, txt, pdf, docx, pptx). Sem page devolve o indice de paginas ou slides;
+    com page (comeca em 1) devolve o texto daquela pagina. Use o nome exato listado por connect ou profile."""
+    return connect_tool.read_document(project(), name, page)
+
+
+@mcp.tool()
 def profile(sample_size: int = 500) -> dict[str, Any]:
     """Perfila as fontes: colunas, tipos, nulos, cardinalidade, chaves candidatas e convencoes. Grava docs/profile.json."""
     return profile_tool.profile(project(), sample_size).model_dump()

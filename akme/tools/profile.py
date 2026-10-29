@@ -96,11 +96,11 @@ def profile_column(name: str, values: list[Any], total: int) -> ColumnProfile:
     )
 
 
-def profile_source(name: str, columns: list[str], rows: list[dict[str, Any]]) -> SourceProfile:
+def profile_source(name: str, columns: list[str], rows: list[dict[str, Any]], origin: str = "") -> SourceProfile:
     total = len(rows)
     cols = [profile_column(c, [r.get(c) for r in rows], total) for c in columns]
     return SourceProfile(
-        name=name, rows_sampled=total, columns=cols,
+        name=name, origin=origin, rows_sampled=total, columns=cols,
         candidate_keys=[c.name for c in cols if c.candidate_key],
     )
 
@@ -131,13 +131,16 @@ def profile(project: Project, sample_size: int = 500) -> Profile:
             schema = adapter.read_schema(name)
             rows = adapter.read_sample(name, sample_size)
             columns = [c["name"] for c in schema["columns"]]
-            sources.append(profile_source(name, columns, rows))
+            loc = adapter.source_location(name)
+            origin = f"{loc['path']}#{loc['sheet']}" if loc and loc.get("sheet") else (loc or {}).get("path", "")
+            sources.append(profile_source(name, columns, rows, origin))
         docs = adapter.read_docs()
     finally:
         adapter.close()
     result = Profile(
         adapter=project.adapter_name, sources=sources,
-        docs=[{"name": d["name"], "chars": len(d["text"]), "excerpt": d["text"][:1500]} for d in docs],
+        docs=[{"name": d["name"], "pages": len(d.get("pages") or [d]), "chars": len(d["text"]),
+               "excerpt": d["text"][:1500]} for d in docs],
         conventions=detect_conventions(sources, docs),
     )
     project.profile_path.parent.mkdir(parents=True, exist_ok=True)

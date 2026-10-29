@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from ..adapters import AdapterError, load_adapter
 from ..ontology import classes, load_content, load_graph, load_manifest, relations
 from ..project import Project, read_yaml, write_yaml
 
@@ -52,15 +53,33 @@ def to_mermaid(data: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def to_yarrrml(project: Project, data: dict[str, Any]) -> dict[str, Any]:
+def _csv_files(project: Project) -> dict[str, str] | None:
+    if project.adapter_name != "local_folder":
+        return None
+    try:
+        adapter = load_adapter(project.adapter_name, project.adapter_options())
+        locations = {s: adapter.source_location(s) for s in adapter.list_sources()}
+    except AdapterError:
+        return None
+    return {s: loc["file"].as_posix() for s, loc in locations.items() if loc["file"].suffix.lower() == ".csv"}
+
+
+def to_yarrrml(project: Project, data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     base = data.get("base_iri") or "https://akme.example/ontology#"
+    files = _csv_files(project)
     source_dir = project.adapter_options().get("path", ".")
     term_class = {t["name"]: t.get("class") for t in data["terms"]}
     mappings: dict[str, Any] = {}
+    skipped: list[str] = []
     for m in data["mappings"]:
         source = m["source"]
+        if files is not None and source not in files:
+            if source not in skipped:
+                skipped.append(source)
+            continue
+        access = files[source] if files is not None else f"{source_dir}/{source}.csv"
         entry = mappings.setdefault(source, {
-            "sources": [{"access": f"{source_dir}/{source}.csv", "referenceFormulation": "csv"}],
+            "sources": [{"access": access, "referenceFormulation": "csv"}],
             "s": f"{base}{source}/$({m['column']})",
             "po": [],
         })
@@ -68,7 +87,7 @@ def to_yarrrml(project: Project, data: dict[str, Any]) -> dict[str, Any]:
         if cls and ["a", f"akme:{cls}"] not in entry["po"]:
             entry["po"].append(["a", f"akme:{cls}"])
         entry["po"].append([f"akme:{m['term']}", f"$({m['column']})"])
-    return {"prefixes": {"akme": base}, "mappings": mappings}
+    return {"prefixes": {"akme": base}, "mappings": mappings}, skipped
 
 
 def export(project: Project) -> dict[str, Any]:
@@ -81,6 +100,7 @@ def export(project: Project) -> dict[str, Any]:
     mmd_path = project.docs_dir / "ontology.mmd"
     mmd_path.write_text(to_mermaid(data), encoding="utf-8")
     yarrrml_path = project.ontology_dir / "mappings.yarrrml.yml"
-    write_yaml(yarrrml_path, to_yarrrml(project, data))
-    return {"json": str(json_path), "mermaid": str(mmd_path), "yarrrml": str(yarrrml_path),
+    yarrrml, skipped = to_yarrrml(project, data)
+    write_yaml(yarrrml_path, yarrrml)
+    return {"json": str(json_path), "mermaid": str(mmd_path), "yarrrml": str(yarrrml_path), "yarrrml_skipped": skipped,
             "classes": len(data["classes"]), "relations": len(data["relations"]), "terms": len(data["terms"])}

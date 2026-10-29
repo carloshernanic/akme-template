@@ -29,8 +29,14 @@ class Adapter(ABC):
     @abstractmethod
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]: ...
 
-    def read_docs(self) -> list[dict[str, str]]:
+    def read_docs(self) -> list[dict[str, Any]]:
         return []
+
+    def read_doc(self, name: str) -> dict[str, Any] | None:
+        return next((d for d in self.read_docs() if d["name"] == name), None)
+
+    def source_location(self, source: str) -> dict[str, Any] | None:
+        return None
 
     def test_connection(self) -> dict[str, Any]:
         return {"adapter": self.name, "ok": True, "sources": self.list_sources()}

@@ -77,11 +77,11 @@ def render_databricks(model: dict[str, Any], project: Project) -> list[str]:
 
 def render_rdf(project: Project, dry_run: bool) -> dict[str, Any]:
     data = build_export(project)
-    yarrrml = to_yarrrml(project, data)
+    yarrrml, skipped = to_yarrrml(project, data)
     path = project.ontology_dir / "mappings.yarrrml.yml"
     write_yaml(path, yarrrml)
     if dry_run:
-        return {"yarrrml": str(path), "materialized": False}
+        return {"yarrrml": str(path), "materialized": False, "skipped": skipped}
     if project.adapter_name != "local_folder":
         raise RuntimeError("publish rdf materializa apenas a partir de local_folder; para bancos use o Morph-KGC direto com db_url")
     try:
@@ -92,7 +92,7 @@ def render_rdf(project: Project, dry_run: bool) -> dict[str, Any]:
     g = morph_kgc.materialize(config)
     out = project.docs_dir / "ontology-data.ttl"
     out.write_text(g.serialize(format="turtle"), encoding="utf-8")
-    return {"yarrrml": str(path), "materialized": True, "output": str(out), "triples": len(g)}
+    return {"yarrrml": str(path), "materialized": True, "output": str(out), "triples": len(g), "skipped": skipped}
 
 
 def bump_version(project: Project, part: str) -> str:
