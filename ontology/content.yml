@@ -6,7 +6,7 @@ requirements:
   scope: ""
   users: []
   use_cases: []
-  # - id: UC-001
+  # - id: UC-01
   #   name: Acompanhar faturamento
   #   description: O financeiro acompanha o faturamento por UF a cada trimestre.
   no_use_case: ""
@@ -14,12 +14,20 @@ requirements:
   # - id: CQ-001
   #   question: Qual o faturamento por UF no ultimo trimestre?
   #   type: quantidade_agregacao
+  #   concepts: [faturamento, UF]
+  #   evidence:
+  #     - {kind: source, path: data/pedidos.csv, locator: coluna valor_total, quote: valor_total}
+  #     - {kind: conversation, who: maria, when: "2026-10-01", note: pedido na reuniao de kickoff}
+  #   use_cases: [UC-01]
   #   priority: high
   #   status: approved
-  #   use_case: UC-001
-  #   source: reuniao de kickoff, 2026-10-01
+  #   answer: ""              # obrigatorio quando status = reserved
+  #   proposed_by: agent
+  #   reviewed_by: maria
+  #   reviewed_at: "2026-10-02T12:00:00+00:00"
+  #   rejection_reason: ""    # preencher quando status = rejected
   gaps: []
-  # - id: GAP-001
+  # - id: L-01
   #   question: Qual a regra de devolucao?
   #   reason: nenhum documento descreve devolucoes
   #   missing: regra de negocio de devolucao
@@ -28,7 +36,7 @@ requirements:
   #     - {kind: conversation, who: maria, when: "2026-10-01", note: devolucoes nao documentadas}
   #   decision: request_from_client
   divergences: []
-  # - id: DIV-001
+  # - id: D-01
   #   topic: cliente ativo
   #   sources: [financeiro, erp]
   #   decision: precedence
