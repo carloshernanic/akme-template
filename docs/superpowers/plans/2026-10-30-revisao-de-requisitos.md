@@ -30,7 +30,7 @@
 
 ---
 
-### Tarefa 1: Esquema, constantes e modelo de revisão
+### Task 1: Esquema, constantes e modelo de revisão
 
 **Files:**
 - Modify: `akme/models.py:10-40`
@@ -87,7 +87,7 @@ git commit -m "feat: esquema de caso de uso, lacunas, divergencias e bloco de re
 
 ---
 
-### Tarefa 2: Módulo `requirements`: ids, referências, espelhamento, portão
+### Task 2: Módulo `requirements`: ids, referências, espelhamento, portão
 
 **Files:**
 - Create: `akme/tools/requirements.py`
@@ -174,7 +174,7 @@ git commit -m "feat: ids sequenciais, portao de requisitos, referencias e espelh
 
 ---
 
-### Tarefa 3: Novos tipos de edição no `propose_edit` e no `apply_edit`, e demo com CQs completas
+### Task 3: Novos tipos de edição no `propose_edit` e no `apply_edit`, e demo com CQs completas
 
 **Files:**
 - Modify: `akme/models.py` (`REQUIRED_FIELDS[add_competency_question] = ["question", "type", "concepts", "evidence"]`)
@@ -259,7 +259,7 @@ git commit -m "feat: edicoes de caso de uso, CQ completa, lacuna e divergencia; 
 
 ---
 
-### Tarefa 4: Portão da etapa 1
+### Task 4: Portão da etapa 1
 
 **Files:**
 - Modify: `akme/tools/ontology_write.py` (`propose_edit`)
@@ -322,7 +322,7 @@ git commit -m "feat: portao da etapa 1 antes da primeira classe"
 
 ---
 
-### Tarefa 5: Revisão, aplicação em lote transacional e tools MCP
+### Task 5: Revisão, aplicação em lote transacional e tools MCP
 
 **Files:**
 - Create: `akme/tools/batch.py`
@@ -408,7 +408,7 @@ git commit -m "feat: bloco de revisao no pendente, aplicacao em lote transaciona
 
 ---
 
-### Tarefa 6: `validate`, leitura, `export` e `publish` cientes dos requisitos
+### Task 6: `validate`, leitura, `export` e `publish` cientes dos requisitos
 
 **Files:**
 - Modify: `akme/tools/validate.py:81-86` e `validate()`
@@ -467,7 +467,7 @@ git commit -m "feat: validate, leitura e export cientes de CQs, lacunas, diverge
 
 ---
 
-### Tarefa 7: Servidor local `akme review`
+### Task 7: Servidor local `akme review`
 
 **Files:**
 - Create: `akme/review_server.py`
@@ -546,7 +546,7 @@ git commit -m "feat: servidor local akme review com API de pendentes e revisao"
 
 ---
 
-### Tarefa 8: Aba Revisão em `docs/index.html` e `docs/review.js`
+### Task 8: Aba Revisão em `docs/index.html` e `docs/review.js`
 
 **Files:**
 - Modify: `docs/index.html:270-330` (cabeçalho e `main`), bloco `<style>`, e `load()`/inicialização
@@ -593,7 +593,7 @@ git commit -m "feat: aba Revisao com cartoes de CQ, lacuna e divergencia e porta
 
 ---
 
-### Tarefa 9: `SKILL.md`, `manifest.yml`, template e README
+### Task 9: `SKILL.md`, `manifest.yml`, template e README
 
 **Files:**
 - Modify: `SKILL.md` (seção "Fluxo em seis etapas", etapas 1 e 2; "Regras que nunca mudam", regra 7; "Como apresentar ambiguidades")
