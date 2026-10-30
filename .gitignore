@@ -19,3 +19,6 @@ akme.yml
 # dados do cliente ficam so na maquina do consultor
 data/*
 !data/.gitkeep
+
+# mockups do brainstorming (superpowers)
+.superpowers/
