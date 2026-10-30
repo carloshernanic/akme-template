@@ -62,7 +62,7 @@ REQUIRED_FIELDS: dict[EditType, list[str]] = {
     EditType.add_precedence: ["topic", "winner", "over"],
     EditType.add_class: ["name", "label", "comment"],
     EditType.add_relation: ["name", "domain", "range", "label"],
-    EditType.add_competency_question: ["id", "question"],
+    EditType.add_competency_question: ["question", "type", "concepts", "evidence"],
     EditType.add_requirement: ["field", "value"],
     EditType.add_use_case: ["name", "description"],
     EditType.update_competency_question: ["id"],

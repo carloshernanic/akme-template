@@ -1,5 +1,13 @@
 # Edicoes da demo. Cada uma passa por propose_edit e apply_edit como qualquer outra.
 edits:
+  - type: add_use_case
+    payload:
+      id: UC-01
+      name: Carteira e faturamento
+      description: Acompanhar faturamento e carteira de clientes da distribuidora.
+      actors: [analista comercial]
+      flow: O analista consulta faturamento por UF, clientes inativos e ticket medio por categoria.
+    evidence: reuniao de kickoff
   - type: add_requirement
     payload:
       field: purpose
@@ -19,23 +27,66 @@ edits:
     payload:
       id: CQ-001
       question: Qual o faturamento por UF no ultimo trimestre?
+      type: quantidade_agregacao
+      concepts: [Pedido, Cliente, Faturamento]
+      evidence:
+        - {kind: source, path: pedidos.csv, locator: "coluna vl_total", quote: "vl_total por pedido, com status FATURADO"}
       priority: high
       status: approved
+      use_cases: [UC-01]
+    requirement_id: CQ-001
     evidence: reuniao de kickoff
   - type: add_competency_question
     payload:
       id: CQ-002
       question: Quais clientes ativos nao compraram nos ultimos 90 dias?
+      type: tempo_estado
+      concepts: [Cliente, Pedido]
+      evidence:
+        - {kind: source, path: glossario.md, locator: "linha 17", quote: "O financeiro define cliente ativo como quem tem pedido faturado nos ultimos 180 dias"}
       priority: medium
-      status: approved
+      status: reserved
+      answer: financeiro
+      use_cases: [UC-01]
+    requirement_id: CQ-002
     evidence: reuniao de kickoff
   - type: add_competency_question
     payload:
       id: CQ-003
       question: Qual o ticket medio por categoria de produto?
+      type: quantidade_agregacao
+      concepts: [Produto, ItemPedido]
+      evidence:
+        - {kind: source, path: pedidos.csv, locator: "coluna vl_total", quote: "valor total do pedido"}
       priority: low
-      status: proposed
+      status: reserved
+      answer: categoria
+      use_cases: [UC-01]
+    requirement_id: CQ-003
     evidence: sugestao do agente a partir de produtos.csv
+
+  - type: add_gap
+    payload:
+      id: L-01
+      question: Quais pedidos foram entregues com atraso?
+      reason: nao ha data de entrega
+      missing: data de entrega por pedido
+      evidence:
+        - {kind: source, path: pedidos.csv, locator: "cabecalho", quote: "id_pedido,id_cliente,dt_pedido,status,vl_total"}
+      decision: request_from_client
+    evidence: pedidos.csv
+
+  - type: add_divergence
+    payload:
+      id: D-01
+      topic: cliente ativo
+      sources:
+        - {label: financeiro, path: glossario.md, locator: "linha 17", quote: "O financeiro define cliente ativo como quem tem pedido faturado nos ultimos 180 dias"}
+        - {label: erp, path: clientes.csv, locator: "coluna fl_ativo", quote: "o ERP usa o campo fl_ativo"}
+      decision: precedence
+      winner: financeiro
+      reason: o financeiro define inadimplencia e o ERP so registra o cadastro
+    evidence: glossario.md e clientes.csv
 
   - type: add_class
     payload:

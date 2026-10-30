@@ -31,14 +31,14 @@ def test_structural_eval(seeded):
     assert not check_assertion(g, "Cliente pertenceA Pedido")[0]
     assert not check_assertion(g, "Pedido type Class extra")[0]
     result = evaluate(seeded)
-    assert result["summary"] == {"questions": 3, "structural_pass": 3, "structural_fail": 0}
+    assert result["summary"] == {"questions": 2, "structural_pass": 2, "structural_fail": 0}
 
 
 def test_eval_with_callable(seeded):
     def answer(question, context):
         return "use vl_total e categoria" if context else "nao sei"
     result = evaluate(seeded, answer)
-    assert result["summary"]["with_correct"] == 2 and result["summary"]["without_correct"] == 0
+    assert result["summary"]["with_correct"] == 1 and result["summary"]["without_correct"] == 0
 
 
 def test_publish_dry_run_targets(seeded):

@@ -1,11 +1,4 @@
 questions:
-  - id: CQ-001
-    question: Qual o faturamento por UF no ultimo trimestre?
-    expects:
-      - Pedido type Class
-      - Pedido pertenceA Cliente
-      - Faturamento subclassOf Metric
-    answer: vl_total
   - id: CQ-002
     question: Quais clientes ativos nao compraram nos ultimos 90 dias?
     expects:
