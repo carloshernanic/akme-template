@@ -27,12 +27,12 @@ class EditType(str, Enum):
 
 
 # Vocabularios da revisao de requisitos
-CQ_TYPES = ("classificacao_hierarquia", "propriedade", "relacao", "agregacao", "restricao", "temporal")
-CQ_STATUSES = ("proposed", "approved", "reserved", "removed")
+CQ_TYPES = ("classificacao_hierarquia", "relacao_entre_conceitos", "atributos", "quantidade_agregacao", "tempo_estado", "regras_restricoes")
+CQ_STATUSES = ("proposed", "approved", "reserved", "rejected", "deprecated")
 PRIORITIES = ("high", "medium", "low")
-GAP_DECISIONS = ("open", "request_from_client", "accepted_risk", "resolved")
-DIVERGENCE_DECISIONS = ("open", "precedence", "dismiss", "resolved")
-EVIDENCE_KINDS = ("document", "data", "client", "inference")
+GAP_DECISIONS = ("request_from_client", "reformulate", "drop", "open")
+DIVERGENCE_DECISIONS = ("precedence", "distinct_terms", "ask_expert", "dismiss", "open")
+EVIDENCE_KINDS = ("source", "conversation")
 
 # Tipos da etapa 1 (requisitos) e da etapa 2 (ontologia)
 STAGE1_TYPES = frozenset({

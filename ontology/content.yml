@@ -13,7 +13,7 @@ requirements:
   competency_questions: []
   # - id: CQ-001
   #   question: Qual o faturamento por UF no ultimo trimestre?
-  #   type: agregacao
+  #   type: quantidade_agregacao
   #   priority: high
   #   status: approved
   #   use_case: UC-001
@@ -23,13 +23,16 @@ requirements:
   #   question: Qual a regra de devolucao?
   #   reason: nenhum documento descreve devolucoes
   #   missing: regra de negocio de devolucao
-  #   evidence: pedidos.csv tem coluna status_devolucao sem documentacao
-  #   decision: open
+  #   evidence:
+  #     - {kind: source, path: data/pedidos.csv, locator: coluna status_devolucao, quote: status_devolucao}
+  #     - {kind: conversation, who: maria, when: "2026-10-01", note: devolucoes nao documentadas}
+  #   decision: request_from_client
   divergences: []
   # - id: DIV-001
   #   topic: cliente ativo
   #   sources: [financeiro, erp]
-  #   decision: open
+  #   decision: precedence
+  #   winner: financeiro
 
 terms: []
 # - name: cliente
