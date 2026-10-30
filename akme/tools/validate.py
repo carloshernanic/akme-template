@@ -79,11 +79,38 @@ def _check_precedence(content: dict[str, Any], findings: list[Finding]) -> None:
 
 
 def _check_questions(content: dict[str, Any], project: Project, findings: list[Finding]) -> None:
-    cq_ids = {c.get("id") for c in content["requirements"]["competency_questions"]}
+    status = {c.get("id"): c.get("status") for c in content["requirements"]["competency_questions"]}
     for q in read_yaml(project.questions_path).get("questions") or []:
-        if q.get("id") and q["id"] not in cq_ids:
+        if q.get("id") and (q["id"] not in status or status[q["id"]] != "reserved"):
             findings.append(Finding(level="warning", check="question_without_requirement", subject=q["id"],
-                                    message=f"pergunta '{q['id']}' nao esta registrada como competency question em content.yml"))
+                                    message=f"pergunta '{q['id']}' nao corresponde a uma competency question reserved em content.yml"))
+
+
+def _check_reserved(content: dict[str, Any], findings: list[Finding]) -> None:
+    for c in content["requirements"]["competency_questions"]:
+        if c.get("status") == "reserved" and not str(c.get("answer") or "").strip():
+            findings.append(Finding(level="error", check="cq_reserved_without_answer", subject=c.get("id", ""),
+                                    message=f"CQ '{c.get('id')}' esta reserved sem answer"))
+
+
+def _check_requirements(content: dict[str, Any], findings: list[Finding]) -> None:
+    r = content["requirements"]
+    cqs = r["competency_questions"]
+    for c in cqs:
+        cid = c.get("id", "")
+        if c.get("status") == "approved" and not c.get("priority"):
+            findings.append(Finding(level="error", check="cq_approved_without_priority", subject=cid,
+                                    message=f"CQ '{cid}' esta approved sem priority"))
+        if c.get("proposed_by") == "agent" and not any(e.get("kind") == "source" for e in c.get("evidence") or []):
+            findings.append(Finding(level="error", check="cq_agent_without_source_evidence", subject=cid,
+                                    message=f"CQ '{cid}' proposta pelo agente sem evidencia kind source"))
+    if not any(c.get("status") == "reserved" for c in cqs):
+        findings.append(Finding(level="warning", check="no_reserved_cq",
+                                message="nenhuma CQ reserved: eval nao testa pelo resultado"))
+    for item in list(r["gaps"]) + list(r["divergences"]):
+        if item.get("decision") == "open":
+            findings.append(Finding(level="warning", check="open_gap_or_divergence", subject=item.get("id", ""),
+                                    message=f"'{item.get('id')}' segue em open"))
 
 
 def native_pitfalls(g: Graph) -> list[dict[str, Any]]:
@@ -180,6 +207,8 @@ def validate(project: Project, oops: bool = False) -> ValidationReport:
     coverage = _check_mappings(content, project, findings)
     _check_precedence(content, findings)
     _check_questions(content, project, findings)
+    _check_reserved(content, findings)
+    _check_requirements(content, findings)
     report = ValidationReport(
         ok=not any(f.level == "error" for f in findings),
         findings=findings, coverage=coverage, pitfalls=pitfalls, oops=oops_result,

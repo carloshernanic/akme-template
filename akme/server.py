@@ -13,6 +13,7 @@ from .tools import ontology_read as read_tool
 from .tools import ontology_write as write_tool
 from .tools import profile as profile_tool
 from .tools import publish as publish_tool
+from .tools import requirements as requirements_tool
 from .tools import validate as validate_tool
 
 mcp = FastMCP("akme")
@@ -81,14 +82,14 @@ def get_precedence(topic: str | None = None) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def list_competency_questions() -> list[dict[str, Any]]:
-    """Lista as competency questions registradas com id, prioridade, status e origem."""
-    return read_tool.list_competency_questions(project())
+def list_competency_questions(status: str | None = None) -> list[dict[str, Any]]:
+    """Lista as competency questions; filtra por status (proposed, approved, reserved...) se informado."""
+    return read_tool.list_competency_questions(project(), status)
 
 
 @mcp.tool()
 def get_requirements() -> dict[str, Any]:
-    """Devolve o ORSD enxuto: proposito, escopo, usuarios e competency questions."""
+    """Devolve os requisitos: ORSD, pedido de dados e status do portao."""
     return read_tool.get_requirements(project())
 
 
@@ -101,8 +102,10 @@ def search_registry(query: str, limit: int = 10) -> dict[str, Any]:
 @mcp.tool()
 def propose_edit(type: str, payload: dict[str, Any], rationale: str = "", proposed_by: str = "agent",
                  requirement_id: str | None = None, evidence: str = "") -> dict[str, Any]:
-    """Grava uma edicao tipada em ontology/pending/ sem alterar a ontologia. Tipos: add_term, add_mapping,
-    add_constraint, add_glossary, add_precedence, add_class, add_relation, add_competency_question, add_requirement."""
+    """Grava uma edicao tipada em ontology/pending/ sem alterar a ontologia. Tipos da etapa 1 (requisitos):
+    add_use_case, add_competency_question, update_competency_question, remove_competency_question, add_gap,
+    update_gap, add_divergence, update_divergence, add_requirement, add_glossary. Tipos da etapa 2 (ontologia,
+    bloqueados ate os requisitos fecharem): add_class, add_relation, add_term, add_mapping, add_constraint, add_precedence."""
     return write_tool.propose_edit(project(), type, payload, rationale, proposed_by, requirement_id, evidence).model_dump(mode="json")
 
 
@@ -113,9 +116,29 @@ def list_pending() -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def apply_edit(edit_id: str, approved_by: str) -> dict[str, Any]:
-    """Aplica uma edicao pendente. Exige o nome de quem aprovou; chame somente apos aprovacao explicita do humano."""
-    return write_tool.apply_edit(project(), edit_id, approved_by)
+def review_edit(edit_id: str, decision: str, reviewer: str, edits: dict[str, Any] | None = None,
+                reason: str = "") -> dict[str, Any]:
+    """Grava a revisao humana (accept ou reject) no pendente, sem aplicar. reject exige reason; edits muda campos do payload."""
+    return write_tool.review_edit(project(), edit_id, decision, reviewer, edits, reason).model_dump(mode="json")
+
+
+@mcp.tool()
+def apply_edit(edit_id: str = "", approved_by: str = "", edit_ids: list[str] | None = None) -> dict[str, Any]:
+    """Aplica uma edicao pendente (edit_id) ou um lote transacional (edit_ids, com validate). Exige o nome de quem
+    aprovou; chame somente apos aprovacao explicita do humano."""
+    return write_tool.apply_edit(project(), edit_id or None, approved_by, edit_ids)
+
+
+@mcp.tool()
+def apply_reviewed(approved_by: str) -> dict[str, Any]:
+    """Aplica em lote todos os pendentes revisados e devolve o resumo. Mostre o resumo e espere o "aplica" do humano antes."""
+    return write_tool.apply_reviewed(project(), approved_by)
+
+
+@mcp.tool()
+def requirements_status() -> dict[str, Any]:
+    """Diz se os requisitos da etapa 1 estao fechados, o que falta e se o portao da ontologia esta ativo."""
+    return requirements_tool.requirements_status(project())
 
 
 @mcp.tool()

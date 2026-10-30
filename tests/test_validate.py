@@ -38,3 +38,21 @@ def test_broken_ttl_is_reported(project):
     project.schema_path.write_text("isto nao e turtle @@", encoding="utf-8")
     report = validate(project)
     assert not report.ok and report.errors[0].check == "ttl_parse"
+
+
+def test_validate_requirement_rules(project):
+    c = load_content(project); r = c["requirements"]
+    r["competency_questions"] += [{"id": "CQ-001", "question": "q", "type": "atributos", "concepts": ["X"], "status": "reserved", "priority": "high", "proposed_by": "agent",
+                                   "evidence": [{"kind": "conversation", "who": "a", "when": "b"}]},
+                                  {"id": "CQ-002", "question": "q", "type": "atributos", "concepts": ["X"], "status": "approved", "proposed_by": "ana",
+                                   "evidence": [{"kind": "conversation", "who": "a", "when": "b"}]}]
+    r["gaps"].append({"id": "L-01", "question": "q", "reason": "r", "missing": "m", "decision": "open"}); save_content(project, c)
+    checks = {(f.level, f.check) for f in validate(project).findings}
+    assert {("error", "cq_reserved_without_answer"), ("error", "cq_approved_without_priority"), ("error", "cq_agent_without_source_evidence"), ("warning", "open_gap_or_divergence")} <= checks
+
+
+def test_validate_warns_without_reserved(seeded):
+    c = load_content(seeded)
+    for cq in c["requirements"]["competency_questions"]: cq["status"] = "approved"
+    save_content(seeded, c)
+    assert any(f.check == "no_reserved_cq" for f in validate(seeded).findings)

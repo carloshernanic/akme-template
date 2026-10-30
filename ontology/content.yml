@@ -38,7 +38,9 @@ requirements:
   divergences: []
   # - id: D-01
   #   topic: cliente ativo
-  #   sources: [financeiro, erp]
+  #   sources:
+  #     - {label: financeiro, path: glossario.md, locator: "linha 17", quote: "cliente ativo tem pedido faturado nos ultimos 180 dias"}
+  #     - {label: erp, path: clientes.csv, locator: "coluna fl_ativo", quote: "o ERP usa o campo fl_ativo"}
   #   decision: precedence
   #   winner: financeiro
 

@@ -76,8 +76,9 @@ def mirror_reserved(project: Project) -> None:
     cqs = load_content(project)["requirements"]["competency_questions"]
     reserved = {c["id"]: c for c in cqs if c.get("status") == "reserved"}
     not_reserved = {c["id"] for c in cqs if c.get("status") != "reserved"}
+    # so remove entradas que a propria ferramenta escreveu (mirrored: true); as escritas a mao ficam
     questions = [q for q in (read_yaml(project.questions_path).get("questions") or [])
-                 if q.get("id") not in not_reserved]
+                 if not (q.get("mirrored") and q.get("id") in not_reserved)]
     by_id = {q.get("id"): q for q in questions}
     for cid, cq in reserved.items():
         entry = by_id.get(cid)
@@ -86,6 +87,7 @@ def mirror_reserved(project: Project) -> None:
             questions.append(entry)
         entry["question"] = cq.get("question", "")
         entry["answer"] = cq.get("answer", "")
+        entry["mirrored"] = True
     write_yaml(project.questions_path, {"questions": questions})
 
 

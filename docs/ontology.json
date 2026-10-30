@@ -314,32 +314,522 @@
     "users": [
       "analista comercial"
     ],
+    "use_cases": [
+      {
+        "id": "UC-01",
+        "name": "Carteira e faturamento",
+        "description": "Acompanhar faturamento e carteira de clientes da distribuidora.",
+        "actors": [
+          "analista comercial"
+        ],
+        "flow": "O analista consulta faturamento por UF, clientes inativos e ticket medio por categoria."
+      }
+    ],
+    "no_use_case": "",
     "competency_questions": [
       {
         "id": "CQ-001",
         "question": "Qual o faturamento por UF no ultimo trimestre?",
+        "type": "quantidade_agregacao",
+        "concepts": [
+          "Pedido",
+          "Cliente",
+          "Faturamento"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "coluna vl_total",
+            "quote": "vl_total por pedido, com status FATURADO"
+          }
+        ],
         "priority": "high",
         "status": "approved",
-        "source": "reuniao de kickoff"
+        "use_cases": [
+          "UC-01"
+        ],
+        "proposed_by": "seed"
       },
       {
         "id": "CQ-002",
         "question": "Quais clientes ativos nao compraram nos ultimos 90 dias?",
+        "type": "tempo_estado",
+        "concepts": [
+          "Cliente",
+          "Pedido"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "glossario.md",
+            "locator": "linha 17",
+            "quote": "O financeiro define cliente ativo como quem tem pedido faturado nos ultimos 180 dias"
+          }
+        ],
         "priority": "medium",
-        "status": "approved",
-        "source": "reuniao de kickoff"
+        "status": "reserved",
+        "answer": "financeiro",
+        "use_cases": [
+          "UC-01"
+        ],
+        "proposed_by": "seed"
       },
       {
         "id": "CQ-003",
         "question": "Qual o ticket medio por categoria de produto?",
+        "type": "quantidade_agregacao",
+        "concepts": [
+          "Produto",
+          "ItemPedido"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "coluna vl_total",
+            "quote": "valor total do pedido"
+          }
+        ],
         "priority": "low",
-        "status": "proposed",
-        "source": "sugestao do agente a partir de produtos.csv"
+        "status": "reserved",
+        "answer": "categoria",
+        "use_cases": [
+          "UC-01"
+        ],
+        "proposed_by": "seed"
+      }
+    ],
+    "gaps": [
+      {
+        "id": "L-01",
+        "question": "Quais pedidos foram entregues com atraso?",
+        "reason": "nao ha data de entrega",
+        "missing": "data de entrega por pedido",
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "cabecalho",
+            "quote": "id_pedido,id_cliente,dt_pedido,status,vl_total"
+          }
+        ],
+        "decision": "request_from_client",
+        "decided_by": "demo",
+        "decided_at": "2026-10-30T21:24:55+00:00"
+      }
+    ],
+    "divergences": [
+      {
+        "id": "D-01",
+        "topic": "cliente ativo",
+        "sources": [
+          {
+            "label": "financeiro",
+            "path": "glossario.md",
+            "locator": "linha 17",
+            "quote": "O financeiro define cliente ativo como quem tem pedido faturado nos ultimos 180 dias"
+          },
+          {
+            "label": "erp",
+            "path": "clientes.csv",
+            "locator": "coluna fl_ativo",
+            "quote": "o ERP usa o campo fl_ativo"
+          }
+        ],
+        "decision": "precedence",
+        "winner": "financeiro",
+        "reason": "o financeiro define inadimplencia e o ERP so registra o cadastro",
+        "decided_by": "demo",
+        "decided_at": "2026-10-30T21:24:55+00:00"
       }
     ]
   },
+  "pending": [
+    {
+      "id": "add_competency_question-0f29e24c",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "A qual cliente pertence cada pedido?",
+        "type": "relacao_entre_conceitos",
+        "concepts": [
+          "Pedido",
+          "Cliente"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "coluna id_cliente",
+            "quote": "id_cliente referencia clientes.id_cliente"
+          }
+        ],
+        "id": "CQ-006",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-138ee7bd",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Qual e o valor total e a data de cada pedido?",
+        "type": "atributos",
+        "concepts": [
+          "Pedido"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "colunas vl_total, dt_pedido",
+            "quote": "vl_total decimal; dt_pedido AAAA-MM-DD"
+          }
+        ],
+        "id": "CQ-009",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-3dd4ec78",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Quais sao os status possiveis de um pedido e o que cada um significa?",
+        "type": "classificacao_hierarquia",
+        "concepts": [
+          "Pedido",
+          "StatusPedido"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "coluna status",
+            "quote": "FATURADO, PENDENTE, CANCELADO"
+          }
+        ],
+        "id": "CQ-004",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-6a6ad950",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Quais produtos compoem um pedido e em que quantidade?",
+        "type": "relacao_entre_conceitos",
+        "concepts": [
+          "Pedido",
+          "ItemPedido",
+          "Produto"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "itens_pedido.csv",
+            "locator": "colunas id_pedido, sku, qt_itens",
+            "quote": "uma linha por item"
+          }
+        ],
+        "id": "CQ-007",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-8b1cf9f4",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Um pedido cancelado pode ser faturado depois?",
+        "type": "regras_restricoes",
+        "concepts": [
+          "Pedido",
+          "Regra"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "glossario.md",
+            "locator": "linha 6",
+            "quote": "pedido sem NF nao foi faturado"
+          }
+        ],
+        "id": "CQ-013",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-8e8d30e7",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Quais categorias de produto existem e quantos SKUs ha em cada uma?",
+        "type": "classificacao_hierarquia",
+        "concepts": [
+          "Produto",
+          "Categoria"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "produtos.csv",
+            "locator": "coluna categoria",
+            "quote": "CIMENTO, TINTA, FERRAGEM"
+          }
+        ],
+        "id": "CQ-005",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-8f55e886",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Quantos clientes ativos ha por UF?",
+        "type": "quantidade_agregacao",
+        "concepts": [
+          "Cliente",
+          "ClienteAtivo",
+          "UF"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "clientes.csv",
+            "locator": "coluna fl_ativo",
+            "quote": "fl_ativo S/N"
+          }
+        ],
+        "id": "CQ-011",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-a26dad22",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Qual o faturamento por categoria de produto no mes?",
+        "type": "quantidade_agregacao",
+        "concepts": [
+          "Faturamento",
+          "Categoria"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "glossario.md",
+            "locator": "linha 4",
+            "quote": "faturamento considera apenas pedidos FATURADO"
+          }
+        ],
+        "id": "CQ-010",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-aa33e4ce",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Qual e a UF e o CNPJ de cada cliente?",
+        "type": "atributos",
+        "concepts": [
+          "Cliente"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "clientes.csv",
+            "locator": "colunas uf, cnpj",
+            "quote": "SP, 12.345.678/0001-90"
+          }
+        ],
+        "id": "CQ-008",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_competency_question-ab0ad9b0",
+      "type": "add_competency_question",
+      "payload": {
+        "question": "Quais pedidos estao pendentes ha mais de 30 dias?",
+        "type": "tempo_estado",
+        "concepts": [
+          "Pedido",
+          "StatusPedido"
+        ],
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "colunas status, dt_pedido",
+            "quote": "PENDENTE com dt_pedido antiga"
+          }
+        ],
+        "id": "CQ-012",
+        "status": "proposed"
+      },
+      "rationale": "proposta a partir do profile e do glossario",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_divergence-a78c794b",
+      "type": "add_divergence",
+      "payload": {
+        "topic": "cliente ativo",
+        "sources": [
+          {
+            "label": "A",
+            "path": "glossario.md",
+            "locator": "linha 8",
+            "quote": "cliente ativo: pedido faturado nos ultimos 180 dias, segundo o financeiro"
+          },
+          {
+            "label": "B",
+            "path": "clientes.csv",
+            "locator": "coluna fl_ativo",
+            "quote": "flag S/N mantida pelo ERP"
+          }
+        ],
+        "hypothesis": "o ERP marca o flag no cadastro e nao reflete a regra do financeiro",
+        "id": "D-02",
+        "decision": "open"
+      },
+      "rationale": "",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_gap-639b0e4b",
+      "type": "add_gap",
+      "payload": {
+        "question": "Quais pedidos foram entregues com atraso?",
+        "reason": "nao ha data de entrega nem prazo prometido nas fontes",
+        "missing": "data prometida e data de entrega por pedido",
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "pedidos.csv",
+            "locator": "cabecalho",
+            "quote": "id_pedido,id_cliente,dt_pedido,status,vl_total"
+          }
+        ],
+        "id": "L-02",
+        "decision": "open"
+      },
+      "rationale": "",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    },
+    {
+      "id": "add_gap-bc82649b",
+      "type": "add_gap",
+      "payload": {
+        "question": "Qual a margem de cada pedido?",
+        "reason": "nao ha custo do produto",
+        "missing": "custo unitario por SKU",
+        "evidence": [
+          {
+            "kind": "source",
+            "path": "produtos.csv",
+            "locator": "cabecalho",
+            "quote": "sku,nome,categoria"
+          }
+        ],
+        "id": "L-03",
+        "decision": "open"
+      },
+      "rationale": "",
+      "proposed_by": "agent",
+      "requirement_id": null,
+      "evidence": "",
+      "created_at": "2026-10-30T21:24:57+00:00",
+      "status": "pending",
+      "review": null
+    }
+  ],
+  "requirements_status": {
+    "closed": false,
+    "missing": [
+      "pendentes da etapa 1 sem revisao: add_competency_question-0f29e24c, add_competency_question-138ee7bd, add_competency_question-3dd4ec78, add_competency_question-6a6ad950, add_competency_question-8b1cf9f4, add_competency_question-8e8d30e7, add_competency_question-8f55e886, add_competency_question-a26dad22, add_competency_question-aa33e4ce, add_competency_question-ab0ad9b0, add_divergence-a78c794b, add_gap-639b0e4b, add_gap-bc82649b"
+    ],
+    "ontology_empty": false,
+    "gate_active": false
+  },
   "validation": {
-    "generated_at": "2026-10-29T19:19:42+00:00",
+    "generated_at": "2026-10-30T21:24:56+00:00",
     "ok": true,
     "errors": 0,
     "warnings": 0,

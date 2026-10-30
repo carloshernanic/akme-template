@@ -12,6 +12,9 @@ def build_export(project: Project) -> dict[str, Any]:
     g = load_graph(project.schema_path)
     content = load_content(project)
     manifest = load_manifest(project)
+    from .ontology_write import list_pending
+    from .requirements import requirements_status
+
     validation = read_yaml(project.validation_path) if project.validation_path.exists() else None
     summary = None
     if validation:
@@ -36,6 +39,8 @@ def build_export(project: Project) -> dict[str, Any]:
         "glossary": content["glossary"],
         "precedence": content["precedence"],
         "requirements": content["requirements"],
+        "pending": [e.model_dump(mode="json") for e in list_pending(project)],
+        "requirements_status": requirements_status(project),
         "validation": summary,
     }
 

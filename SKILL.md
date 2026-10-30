@@ -11,13 +11,13 @@ Levar o consultor do primeiro contato com os dados do cliente ate uma camada sem
 
 ## Regras que nunca mudam
 
-1. **Nada entra na ontologia sem aprovacao explicita do humano.** Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa.
+1. **Nada entra na ontologia sem aprovacao explicita do humano.** Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa. `apply_reviewed` so pode ser chamado depois de voce mostrar o resumo das decisoes lidas em `list_pending` e o humano responder 'aplica' com o nome de quem aprova.
 2. **`validate` roda antes de todo `apply_edit`.** Se houver erro, mostre ao humano e proponha correcao em vez de aplicar.
 3. **Nunca responda de memoria sobre a ontologia.** Use `list_entities`, `list_relations`, `search_term`, `resolve_acronym`, `get_precedence`, `get_requirements` e `list_competency_questions` para saber o que existe.
 4. **Toda proposta carrega proveniencia.** Preencha `requirement_id` (a CQ que motiva) e `evidence` (documento, tabela, coluna ou conversa de origem). O `apply_edit` grava isso em `changelog.yml` e na secao `evidence` do `content.yml`.
-5. **`publish` e `apply_edit` sao acoes com aprovacao por chamada.** `publish` roda em dry-run por padrao; executar no alvo exige o humano confirmar na CLI.
+5. **`publish`, `apply_edit` e `apply_reviewed` sao acoes com aprovacao por chamada.** `publish` roda em dry-run por padrao; executar no alvo exige o humano confirmar na CLI.
 6. **As tools nao chamam LLM.** O que exige julgamento semantico (redigir definicoes, propor classes, interpretar relatorios) e trabalho seu, sempre apresentado como proposta.
-7. **Toda hipotese, ambiguidade ou conflito mostrado ao humano diz de onde veio.** Antes de apresentar, chame `find_in_sources` com o termo (siglas com `case_sensitive=true`) e cite cada ocorrencia relevante com o `path` devolvido, a pagina ou slide, ou a aba e a coluna, e um trecho curto entre aspas. Nunca cite de memoria. Se a tool nao encontrar o termo por extenso, diga isso e mostre onde ele aparece abreviado. Separe sempre o que esta escrito na fonte do que e hipotese sua. Ver "Como apresentar ambiguidades".
+7. **Toda hipotese, ambiguidade ou conflito mostrado ao humano diz de onde veio.** Antes de apresentar, chame `find_in_sources` com o termo (siglas com `case_sensitive=true`) e cite cada ocorrencia relevante com o `path` devolvido, a pagina ou slide, ou a aba e a coluna, e um trecho curto entre aspas. Nunca cite de memoria. Se a tool nao encontrar o termo por extenso, diga isso e mostre onde ele aparece abreviado. Separe sempre o que esta escrito na fonte do que e hipotese sua. Toda CQ, lacuna e divergencia proposta carrega `evidence` com `kind: source` citando `path`, `locator` e `quote`; o que vem de conversa leva `kind: conversation`. Ver "Como apresentar ambiguidades".
 
 ## Preparacao
 
@@ -37,21 +37,25 @@ Cada etapa diz quais tools chamar, o que voce produz e onde parar para o humano 
 
 ### 1. Especificar (LOT: especificacao de requisitos)
 
-Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_requirement` e `add_competency_question`.
+Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_use_case`, `add_requirement`, `add_competency_question`, `add_gap`, `add_divergence`, `add_glossary`; `export`, `list_pending`, `requirements_status`, `apply_reviewed`.
 
-1. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas e convencoes detectadas. O profile traz so um excerto de cada documento: para o conteudo completo, chame `read_document` sem `page` para ver o indice e depois pagina a pagina. Cite arquivo e pagina na `evidence` (ex: `contratos/glossario.docx, pagina 3` ou `kickoff.pptx, slide 2`).
-2. Proponha proposito, escopo e usuarios (`add_requirement` com `field` purpose, scope ou users). Diferencie o que esta explicito nos documentos do que e hipotese sua.
-3. Proponha competency questions a partir da pergunta de negocio do cliente, dos documentos e das colunas. Cada CQ tem `id` (CQ-nnn), `priority` e `source`. Siga a regra do LOT: pergunta quando ha interrogacao de negocio, frase quando e fato, tabela quando e lista de atributos.
-4. Proponha entradas de glossario (`add_glossary`) para siglas vistas em `profile.conventions.acronyms_found` e nos documentos.
+1. Pergunte o caso de uso (ou constate que `get_requirements` ja traz um em `use_cases`; nesse caso nao pergunte de novo): nome, descricao, atores e fluxo. Proponha `add_use_case`. Se o humano disser que nao tem, registre o motivo com `add_requirement` no campo `no_use_case`, avise que as CQs sairao mais genericas e siga.
+2. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas e convencoes detectadas. O profile traz so um excerto de cada documento: para o conteudo completo, chame `read_document` sem `page` para ver o indice e depois pagina a pagina. Use `find_in_sources` nos termos que aparecerem. Cite arquivo e pagina na `evidence` (ex: `contratos/glossario.docx, pagina 3` ou `kickoff.pptx, slide 2`).
+3. Proponha proposito, escopo e usuarios (`add_requirement` com `field` purpose, scope ou users). Diferencie o que esta explicito nos documentos do que e hipotese sua.
+4. Proponha exatamente dez CQs (`add_competency_question`), distribuidas entre os seis tipos: `classificacao_hierarquia`, `relacao_entre_conceitos`, `atributos`, `quantidade_agregacao`, `tempo_estado`, `regras_restricoes`. O ideal e duas por tipo; se o dominio nao sustenta um tipo, diga qual e por que. Cada CQ leva `question`, `type`, `concepts` e `evidence` com ao menos um `{kind: source, path, locator, quote}`; `use_cases` e opcional. O `id` e o `status: proposed` o servidor preenche. Siga a regra do LOT: pergunta quando ha interrogacao de negocio, frase quando e fato, tabela quando e lista de atributos. Em seguida proponha as lacunas (`add_gap`: perguntas que o caso de uso sugere e os dados nao respondem) e as divergencias (`add_divergence`: fontes que discordam), cada uma com evidencia.
+5. Rode `export` e diga ao humano: "rode `akme review` e abra a aba Revisao". Mostre no chat so a lista curta (id, pergunta, tipo); o detalhe e a decisao ficam na aba.
+6. Pare. Quando o humano voltar, leia `list_pending` e resuma as decisoes (quantas CQs aceitas, rejeitadas, editadas e criadas; lacunas e divergencias decididas). Peca "aplica" com o nome de quem aprova. So depois chame `apply_reviewed` com esse nome.
+7. Proponha o glossario (`add_glossary`) para siglas vistas em `profile.conventions.acronyms_found` e nos documentos. As entradas ficam pendentes e o humano decide na aba Revisao (ou diz "aprovado" no chat e voce chama `apply_edit`); a etapa so fecha depois que elas forem aplicadas. Se menos de cinco CQs foram aceitas, ofereca uma segunda rodada de ate dez, sem repetir as rejeitadas.
 
-**Pare e pergunte:** o humano valida cada requisito (claro, completo, sem ambiguidade), prioriza, e diz quais CQs sao de ajuste e quais ficam reservadas para o teste. So depois peca aprovacao e chame `apply_edit`. Nao transforme hipotese em regra.
+**Pare e pergunte:** o humano decide na aba Revisao (claro, completo, sem ambiguidade, prioridade, quais CQs sao de ajuste e quais ficam reservadas para o teste). Nao transforme hipotese em regra. Mesmo depois do "aplica", a etapa so termina quando `requirements_status` diz `closed`.
 
-Saida: `requirements` e `glossary` preenchidos no `content.yml`; CQs reservadas registradas em `validation/questions.yml` com `expects` e `answer`.
+Saida: `use_cases`, CQs com status, `gaps`, `divergences`, `requirements` e `glossary` no `content.yml`; CQs reservadas espelhadas em `validation/questions.yml`. Se nao ha nenhuma reservada, diga ao humano: o eval nao testara pelo resultado; a etapa 4 fica so com verificacao formal.
 
 ### 2. Conceitualizar (LOT: implementacao, conceitualizacao e reuso)
 
-Tools: `list_entities`, `list_relations`, `search_term`, `search_registry`, `propose_edit` com `add_class`, `add_relation`, `add_term`.
+Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, `search_registry`, `propose_edit` com `add_class`, `add_relation`, `add_term`.
 
+0. Chame `requirements_status`; se `closed` for falso, volte a etapa 1 e mostre `missing` ao humano. Enquanto estiver aberto e a ontologia nao tiver classe de dominio, `propose_edit` recusa classes, relacoes, termos, mappings, constraints e precedencias.
 1. Leia o modelo atual com `list_entities` e `list_relations` antes de propor qualquer coisa.
 2. A partir das CQs aprovadas e do `profile`, proponha classes (subclasses de `Entity`, `Metric`, `Rule` ou `Relation`), relacoes com domain, range e inversa, e termos ligados a cada classe. Associe cada proposta ao `requirement_id`.
 3. Quando a conceitualizacao estiver estavel, consulte `search_registry` para termos reutilizaveis na LOV. Compare definicao com definicao, nao nome com nome. Se nao houver rede, registre que o reuso ficou pendente.
@@ -107,7 +111,7 @@ Tools: `validate`, `eval`, `propose_edit`, `apply_edit`, `publish --release`.
 
 ## Como apresentar ambiguidades
 
-Cada item tem: o termo, o problema em uma frase, as fontes com caminho e trecho, a sua hipotese marcada como hipotese, e uma pergunta fechada para o humano. O caminho e o que o humano usa para abrir o arquivo e conferir. Exemplo:
+Divergencias entre fontes viram `add_divergence` (`topic`, `sources` com duas ou mais `{label, path, locator, quote}`, `hypothesis`) e o que os dados nao respondem vira `add_gap` (`question`, `reason`, `missing`, `evidence`). Ambos sao apresentados na aba Revisao, onde o humano decide; o chat mostra so a lista curta (id, tema ou pergunta, fontes em uma linha). Cada item tem: o termo, o problema em uma frase, as fontes com caminho e trecho, a sua hipotese marcada como hipotese, e uma pergunta fechada para o humano. O caminho e o que o humano usa para abrir o arquivo e conferir. Exemplo:
 
 ```
 Ambiguidades que encontrei:
@@ -126,11 +130,11 @@ Ambiguidades que encontrei:
 3. Carga horaria: duas fontes divergem.
    - data/regulamento.docx, pagina 2: "...carga horaria total de 360 h..."
    - data/site_curso.md: "...300 horas de atividades..."
-   Sugestao: o Regulamento prevalece, e isso vira uma regra de precedencia na etapa 3.
+   Sugestao: o Regulamento prevalece, e isso vira uma regra de precedencia na etapa 3 (a divergencia fica como `add_divergence` com decisao `precedence`).
    Pergunta: concorda?
 ```
 
-Use o mesmo formato na `evidence` do `propose_edit` (ex: `data/regulamento.docx, pagina 2: "carga horaria total de 360 h"`), para que a origem fique gravada no `changelog.yml` e no `content.yml`.
+Use o mesmo conteudo na `evidence` do `propose_edit` (ex: `{kind: source, path: data/regulamento.docx, locator: pagina 2, quote: "carga horaria total de 360 h"}`), para que a origem fique gravada no `changelog.yml` e no `content.yml`.
 
 ## Como interpretar o validate
 
@@ -138,6 +142,11 @@ Use o mesmo formato na `evidence` do `propose_edit` (ex: `data/regulamento.docx,
 |---|---|---|
 | `findings` nivel `error` | TTL nao parseia, termo aponta para classe inexistente, mapping para coluna inexistente, precedencia contraditoria | Bloqueia `apply_edit` e `publish`. Proponha correcao |
 | `findings` nivel `warning` | Profile ausente, pergunta do eval sem CQ registrada | Rode `profile` ou registre a CQ |
+| `cq_reserved_without_answer` (error) | CQ `reserved` sem `answer` | Proponha `update_competency_question` com a resposta esperada |
+| `cq_approved_without_priority` (error) | CQ `approved` sem `priority` | Proponha `update_competency_question` com `priority` |
+| `cq_agent_without_source_evidence` (error) | CQ proposta pelo agente sem item `kind: source` na `evidence` | Proponha a correcao com `path`, `locator` e `quote` da fonte |
+| `no_reserved_cq` (warning) | Nenhuma CQ `reserved` | Avise o humano: o eval nao testara pelo resultado |
+| `open_gap_or_divergence` (warning) | Lacuna ou divergencia com `decision: open` | Leve ao humano na aba Revisao |
 | `coverage` | Colunas do profile cobertas por mappings, por fonte, com a lista das nao cobertas | Colunas nao mapeadas sao candidatas a termo ou devem ser marcadas fora de escopo com o humano |
 | `pitfalls` | Subconjunto do catalogo OOPS! calculado localmente: P04 elemento desconectado, P08 sem label ou comment, P11 relacao sem domain ou range, P13 relacao sem inversa, P22 nome fora da convencao, P41 sem licenca | `important` corrige antes de publicar; `minor` registra e decide com o humano |
 | `oops` | Resultado do servico remoto quando `oops=true`; `available=false` quando o servico esta fora do ar | Nao bloqueie o fluxo por indisponibilidade; repita mais tarde |

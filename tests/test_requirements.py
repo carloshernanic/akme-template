@@ -35,12 +35,16 @@ def test_status_closes_with_use_case_approved_cq_purpose_scope(project):
 
 
 def test_mirror_reserved_merges_and_preserves_expects(project):
-    write_yaml(project.questions_path, {"questions": [{"id": "CQ-002", "question": "old", "expects": ["Cliente type Class"]}, {"id": "ZZ", "question": "orfa"}]})
-    c = load_content(project); c["requirements"]["competency_questions"] += [_cq("CQ-002", "reserved", "financeiro"), _cq("CQ-003", "reserved", "categoria"), _cq("CQ-001", "approved")]; save_content(project, c)
+    write_yaml(project.questions_path, {"questions": [
+        {"id": "CQ-002", "question": "old", "expects": ["Cliente type Class"]}, {"id": "ZZ", "question": "orfa"},
+        {"id": "CQ-001", "question": "escrita a mao"}, {"id": "CQ-004", "question": "espelhada", "mirrored": True}]})
+    c = load_content(project); c["requirements"]["competency_questions"] += [_cq("CQ-002", "reserved", "financeiro"), _cq("CQ-003", "reserved", "categoria"), _cq("CQ-001", "approved"), _cq("CQ-004", "approved")]; save_content(project, c)
     rq.mirror_reserved(project)
     q = {x["id"]: x for x in read_yaml(project.questions_path)["questions"]}
     assert q["CQ-002"]["expects"] == ["Cliente type Class"] and q["CQ-002"]["question"] == "q CQ-002" and q["CQ-002"]["answer"] == "financeiro"
-    assert "CQ-003" in q and "ZZ" in q and "CQ-001" not in q
+    assert q["CQ-002"]["mirrored"] is True and q["CQ-003"]["mirrored"] is True
+    assert "ZZ" in q and q["CQ-001"]["question"] == "escrita a mao"  # sem a marca, nunca e removida
+    assert "CQ-004" not in q  # marcada e nao mais reserved: sai
 
 
 def test_cq_references_on_seeded(seeded):

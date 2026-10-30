@@ -1,13 +1,15 @@
 questions:
-  - id: CQ-002
-    question: Quais clientes ativos nao compraram nos ultimos 90 dias?
-    expects:
-      - Cliente type Class
-      - Cliente possuiPedido Pedido
-    answer: financeiro
-  - id: CQ-003
-    question: Qual o ticket medio por categoria de produto?
-    expects:
-      - ItemPedido referencia Produto
-      - Pedido contem ItemPedido
-    answer: categoria
+- id: CQ-002
+  question: Quais clientes ativos nao compraram nos ultimos 90 dias?
+  expects:
+  - Cliente type Class
+  - Cliente possuiPedido Pedido
+  answer: financeiro
+  mirrored: true
+- id: CQ-003
+  question: Qual o ticket medio por categoria de produto?
+  expects:
+  - ItemPedido referencia Produto
+  - Pedido contem ItemPedido
+  answer: categoria
+  mirrored: true

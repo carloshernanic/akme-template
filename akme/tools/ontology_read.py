@@ -58,12 +58,16 @@ def get_precedence(project: Project, topic: str | None = None) -> list[dict[str,
     return rules
 
 
-def list_competency_questions(project: Project) -> list[dict[str, Any]]:
-    return load_content(project)["requirements"]["competency_questions"]
+def list_competency_questions(project: Project, status: str | None = None) -> list[dict[str, Any]]:
+    cqs = load_content(project)["requirements"]["competency_questions"]
+    return [c for c in cqs if c.get("status") == status] if status else cqs
 
 
 def get_requirements(project: Project) -> dict[str, Any]:
-    return load_content(project)["requirements"]
+    from .requirements import data_request, requirements_status
+
+    return {**load_content(project)["requirements"], "data_request": data_request(project),
+            "status": requirements_status(project)}
 
 
 def search_registry(query: str, limit: int = 10, timeout: int = 10) -> dict[str, Any]:

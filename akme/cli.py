@@ -168,9 +168,16 @@ def pending() -> None:
 
 
 @app.command()
-def apply(edit_id: str, approved_by: str = typer.Option(..., help="nome de quem aprovou")) -> None:
-    """Aplica uma edicao pendente apos aprovacao humana."""
-    _dump(write_tool.apply_edit(_project(), edit_id, approved_by))
+def apply(edit_id: str = typer.Argument(None, help="id da edicao pendente"),
+          approved_by: str = typer.Option(..., help="nome de quem aprovou"),
+          all_reviewed: bool = typer.Option(False, "--all-reviewed", help="aplica em lote todos os pendentes revisados")) -> None:
+    """Aplica uma edicao pendente (ou, com --all-reviewed, todas as revisadas) apos aprovacao humana."""
+    if all_reviewed:
+        _dump(write_tool.apply_reviewed(_project(), approved_by))
+    elif edit_id:
+        _dump(write_tool.apply_edit(_project(), edit_id, approved_by))
+    else:
+        raise typer.BadParameter("informe o edit_id ou use --all-reviewed")
 
 
 @app.command()
@@ -189,6 +196,18 @@ def demo() -> None:
     console.print(f"validate: {'ok' if report.ok else 'erros'}, {len(report.pitfalls)} pitfalls, cobertura {report.coverage.get('ratio')}")
     _dump(export_tool.export(project))
     console.print("abra docs/index.html para ver o grafo")
+
+
+@app.command()
+def review(
+    port: int = typer.Option(8765, "--port", help="Porta local"),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Abrir o navegador"),
+) -> None:
+    """Sobe a pagina local de revisao de requisitos."""
+    from .review_server import serve as serve_review
+    project = _project()
+    export_tool.export(project)
+    serve_review(project, port, open_browser)
 
 
 @app.command()

@@ -36,7 +36,17 @@ def test_apply_requires_approver_and_records_provenance(project):
     assert ontology_read.resolve_acronym(project, "uf")["meaning"] == "estado"
 
 
+def _close_requirements(project):
+    for t, pl in [("add_use_case", {"name": "n", "description": "d"}),
+                  ("add_requirement", {"field": "purpose", "value": "p"}), ("add_requirement", {"field": "scope", "value": "s"}),
+                  ("add_competency_question", {"question": "q", "type": "atributos", "concepts": ["X"], "status": "approved",
+                                               "priority": "high", "evidence": [{"kind": "conversation", "who": "a", "when": "b"}]})]:
+        e = ontology_write.propose_edit(project, t, pl, proposed_by="ana")
+        ontology_write.apply_edit(project, e.id, "ana")
+
+
 def test_class_and_relation_go_to_ttl(project):
+    _close_requirements(project)
     with pytest.raises(EditError, match="nao encontradas"):
         ontology_write.propose_edit(project, "add_relation", {"name": "temX", "domain": "Nada", "range": "Entity", "label": "x"})
     c = ontology_write.propose_edit(project, "add_class", {"name": "Pedido", "label": "Pedido", "comment": "compra"})
@@ -52,10 +62,11 @@ def test_class_and_relation_go_to_ttl(project):
 
 
 def test_reject_edit(project):
+    _close_requirements(project)
     edit = ontology_write.propose_edit(project, "add_term", {"name": "x", "class": "Entity", "definition": "y"})
     ontology_write.reject_edit(project, edit.id, "joao", "duplicado")
     assert ontology_write.list_pending(project) == []
-    assert read_yaml(project.changelog_path)["entries"][0]["status"] == "rejected"
+    assert read_yaml(project.changelog_path)["entries"][-1]["status"] == "rejected"
     assert load_content(project)["terms"] == []
 
 
@@ -103,3 +114,16 @@ def test_gap_and_divergence_lifecycle(project):
     req = load_content(project)["requirements"]
     assert req["gaps"][0]["id"] == "L-01" and req["gaps"][0]["decision"] == "open"
     assert req["divergences"][0]["decision"] == "precedence" and req["divergences"][0]["decided_by"] == "ana"
+
+
+def test_explicit_id_must_match_format(project):
+    cq = {"question": "q", "type": "atributos", "concepts": ["X"], "evidence": [{"kind": "source", "path": "a", "locator": "1", "quote": "x"}]}
+    with pytest.raises(EditError, match="id"):
+        ontology_write.propose_edit(project, "add_competency_question", cq | {"id": "foo"})
+
+
+def test_explicit_id_must_be_unique_including_pending(project):
+    cq = {"question": "q", "type": "atributos", "concepts": ["X"], "evidence": [{"kind": "source", "path": "a", "locator": "1", "quote": "x"}], "id": "CQ-005"}
+    ontology_write.propose_edit(project, "add_competency_question", cq)
+    with pytest.raises(EditError, match="id"):
+        ontology_write.propose_edit(project, "add_competency_question", cq)

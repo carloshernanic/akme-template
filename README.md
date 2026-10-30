@@ -16,7 +16,9 @@ uv run akme init --demo
 uv run akme demo
 ```
 
-Depois abra `docs/index.html`. Para um caso real, coloque os arquivos do cliente em `data/` (o git ignora o conteudo dessa pasta) e rode `uv run akme init` sem `--demo`. Os passos individuais sao `akme connect`, `akme profile`, `akme validate`, `akme eval`, `akme export` e `akme publish --target snowflake` (dry-run por padrao).
+Depois abra `docs/index.html`. Para um caso real, coloque os arquivos do cliente em `data/` (o git ignora o conteudo dessa pasta) e rode `uv run akme init` sem `--demo`. Os passos individuais sao `akme connect`, `akme profile`, `akme validate`, `akme eval`, `akme export`, `akme review` (aba Revisao editavel em localhost) e `akme publish --target snowflake` (dry-run por padrao).
+
+Na etapa 1 o agente pergunta o caso de uso, propoe dez competency questions (mais lacunas e divergencias, sempre com evidencia) e roda `akme export`. Voce roda `akme review`, decide cada item na aba Revisao e volta ao chat para dizer "aplica" com o seu nome; so entao o agente chama `apply_reviewed` (ou, na CLI, `akme apply --all-reviewed --approved-by NOME`). Enquanto os requisitos nao estiverem fechados, a ontologia nao e criada.
 
 ## Como adicionar um adapter
 
