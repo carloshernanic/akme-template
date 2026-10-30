@@ -11,7 +11,10 @@ from .project import Project, read_yaml, write_yaml
 DEFAULT_BASE = "https://akme.example/ontology#"
 
 EMPTY_CONTENT: dict[str, Any] = {
-    "requirements": {"purpose": "", "scope": "", "users": [], "competency_questions": []},
+    "requirements": {
+        "purpose": "", "scope": "", "users": [], "use_cases": [], "no_use_case": "",
+        "competency_questions": [], "gaps": [], "divergences": [],
+    },
     "terms": [],
     "mappings": [],
     "constraints": [],

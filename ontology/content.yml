@@ -5,12 +5,31 @@ requirements:
   purpose: ""
   scope: ""
   users: []
+  use_cases: []
+  # - id: UC-001
+  #   name: Acompanhar faturamento
+  #   description: O financeiro acompanha o faturamento por UF a cada trimestre.
+  no_use_case: ""
   competency_questions: []
   # - id: CQ-001
   #   question: Qual o faturamento por UF no ultimo trimestre?
+  #   type: agregacao
   #   priority: high
   #   status: approved
+  #   use_case: UC-001
   #   source: reuniao de kickoff, 2026-10-01
+  gaps: []
+  # - id: GAP-001
+  #   question: Qual a regra de devolucao?
+  #   reason: nenhum documento descreve devolucoes
+  #   missing: regra de negocio de devolucao
+  #   evidence: pedidos.csv tem coluna status_devolucao sem documentacao
+  #   decision: open
+  divergences: []
+  # - id: DIV-001
+  #   topic: cliente ativo
+  #   sources: [financeiro, erp]
+  #   decision: open
 
 terms: []
 # - name: cliente
