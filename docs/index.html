@@ -439,7 +439,7 @@ select.rv-input option { background: var(--surface-primary); color: var(--text-p
           <div class="graph-head">
             <div>
               <h2 class="h2">Grafo da ontologia</h2>
-              <p class="p secondary">Mostra a classe escolhida e seus vizinhos diretos. Clique numa classe para centralizar nela; o selo +N abre os vizinhos dela sem sair do lugar. Troque a forma em Força, Radial, Pirâmide ou Árvore lateral.</p>
+              <p class="p secondary">Mostra a classe escolhida e seus vizinhos diretos. Um clique numa classe mostra as informacoes dela; dois cliques centralizam o grafo nela. O selo +N abre os vizinhos sem sair do lugar. Troque a forma em Força, Radial, Pirâmide ou Árvore lateral.</p>
             </div>
             <div class="legend" aria-hidden="true">
               <span><i></i> relacao</span>
@@ -678,6 +678,15 @@ function select(name) {
   renderPanel();
   renderGraph();
 }
+// Um clique: so mostra as informacoes no painel, sem mexer no grafo.
+function inspect(name) {
+  if (!cls(name)) return;
+  selected = name;
+  lineage(name).slice(0, -1).forEach((n) => openTree.add(n));
+  renderNav($("#search").value);
+  renderPanel();
+  if (graph) graph.highlight(selected);
+}
 $("#graph-all").addEventListener("click", () => { showAll = !showAll; $("#graph-all").setAttribute("aria-pressed", String(showAll)); renderGraph(); });
 function renderLayouts() {
   $("#layouts").innerHTML = LAYOUTS.map(([k, label]) => `<button type="button" data-layout="${k}" aria-pressed="${layout === k}">${label}</button>`).join("");
@@ -852,7 +861,7 @@ function renderGraph(opts = {}) {
   svg.append("defs").html('<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>');
   const g = svg.append("g");
   const zoom = d3.zoom().scaleExtent([0.12, 2.5]).on("zoom", (e) => { g.attr("transform", e.transform); lastT = e.transform; });
-  svg.call(zoom);
+  svg.call(zoom).on("dblclick.zoom", null);
   if (layout !== "force") structuredLayout(nodes, links, byId, anchor);
   else {
   const sim = d3.forceSimulation(nodes)
@@ -871,10 +880,14 @@ function renderGraph(opts = {}) {
   const node = g.append("g").selectAll("g").data(nodes).join("g")
     .attr("class", (d) => "node" + (d.root ? " root" : "") + (d.metric ? " metric" : "") + (d.id === focus && !showAll ? " focus" : ""))
     .attr("tabindex", 0).attr("role", "button").attr("aria-label", (d) => d.label)
-    .on("click", (e, d) => select(d.id))
-    .on("keydown", (e, d) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(d.id); } })
+    .on("click", (e, d) => inspect(d.id))
+    .on("dblclick", (e, d) => { e.preventDefault(); e.stopPropagation(); select(d.id); })
+    .on("keydown", (e, d) => {
+      if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); select(d.id); }
+      else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inspect(d.id); }
+    })
     .call(d3.drag().on("drag", (e, d) => { d.x = e.x; d.y = e.y; POS.set(d.id, { x: d.x, y: d.y }); position(); }));
-  node.append("title").text((d) => d.label + (d.hidden ? ` (${d.hidden} vizinhos ocultos)` : ""));
+  node.append("title").text((d) => d.label + (d.hidden ? ` (${d.hidden} vizinhos ocultos)` : "") + "\nClique: ver informacoes. Dois cliques: centralizar o grafo.");
   node.append("rect").attr("class", "box").attr("rx", 8).attr("x", (d) => -d.w / 2).attr("y", (d) => -d.h / 2).attr("width", (d) => d.w).attr("height", (d) => d.h);
   node.append("text").attr("text-anchor", "middle").attr("dy", (d) => (d.kind ? -1 : 4)).text((d) => d.label);
   node.filter((d) => d.kind).append("text").attr("class", "kind").attr("text-anchor", "middle").attr("dy", 13).text((d) => d.kind);
