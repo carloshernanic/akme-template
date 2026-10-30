@@ -166,6 +166,14 @@ code, .mono { font-family: var(--font-mono); font-size: 14px; }
 .nav-item[aria-pressed="true"] { background: var(--fill-subtle); font-weight: 600; }
 .nav-item .count { margin-left: auto; color: var(--text-tertiary); font-size: 12px; }
 .nav-sub { padding-left: 20px; }
+.tree-row { display: flex; align-items: center; }
+.tree-row .nav-item { flex: 1; min-width: 0; }
+.tree-row .nav-item > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caret { width: 20px; height: 28px; flex-shrink: 0; display: grid; place-items: center; color: var(--text-tertiary); }
+.caret svg { width: 12px; height: 12px; transition: transform 140ms; }
+.caret[aria-expanded="true"] svg { transform: rotate(90deg); }
+.caret:hover { color: var(--text-primary); }
+.caret.leaf { visibility: hidden; }
 .search { position: relative; margin: 0 8px; }
 .search input {
   width: 100%; height: 36px; padding: 0 12px 0 36px; background: var(--surface-primary);
@@ -200,6 +208,36 @@ code, .mono { font-family: var(--font-mono); font-size: 14px; }
 .graph-card { padding: 0; overflow: hidden; }
 .graph-head { display: flex; align-items: center; gap: 12px; padding: 20px var(--inset) 12px; }
 .graph-head .legend { margin-left: auto; display: flex; flex-wrap: wrap; gap: 12px; }
+.graph-head { flex-wrap: wrap; }
+.graph-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 var(--inset) 12px; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 13px; line-height: 20px; min-width: 0; }
+.crumbs button { padding: 2px 6px; border-radius: 4px; color: var(--text-secondary); }
+.crumbs button:hover { background: var(--fill-subtle); color: var(--text-primary); }
+.crumbs button[aria-current="true"] { color: var(--text-primary); font-weight: 600; }
+.crumbs .sep { color: var(--text-tertiary); }
+.graph-bar .actions { margin-left: auto; display: flex; gap: 6px; }
+.btn-ghost { height: 30px; padding: 0 10px; border: 1px solid var(--border-secondary); border-radius: 6px; font-size: 13px; color: var(--text-secondary); }
+.seg { display: inline-flex; border: 1px solid var(--border-secondary); border-radius: 6px; overflow: hidden; }
+.seg button { height: 28px; padding: 0 10px; font-size: 13px; color: var(--text-secondary); border-left: 1px solid var(--border-divider); }
+.seg button:first-child { border-left: 0; }
+.seg button:hover { color: var(--text-primary); background: var(--fill-subtle); }
+.seg button[aria-pressed="true"] { background: var(--fill-active); color: var(--text-inverse); }
+.btn-ghost:hover { color: var(--text-primary); border-color: var(--border-active); }
+.btn-ghost[aria-pressed="true"] { background: var(--fill-active); color: var(--text-inverse); border-color: var(--fill-active); }
+.node rect.box { fill: var(--surface-primary); stroke: var(--border-secondary); stroke-width: 1.5; transition: stroke 140ms; }
+.node.root rect.box { fill: var(--fill-ui-2); }
+.node.metric rect.box { stroke-dasharray: 4 3; }
+.node:hover rect.box { stroke: var(--border-active); }
+.node.selected rect.box { stroke: var(--qb-accent); stroke-width: 2.5; }
+.node.focus rect.box { fill: color-mix(in oklch, var(--qb-accent) 14%, var(--surface-primary)); }
+.node .more { cursor: pointer; }
+.node .more circle { fill: var(--fill-active); stroke: none; }
+.node .more text { fill: var(--text-inverse); font-size: 10px; font-weight: 600; }
+.node .more:hover circle { fill: var(--qb-accent); }
+.link-btn { color: var(--text-information); text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:hover { color: var(--text-primary); }
+.rel-item { display: flex; flex-direction: column; gap: 2px; font-size: 14px; line-height: 20px; }
+.rel-item .mono { overflow-wrap: anywhere; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--text-secondary); }
 .legend i { width: 18px; height: 0; border-top: 1.5px solid var(--text-secondary); }
 .legend i.dashed { border-top-style: dashed; }
@@ -226,6 +264,7 @@ svg.graph { width: 100%; height: 100%; display: block; touch-action: none; }
 .panel-section h3 { font-size: 12px; line-height: 16px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); font-weight: 500; }
 .row { display: flex; gap: 8px; align-items: baseline; font-size: 14px; line-height: 20px; }
 .row .k { color: var(--text-secondary); flex-shrink: 0; min-width: 7rem; }
+.row .chip { flex-shrink: 0; }
 .chip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 9999px; font-size: 12px; line-height: 16px; white-space: nowrap; }
 .chip.alt { background: var(--fill-muted); color: var(--text-secondary); }
 .chip.high { background: var(--fill-active); color: var(--text-inverse); }
@@ -400,12 +439,20 @@ select.rv-input option { background: var(--surface-primary); color: var(--text-p
           <div class="graph-head">
             <div>
               <h2 class="h2">Grafo da ontologia</h2>
-              <p class="p secondary">Classes como nos, relacoes como arestas. Clique ou use a lista ao lado para ver termos, mappings e glossario.</p>
+              <p class="p secondary">Mostra a classe escolhida e seus vizinhos diretos. Clique numa classe para centralizar nela; o selo +N abre os vizinhos dela sem sair do lugar. Troque a forma em Força, Radial, Pirâmide ou Árvore lateral.</p>
             </div>
             <div class="legend" aria-hidden="true">
               <span><i></i> relacao</span>
               <span><i class="dashed"></i> subclasse</span>
               <span><b></b> selecionado</span>
+            </div>
+          </div>
+          <div class="graph-bar">
+            <nav class="crumbs" id="crumbs" aria-label="Caminho da classe"></nav>
+            <div class="actions">
+              <div class="seg" id="layouts" role="group" aria-label="Forma do grafo"></div>
+              <button type="button" class="btn-ghost" id="graph-reset">Recolher</button>
+              <button type="button" class="btn-ghost" id="graph-all" aria-pressed="false">Ver tudo</button>
             </div>
           </div>
           <div class="graph-wrap">
@@ -434,7 +481,14 @@ const ICONS = {
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
   warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2L12 3zM12 10v4M12 17h.01"/></svg>',
 };
-let DATA = null, selected = null, graph = null;
+let DATA = null, selected = null, graph = null, focus = null, showAll = false;
+const expanded = new Set(), openTree = new Set();
+const POS = new Map();
+let lastT = null, spawnFrom = null;
+const LAYOUTS = [["force", "Força"], ["radial", "Radial"], ["pyramid", "Pirâmide"], ["tree", "Árvore lateral"]];
+let layout = "force";
+try { const saved = localStorage.getItem("akme-layout"); if (LAYOUTS.some(([k]) => k === saved)) layout = saved; } catch (e) {}
+const MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 480;
 
 function setTheme(mode) {
   if (mode) document.documentElement.setAttribute("data-theme", mode); else document.documentElement.removeAttribute("data-theme");
@@ -501,18 +555,64 @@ function renderStats() {
   $("#stats").innerHTML = cards.map((c) => `<div class="card stat"><div class="value">${esc(c.value)}</div><div class="label p">${esc(c.label)}</div></div>`).join("");
 }
 
+const CARET = '<svg viewBox="0 0 12 12" fill="currentColor"><path d="M4 2l5 4-5 4z"/></svg>';
+function cls(name) { return DATA.classes.find((c) => c.name === name); }
+function parentsOf(name) { return ((cls(name) || {}).subclass_of || []).filter((p) => cls(p)); }
+function childrenOf(name) { return DATA.classes.filter((c) => c.subclass_of.includes(name)).map((c) => c.name); }
+function relEdges() {
+  const out = [], seen = new Set();
+  DATA.relations.forEach((r) => {
+    if (seen.has(r.name)) return;
+    r.inverse_of.forEach((i) => seen.add(i));
+    r.domain.forEach((d) => r.range.forEach((g) => cls(d) && cls(g) && out.push({ source: d, target: g, label: r.name })));
+  });
+  return out;
+}
+function neighborsOf(name) {
+  const n = new Set([...parentsOf(name), ...childrenOf(name)]);
+  relEdges().forEach((e) => { if (e.source === name) n.add(e.target); if (e.target === name) n.add(e.source); });
+  n.delete(name);
+  if (!ROOTS.includes(name)) ROOTS.forEach((r) => n.delete(r));
+  return n;
+}
+function lineage(name) {
+  const path = [], seen = new Set();
+  let cur = name;
+  while (cur && !seen.has(cur) && cls(cur)) { seen.add(cur); path.unshift(cur); cur = parentsOf(cur)[0]; }
+  return path;
+}
+function defaultFocus() {
+  if (selected) return selected;
+  const candidates = DATA.classes.filter((c) => !ROOTS.includes(c.name));
+  const pool = candidates.length ? candidates : DATA.classes;
+  if (!pool.length) return null;
+  return pool.reduce((best, c) => (neighborsOf(c.name).size > neighborsOf(best.name).size ? c : best)).name;
+}
+
 function renderNav(filter = "") {
   const q = filter.trim().toLowerCase();
   const matchClass = (c) => !q || [c.name, c.label, c.comment, ...termsOf(c.name).map((t) => t.name)].some((x) => String(x).toLowerCase().includes(q));
   const children = (parent) => DATA.classes.filter((c) => c.subclass_of.includes(parent));
-  const item = (c, depth) => `<li><button class="nav-item" data-class="${esc(c.name)}" aria-pressed="${selected === c.name}" style="padding-left:${8 + depth * 14}px">
-      <span>${esc(c.label || c.name)}</span><span class="count">${termsOf(c.name).length || ""}</span></button>
-      <ul>${children(c.name).filter(matchClass).map((k) => item(k, depth + 1)).join("")}</ul></li>`;
+  const visible = (c) => matchClass(c) || children(c.name).some(visible);
+  const item = (c, depth) => {
+    const kids = children(c.name).filter(visible);
+    const open = !!q || openTree.has(c.name);
+    return `<li><div class="tree-row" style="padding-left:${depth * 14}px">
+      <button type="button" class="caret${kids.length ? "" : " leaf"}" data-toggle="${esc(c.name)}" aria-expanded="${open}" aria-label="${open ? "Recolher" : "Expandir"} ${esc(c.label || c.name)}" ${kids.length ? "" : 'tabindex="-1"'}>${CARET}</button>
+      <button type="button" class="nav-item" data-class="${esc(c.name)}" aria-pressed="${selected === c.name}" title="${esc(c.label || c.name)}">
+      <span>${esc(c.label || c.name)}</span><span class="count">${termsOf(c.name).length || ""}</span></button></div>
+      ${kids.length && open ? `<ul>${kids.map((k) => item(k, depth + 1)).join("")}</ul>` : ""}</li>`;
+  };
   const roots = DATA.classes.filter((c) => ROOTS.includes(c.name) || !c.subclass_of.length);
   const gl = DATA.glossary.filter((g) => !q || [g.acronym, g.meaning].some((x) => String(x).toLowerCase().includes(q)));
-  $("#nav").innerHTML = `<div class="group-label">Classes</div><ul>${roots.filter((c) => matchClass(c) || children(c.name).some(matchClass)).map((c) => item(c, 0)).join("")}</ul>
+  $("#nav").innerHTML = `<div class="group-label">Classes</div><ul>${roots.filter(visible).map((c) => item(c, 0)).join("")}</ul>
     ${gl.length ? `<div class="group-label" style="margin-top:12px">Glossario</div><ul>${gl.map((g) => `<li class="nav-item" style="cursor:default"><span class="mono">${esc(g.acronym)}</span><span class="secondary label">${esc(g.meaning)}</span></li>`).join("")}</ul>` : ""}`;
   $("#nav").querySelectorAll("button[data-class]").forEach((b) => b.addEventListener("click", () => select(b.dataset.class)));
+  $("#nav").querySelectorAll("button[data-toggle]").forEach((b) => b.addEventListener("click", () => {
+    const n = b.dataset.toggle;
+    openTree.has(n) ? openTree.delete(n) : openTree.add(n);
+    renderNav($("#search").value);
+  }));
 }
 $("#search").addEventListener("input", (e) => renderNav(e.target.value));
 
@@ -542,13 +642,24 @@ function renderPanel() {
         <div class="p secondary">${esc(t.definition)}</div>
         <div class="chips" style="margin-top:4px">${mappingsOf(t.name).map((m) => `<span class="chip ${m.role === "metric" ? "high" : "alt"} mono" title="${esc(m.note || m.expression || "")}">${esc(m.source)}.${esc(m.column)}</span>`).join("") || '<span class="chip outline">sem mapping</span>'}</div></div>`).join("") : '<p class="p secondary">Nenhum termo ligado a esta classe.</p>'}
     </div>
+    <div class="panel-section"><h3>Hierarquia</h3>
+      <div class="row"><span class="k">superclasse</span><span>${parentsOf(c.name).map(classLink).join(", ") || '<span class="tertiary">nenhuma</span>'}</span></div>
+      <div class="row"><span class="k">subclasses</span><span>${childrenOf(c.name).map(classLink).join(", ") || '<span class="tertiary">nenhuma</span>'}</span></div>
+    </div>
     <div class="panel-section"><h3>Relacoes</h3>
-      ${rels.length ? rels.map((r) => `<div class="row"><span class="mono">${esc(r.name)}</span><span class="secondary">${esc(r.domain.join(", "))} para ${esc(r.range.join(", "))}</span></div>`).join("") : '<p class="p secondary">Nenhuma relacao.</p>'}
+      ${rels.length ? rels.map((r) => `<div class="rel-item"><span class="mono">${esc(r.name)}</span><span class="secondary">${r.domain.map(classLink).join(", ")} para ${r.range.map(classLink).join(", ")}</span></div>`).join("") : '<p class="p secondary">Nenhuma relacao.</p>'}
     </div>
     ${cons.length ? `<div class="panel-section"><h3>Restricoes</h3>${cons.map((k) => `<div class="row"><span class="chip ${k.severity === "error" ? "error" : "warning"}">${esc(k.id || k.severity || "regra")}</span><span>${esc(k.rule)}</span></div>`).join("")}</div>` : ""}
     ${gl.length ? `<div class="panel-section"><h3>Glossario</h3>${gl.map((g) => `<div class="row"><span class="k mono">${esc(g.acronym)}</span><span>${esc(g.meaning)}${g.convention ? ` <span class="tertiary">(${esc(g.convention)})</span>` : ""}</span></div>`).join("")}</div>` : ""}
     ${prec.length ? `<div class="panel-section"><h3>Precedencia</h3>${prec.map((p) => `<div class="p"><b>${esc(p.topic)}</b>: ${esc(p.winner)} prevalece sobre ${esc(p.over)}.<span class="secondary"> ${esc(p.reason || "")}</span></div>`).join("")}</div>` : ""}`;
 }
+
+function classLink(name) {
+  const c = cls(name);
+  if (!c) return esc(name);
+  return `<button type="button" class="link-btn" data-goto="${esc(name)}">${esc(c.label || name)}</button>`;
+}
+$("#panel").addEventListener("click", (e) => { const b = e.target.closest("[data-goto]"); if (b) select(b.dataset.goto); });
 
 function cqList() {
   const cqs = DATA.requirements.competency_questions || [];
@@ -557,78 +668,261 @@ function cqList() {
 }
 
 function select(name) {
-  selected = selected === name ? null : name;
+  if (!cls(name)) return;
+  selected = name;
+  spawnFrom = name;
+  focus = name;
+  expanded.clear();
+  lineage(name).slice(0, -1).forEach((n) => openTree.add(n));
   renderNav($("#search").value);
   renderPanel();
-  if (graph) graph.highlight(selected);
+  renderGraph();
+}
+$("#graph-all").addEventListener("click", () => { showAll = !showAll; $("#graph-all").setAttribute("aria-pressed", String(showAll)); renderGraph(); });
+function renderLayouts() {
+  $("#layouts").innerHTML = LAYOUTS.map(([k, label]) => `<button type="button" data-layout="${k}" aria-pressed="${layout === k}">${label}</button>`).join("");
+  $("#layouts").querySelectorAll("[data-layout]").forEach((b) => b.addEventListener("click", () => {
+    layout = b.dataset.layout;
+    try { localStorage.setItem("akme-layout", layout); } catch (e) {}
+    renderLayouts();
+    renderGraph();
+  }));
+}
+renderLayouts();
+$("#graph-reset").addEventListener("click", () => { expanded.clear(); showAll = false; $("#graph-all").setAttribute("aria-pressed", "false"); renderGraph(); });
+
+function renderCrumbs() {
+  const path = focus ? lineage(focus) : [];
+  $("#crumbs").innerHTML = path.map((n, i) => `${i ? '<span class="sep">/</span>' : ""}<button type="button" data-goto="${esc(n)}" aria-current="${n === focus}">${esc((cls(n) || {}).label || n)}</button>`).join("");
+  $("#crumbs").querySelectorAll("[data-goto]").forEach((b) => b.addEventListener("click", () => select(b.dataset.goto)));
 }
 
-function renderGraph() {
+// Arvore geradora a partir de uma raiz (busca em largura sobre as arestas visiveis). Subclasses primeiro, depois relacoes.
+// subOnly: so arestas de subclasse (hierarquia pura). Nos nao alcancados viram arvores proprias.
+function spanningTree(rootId, nodes, links, subOnly = false) {
+  const adj = new Map(nodes.map((n) => [n.id, []]));
+  links.filter((l) => !subOnly || l.kind === "sub").forEach((l) => {
+    const a = l.source.id || l.source, b = l.target.id || l.target, w = l.kind === "sub" ? 0 : 1;
+    adj.get(a).push([b, w]); adj.get(b).push([a, w]);
+  });
+  adj.forEach((v) => v.sort((x, y) => x[1] - y[1]));
+  const parent = new Map();
+  const walk = (start) => {
+    parent.set(start, null);
+    const queue = [start];
+    while (queue.length) {
+      const cur = queue.shift();
+      adj.get(cur).forEach(([nb]) => { if (!parent.has(nb)) { parent.set(nb, cur); queue.push(nb); } });
+    }
+  };
+  walk(rootId);
+  const extra = [];
+  const isTop = (id) => !parentsOf(id).some((p) => adj.has(p));
+  [...nodes.map((n) => n.id).filter(isTop), ...nodes.map((n) => n.id)].forEach((id) => { if (!parent.has(id)) { walk(id); extra.push(id); } });
+  const build = (id) => ({ id, children: [...parent].filter(([, p]) => p === id).map(([c]) => build(c)) });
+  const others = extra.map(build);
+  const flat = (t) => [t.id, ...t.children.flatMap(flat)];
+  return { tree: build(rootId), others, orphans: others.flatMap(flat) };
+}
+
+function structuredLayout(nodes, links, byId, anchor) {
+  const sep = (a, b) => (a.data.id === "__v" || b.data.id === "__v" ? 0 : 1);
+  let rootId = focus && byId[focus] ? focus : nodes[0].id;
+  if (layout !== "radial") {
+    const up = lineage(rootId).filter((n) => byId[n]);
+    if (up.length) rootId = up[0];
+  }
+  const { tree, others, orphans } = spanningTree(rootId, nodes, links, showAll && layout !== "radial");
+  const pos = new Map();
+  if (layout === "radial") {
+    const h = d3.hierarchy({ id: "__v", children: [tree, ...orphans.map((id) => ({ id, orphan: true, children: [] }))] });
+    d3.tree().size([2 * Math.PI, 1]).separation((a, b) => (a.parent === b.parent ? 1 : 2) / Math.max(a.depth, 1))(h);
+    const ring = (d) => (d.data.orphan ? maxDepth + 1 : d.depth - 1);
+    const maxDepth = d3.max(h.descendants().filter((d) => !d.data.orphan && d.data.id !== "__v"), (d) => d.depth - 1) || 0;
+    const rings = [];
+    h.descendants().forEach((d) => { if (d.data.id === "__v") return; const r = ring(d); (rings[r] = rings[r] || []).push(d); });
+    const radius = [0];
+    for (let r = 1; r < rings.length; r++) {
+      const need = d3.sum(rings[r] || [], (d) => byId[d.data.id].w + 28) / (2 * Math.PI);
+      radius[r] = Math.max(radius[r - 1] + 150, need);
+    }
+    rings.forEach((list, r) => {
+      if (!list) return;
+      if (r === 0) { list.forEach((d) => pos.set(d.data.id, { x: 0, y: 0 })); return; }
+      list.forEach((d) => {
+        const a = d.x;
+        pos.set(d.data.id, { x: Math.cos(a - Math.PI / 2) * radius[r], y: Math.sin(a - Math.PI / 2) * radius[r] });
+      });
+    });
+  } else if (layout === "pyramid") {
+    // Piramide: filhos sem descendentes viram fileiras (4 no topo, 2 abaixo), como um organograma, para a arvore nao ficar larga e achatada.
+    const GX = 24, GY = 110, RH = 62;
+    const measure = (t, depth = 0) => {
+      const kids = t.children || [];
+      kids.forEach((k) => measure(k, depth + 1));
+      const ROW = depth <= 1 ? 4 : 2;
+      const leaves = kids.filter((k) => !k.children.length);
+      const inner = kids.filter((k) => k.children.length);
+      const pack = leaves.length > ROW;
+      const rows = [];
+      if (pack) for (let i = 0; i < leaves.length; i += ROW) rows.push(leaves.slice(i, i + ROW));
+      const rowW = (r) => d3.sum(r, (k) => byId[k.id].w) + GX * (r.length - 1);
+      const block = pack ? { block: true, rows, width: d3.max(rows, rowW), rowW } : null;
+      const subs = pack ? inner : kids;
+      const half = Math.ceil(subs.length / 2);
+      t.parts = block ? [...subs.slice(0, half), block, ...subs.slice(half)] : subs;
+      t.cw = t.parts.length ? d3.sum(t.parts, (q) => q.width) + GX * (t.parts.length - 1) : 0;
+      t.width = Math.max(t.id === "__v" ? 0 : byId[t.id].w, t.cw);
+    };
+    const place = (t, cx, y) => {
+      if (t.id !== "__v") pos.set(t.id, { x: cx, y });
+      let x = cx - t.cw / 2;
+      t.parts.forEach((q) => {
+        if (q.block) {
+          q.rows.forEach((r, i) => {
+            let rx = x + (q.width - q.rowW(r)) / 2;
+            r.forEach((k) => { const w = byId[k.id].w; pos.set(k.id, { x: rx + w / 2, y: y + GY + i * RH }); rx += w + GX; });
+          });
+        } else place(q, x + q.width / 2, y + GY);
+        x += q.width + GX;
+      });
+    };
+    const top = { id: "__v", children: [tree, ...others] };
+    measure(top);
+    place(top, 0, -GY);
+  } else {
+    const vertical = false;
+    const h = d3.hierarchy({ id: "__v", children: [tree, ...others] });
+    const size = (d) => (d.data.id === "__v" ? 0 : vertical ? byId[d.data.id].w : byId[d.data.id].h);
+    d3.tree().nodeSize([1, 1]).separation((a, b) => (size(a) + size(b)) / 2 + (vertical ? 28 : 16))(h);
+    const maxW = d3.max(nodes, (n) => n.w);
+    h.descendants().forEach((d) => {
+      if (d.data.id === "__v") return;
+      const depth = d.depth - 1;
+      pos.set(d.data.id, vertical ? { x: d.x, y: depth * 110 } : { x: depth * (maxW + 70), y: d.x });
+    });
+  }
+  const f = pos.get(rootId) || { x: 0, y: 0 };
+  const keep = layout === "radial" ? f : (pos.get(focus) || f);
+  const at = byId[focus] ? anchor : { x: 0, y: 0 };
+  nodes.forEach((n) => {
+    const p = pos.get(n.id) || { x: 0, y: 0 };
+    n.x = p.x - keep.x + at.x; n.y = p.y - keep.y + at.y;
+  });
+}
+
+function renderGraph(opts = {}) {
   const svg = d3.select("#graph");
   svg.selectAll("*:not(title)").remove();
   const wrap = $(".graph-wrap");
   const W = wrap.clientWidth, H = wrap.clientHeight;
-  if (!DATA.classes.length) { $("#graph-empty").hidden = false; $("#graph-empty").textContent = "Sem classes. Rode akme export."; return; }
-  const nodes = DATA.classes.map((c) => ({ id: c.name, label: c.label || c.name, root: ROOTS.includes(c.name), kind: c.subclass_of[0] || "", metric: c.subclass_of.includes("Metric") }));
+  if (!DATA.classes.length) { $("#graph-empty").hidden = false; $("#graph-empty").textContent = "Sem classes. Rode akme export."; $("#crumbs").innerHTML = ""; return; }
+  $("#graph-empty").hidden = true;
+  if (!focus || !cls(focus)) focus = defaultFocus();
+  renderCrumbs();
+  const ids = new Set();
+  if (showAll) DATA.classes.forEach((c) => ids.add(c.name));
+  else {
+    ids.add(focus);
+    neighborsOf(focus).forEach((n) => ids.add(n));
+    expanded.forEach((e) => { if (ids.has(e)) neighborsOf(e).forEach((n) => ids.add(n)); });
+  }
+  const nodes = [...ids].map((id) => {
+    const c = cls(id), label = c.label || c.name, kind = c.subclass_of[0] || "";
+    const w = Math.max(label.length * 7.4, kind.length * 6.2) + 28;
+    const hidden = showAll ? 0 : [...neighborsOf(id)].filter((n) => !ids.has(n)).length;
+    return { id, label, kind, w, h: kind ? 44 : 36, root: ROOTS.includes(id), metric: c.subclass_of.includes("Metric"), hidden };
+  });
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   const links = [];
-  DATA.classes.forEach((c) => c.subclass_of.forEach((p) => byId[p] && links.push({ source: c.name, target: p, kind: "sub" })));
-  const seenInverse = new Set();
-  DATA.relations.forEach((r) => {
-    if (seenInverse.has(r.name)) return;
-    r.inverse_of.forEach((i) => seenInverse.add(i));
-    r.domain.forEach((d) => r.range.forEach((g) => byId[d] && byId[g] && links.push({ source: d, target: g, kind: "rel", label: r.name })));
+  DATA.classes.forEach((c) => byId[c.name] && c.subclass_of.forEach((p) => byId[p] && links.push({ source: c.name, target: p, kind: "sub" })));
+  relEdges().forEach((e) => byId[e.source] && byId[e.target] && e.source !== e.target && links.push({ ...e, kind: "rel" }));
+  links.forEach((l) => { l.source = byId[l.source]; l.target = byId[l.target]; });
+  const origin = POS.get(spawnFrom) || POS.get(focus) || { x: W / 2, y: H / 2 };
+  nodes.forEach((d, i) => {
+    const p = POS.get(d.id);
+    d.isNew = !p;
+    const a = (i / nodes.length) * Math.PI * 2;
+    d.sx = p ? p.x : origin.x; d.sy = p ? p.y : origin.y;
+    d.x = p ? p.x : origin.x + Math.cos(a) * 60; d.y = p ? p.y : origin.y + Math.sin(a) * 60;
   });
+  const f = byId[focus];
+  const anchor = f ? { x: f.x, y: f.y } : { x: W / 2, y: H / 2 };
+  if (f && !showAll) { f.fx = anchor.x; f.fy = anchor.y; }
   svg.append("defs").html('<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>');
   const g = svg.append("g");
-  const zoom = d3.zoom().scaleExtent([0.4, 2.5]).on("zoom", (e) => g.attr("transform", e.transform));
+  const zoom = d3.zoom().scaleExtent([0.12, 2.5]).on("zoom", (e) => { g.attr("transform", e.transform); lastT = e.transform; });
   svg.call(zoom);
+  if (layout !== "force") structuredLayout(nodes, links, byId, anchor);
+  else {
   const sim = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id((d) => d.id).distance((l) => (l.kind === "sub" ? 90 : 150)))
-    .force("charge", d3.forceManyBody().strength(-260))
-    .force("center", d3.forceCenter(W / 2, H / 2))
-    .force("x", d3.forceX(W / 2).strength(0.12))
-    .force("y", d3.forceY(H / 2).strength(0.14))
-    .force("collide", d3.forceCollide(52))
+    .force("link", d3.forceLink(links).id((d) => d.id).distance((l) => (l.kind === "sub" ? 130 : 210)).strength(0.6))
+    .force("charge", d3.forceManyBody().strength(showAll ? -700 : -900))
+    .force("x", d3.forceX(anchor.x).strength(0.05))
+    .force("y", d3.forceY(anchor.y).strength(0.08))
+    .force("collide", d3.forceCollide((d) => d.w / 2 + 18))
     .stop();
-  sim.tick(300);
+  sim.tick(nodes.some((d) => !d.isNew) ? 250 : 400);
+  }
+  nodes.forEach((d) => { d.ex = d.x; d.ey = d.y; POS.set(d.id, { x: d.x, y: d.y }); });
   const edge = g.append("g").selectAll("path").data(links).join("path")
     .attr("class", (l) => "edge " + l.kind).attr("marker-end", (l) => (l.kind === "rel" ? "url(#arrow)" : null)).style("color", "var(--text-secondary)");
   const labels = g.append("g").selectAll("text").data(links.filter((l) => l.kind === "rel")).join("text").attr("class", "edge-label").attr("text-anchor", "middle").text((l) => l.label);
   const node = g.append("g").selectAll("g").data(nodes).join("g")
-    .attr("class", (d) => "node" + (d.root ? " root" : "") + (d.metric ? " metric" : ""))
+    .attr("class", (d) => "node" + (d.root ? " root" : "") + (d.metric ? " metric" : "") + (d.id === focus && !showAll ? " focus" : ""))
     .attr("tabindex", 0).attr("role", "button").attr("aria-label", (d) => d.label)
     .on("click", (e, d) => select(d.id))
     .on("keydown", (e, d) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(d.id); } })
-    .call(d3.drag().on("drag", (e, d) => { d.x = e.x; d.y = e.y; position(); }));
-  node.append("circle").attr("r", (d) => (d.root ? 30 : 26));
-  node.append("text").attr("text-anchor", "middle").attr("dy", (d) => (d.root ? 4 : 2)).text((d) => (d.label.length > 12 ? d.label.slice(0, 11) + "." : d.label));
-  node.filter((d) => !d.root).append("text").attr("class", "kind").attr("text-anchor", "middle").attr("dy", 14).text((d) => d.kind);
+    .call(d3.drag().on("drag", (e, d) => { d.x = e.x; d.y = e.y; POS.set(d.id, { x: d.x, y: d.y }); position(); }));
+  node.append("title").text((d) => d.label + (d.hidden ? ` (${d.hidden} vizinhos ocultos)` : ""));
+  node.append("rect").attr("class", "box").attr("rx", 8).attr("x", (d) => -d.w / 2).attr("y", (d) => -d.h / 2).attr("width", (d) => d.w).attr("height", (d) => d.h);
+  node.append("text").attr("text-anchor", "middle").attr("dy", (d) => (d.kind ? -1 : 4)).text((d) => d.label);
+  node.filter((d) => d.kind).append("text").attr("class", "kind").attr("text-anchor", "middle").attr("dy", 13).text((d) => d.kind);
+  const more = node.filter((d) => d.hidden > 0 && !expanded.has(d.id) && d.id !== focus).append("g").attr("class", "more")
+    .attr("transform", (d) => `translate(${d.w / 2},${-d.h / 2})`).attr("role", "button").attr("tabindex", 0)
+    .attr("aria-label", (d) => `Abrir ${d.hidden} vizinhos de ${d.label}`)
+    .on("click", (e, d) => { e.stopPropagation(); expanded.add(d.id); spawnFrom = d.id; renderGraph(); })
+    .on("keydown", (e, d) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); expanded.add(d.id); spawnFrom = d.id; renderGraph(); } });
+  more.append("circle").attr("r", 11);
+  more.append("text").attr("text-anchor", "middle").attr("dy", 3.5).text((d) => "+" + d.hidden);
+  function clip(from, to) {
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const s = Math.min(dx ? (from.w / 2 + 3) / Math.abs(dx) : Infinity, dy ? (from.h / 2 + 3) / Math.abs(dy) : Infinity, 1);
+    return [from.x + dx * s, from.y + dy * s];
+  }
   function path(l) {
-    const dx = l.target.x - l.source.x, dy = l.target.y - l.source.y, dist = Math.hypot(dx, dy) || 1;
-    const r = (l.target.root ? 30 : 26) + 2;
-    const tx = l.target.x - (dx / dist) * r, ty = l.target.y - (dy / dist) * r;
-    const sx = l.source.x + (dx / dist) * 26, sy = l.source.y + (dy / dist) * 26;
-    const mx = (sx + tx) / 2 - dy * 0.12, my = (sy + ty) / 2 + dx * 0.12;
+    const [sx, sy] = clip(l.source, l.target), [tx, ty] = clip(l.target, l.source);
+    const dx = tx - sx, dy = ty - sy;
+    const mx = (sx + tx) / 2 - dy * 0.08, my = (sy + ty) / 2 + dx * 0.08;
     return `M${sx},${sy} Q${mx},${my} ${tx},${ty}`;
   }
   function position() {
     edge.attr("d", path);
-    labels.attr("x", (l) => (l.source.x + l.target.x) / 2 - (l.target.y - l.source.y) * 0.06).attr("y", (l) => (l.source.y + l.target.y) / 2 + (l.target.x - l.source.x) * 0.06);
+    labels.attr("x", (l) => (l.source.x + l.target.x) / 2 - (l.target.y - l.source.y) * 0.04).attr("y", (l) => (l.source.y + l.target.y) / 2 + (l.target.x - l.source.x) * 0.04 - 4);
     node.attr("transform", (d) => `translate(${d.x},${d.y})`);
   }
-  position();
-  const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
-  const bw = Math.max(...xs) - Math.min(...xs) + 140, bh = Math.max(...ys) - Math.min(...ys) + 140;
-  const k = Math.min(W / bw, H / bh, 1.1);
-  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-  svg.call(zoom.transform, d3.zoomIdentity.translate(W / 2 - cx * k, H / 2 - cy * k).scale(k));
-  graph = {
-    highlight(name) {
-      node.classed("selected", (d) => d.id === name);
-      edge.classed("dim", (l) => name && l.source.id !== name && l.target.id !== name);
-    },
-  };
+  const x0 = Math.min(...nodes.map((n) => n.ex - n.w / 2)), x1 = Math.max(...nodes.map((n) => n.ex + n.w / 2));
+  const y0 = Math.min(...nodes.map((n) => n.ey - n.h / 2)), y1 = Math.max(...nodes.map((n) => n.ey + n.h / 2));
+  const k = Math.min(W / (x1 - x0 + 80), H / (y1 - y0 + 80), 1.2);
+  const target = d3.zoomIdentity.translate(W / 2 - ((x0 + x1) / 2) * k, H / 2 - ((y0 + y1) / 2) * k).scale(k);
+  const fresh = (l) => l.source.isNew || l.target.isNew;
+  if (!MOTION || !lastT || opts.instant) {
+    nodes.forEach((d) => { d.x = d.ex; d.y = d.ey; });
+    position();
+    svg.call(zoom.transform, target);
+  } else {
+    nodes.forEach((d) => { d.x = d.sx; d.y = d.sy; });
+    position();
+    svg.call(zoom.transform, lastT);
+    node.filter((d) => d.isNew).attr("opacity", 0).transition().duration(MOTION).attr("opacity", 1);
+    edge.filter(fresh).attr("opacity", 0).transition().delay(MOTION / 2).duration(MOTION / 2).attr("opacity", 1);
+    labels.filter(fresh).attr("opacity", 0).transition().delay(MOTION / 2).duration(MOTION / 2).attr("opacity", 1);
+    svg.transition("move").duration(MOTION).ease(d3.easeCubicInOut)
+      .tween("move", () => (t) => { nodes.forEach((d) => { d.x = d.sx + (d.ex - d.sx) * t; d.y = d.sy + (d.ey - d.sy) * t; }); position(); })
+      .call(zoom.transform, target);
+  }
+  spawnFrom = null;
+  graph = { highlight(name) { node.classed("selected", (d) => d.id === name); } };
   graph.highlight(selected);
 }
 
@@ -668,14 +962,16 @@ load().then((d) => {
   DATA = d;
   $("#project-title").textContent = "Ontologia " + (d.project || "");
   $("#version").textContent = "v" + (d.version || "0.0.0");
+  DATA.classes.filter((c) => !c.subclass_of.length).forEach((c) => openTree.add(c.name));
   renderStats(); renderNav(); renderPanel(); renderGraph(); renderSummary();
-  addEventListener("resize", () => renderGraph());
+  let resizeTimer = null;
+  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => renderGraph({ instant: true }), 120); });
   return detectApi().then((api) => { window.AkmeReview.init(DATA, api); $("#tabs").hidden = false; dispatchEvent(new Event("resize")); });
 }).catch((err) => {
   $("#tabs").hidden = false;
   $("#view-ontologia").hidden = false;
   $("#graph-empty").hidden = false;
-  $("#graph-empty").innerHTML = `<div><div class="p-lg" style="font-weight:600">Nao foi possivel carregar os dados da ontologia</div><div class="p secondary">${esc(err.message)}. Rode akme export (gera docs/ontology.js) e abra docs/index.html, ou rode akme review.</div></div>`;
+  $("#graph-empty").innerHTML = `<div><div class="p-lg" style="font-weight:600">Nao foi possivel carregar os dados da ontologia</div><div class="p secondary">${esc(err.message)}. Rode uv run akme review, que gera os dados e abre esta pagina.</div></div>`;
 });
 </script>
 </body>
