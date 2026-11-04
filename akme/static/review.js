@@ -388,6 +388,39 @@
     else setMsg("success", `${plural(ok, "decisão salva", "decisões salvas")}. Falta aplicar.`);
   }
 
+  // aceita a proposta como veio em todos os cartões ainda a decidir da fila visível (respeita o filtro por tipo).
+  // Só marca rascunhos: o revisor ainda salva e aplica. Lacunas e divergências sem decisão proposta ficam de fora.
+  function bulkTargets() {
+    return visibleKeys().filter((k) => {
+      const c = S.cards[k];
+      return !c.applied && c.kind !== "n-cq" && stateOf(k) === "todo";
+    });
+  }
+  function acceptAll() {
+    if (!S.api) return;
+    let ok = 0, skipped = 0;
+    for (const k of bulkTargets()) {
+      const c = S.cards[k], pl = (c.item && c.item.payload) || {};
+      if (c.kind === "generic") { draft(k).decision = "accept"; ok++; }
+      else if (c.kind === "cq") {
+        const d = draft(k);
+        d.decision = "accept";
+        if (!d.priority) d.priority = pl.priority || "";
+        if (!d.use) d.use = pl.status === "reserved" && pl.answer ? "reserved" : "approved";
+        ok++;
+      } else if (c.kind === "gap" && pl.decision) {
+        const d = draft(k); d.choice = pl.decision; ok++;
+      } else if (c.kind === "div" && pl.decision) {
+        const d = draft(k); d.choice = pl.decision; d.winner = pl.winner || ""; ok++;
+      } else skipped++;
+      S.invalid.delete(k);
+    }
+    S.editing = new Set();
+    render();
+    if (!ok) return setMsg("info", skipped ? `${plural(skipped, "item precisa", "itens precisam")} de decisão manual.` : "Nada a aceitar.");
+    setMsg("success", `${plural(ok, "proposta aceita", "propostas aceitas")}. Falta salvar.` + (skipped ? ` ${plural(skipped, "item precisa", "itens precisam")} de decisão manual.` : ""));
+  }
+
   function discard() {
     S.drafts = {}; S.newKeys = []; S.invalid = new Set(); S.editing = new Set();
     render();
@@ -771,6 +804,7 @@
     el.innerHTML = `<div class="line" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
       <div class="row"><span class="where">${esc(where)}</span><span class="pos">${esc(text)}</span><span class="spacer"></span>
         ${S.group ? '<button type="button" class="btn btn-ghost btn-sm" data-act="clear-group">todos os tipos</button>' : ""}
+        ${S.api && bulkTargets().length ? `<button type="button" class="btn btn-outline btn-sm" data-act="accept-all" title="Aceita como proposto tudo que ainda está a decidir${S.group ? " neste tipo" : ", em todas as etapas"}. Depois é só salvar.">${I.check}<span>Aceitar tudo (${bulkTargets().length})</span></button>` : ""}
         ${S.scope !== "applied" && S.api ? `<button type="button" class="btn btn-ghost btn-sm" data-act="new-cq"${disPropose()}>${I.plus}<span>Nova pergunta</span></button>` : ""}</div>`;
   }
   function renderCardNav() {
@@ -976,6 +1010,7 @@
       }
       case "drop-new": delete S.drafts[key]; S.newKeys = S.newKeys.filter((k) => k !== key); S.invalid.delete(key); S.selected = null; render(); return;
       case "check": return checkQuote(b);
+      case "accept-all": return acceptAll();
       case "save": return save();
       case "discard": return discard();
       case "apply": return openApply();
