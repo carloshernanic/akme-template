@@ -2,266 +2,27 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 <https://akme.example/ontology> a owl:Ontology ;
+    dcterms:title "Ontologia AKME"@pt ;
     dcterms:description "Ontologia base do template AKME. As classes do dominio do cliente entram como subclasses de Entity, Relation, Rule e Metric por meio de edicoes aprovadas."@pt ;
     dcterms:license <https://opensource.org/licenses/MIT> ;
-    dcterms:title "Ontologia AKME"@pt ;
     owl:versionInfo "0.1.0" .
-
-akme:Apresentacao a owl:Class ;
-    rdfs:label "Apresentacao da banca final"@pt ;
-    rdfs:comment "Slides usados pelo grupo na apresentacao para a banca final."@pt ;
-    rdfs:subClassOf akme:Entrega .
-
-akme:Banner a owl:Class ;
-    rdfs:label "Banner"@pt ;
-    rdfs:comment "Banner do projeto entregue pelo grupo para o evento de encerramento."@pt ;
-    rdfs:subClassOf akme:Entrega .
-
-akme:Coorientador a owl:Class ;
-    rdfs:label "Coorientador"@pt ;
-    rdfs:comment "Pessoa indicada pelo orientador para coorientar o projeto; pode ser externa ao Insper (com aprovacao do Comite) e nao pode ter vinculo com a organizacao parceira."@pt ;
-    rdfs:subClassOf akme:Pessoa .
-
-akme:CriterioCertificacaoFalconi a owl:Class ;
-    rdfs:label "Criterio da certificacao Falconi"@pt ;
-    rdfs:comment "Criterio para concorrer e receber a certificacao: avaliacao unanime de alto nivel nas bancas intermediarias e finais, nota da banca Falconi e aprovacao no Capstone."@pt ;
-    rdfs:subClassOf akme:Rule .
-
-akme:MentorTecnico a owl:Class ;
-    rdfs:label "Mentor tecnico"@pt ;
-    rdfs:comment "Profissional da organizacao parceira que acompanha os estudantes durante o semestre."@pt ;
-    rdfs:subClassOf akme:Pessoa .
-
-akme:Metric a owl:Class ;
-    rdfs:label "Metrica"@pt ;
-    rdfs:comment "Medida calculada a partir de dados, com formula e unidade definidas na camada semantica."@pt .
-
-akme:RegraDeAprovacao a owl:Class ;
-    rdfs:label "Regra de aprovacao"@pt ;
-    rdfs:comment "Regra para aprovacao do estudante: media geral, media individual e todos os objetivos de aprendizagem com nota >= 5,0; media geral abaixo de 5,0 reprova automaticamente."@pt ;
-    rdfs:subClassOf akme:Rule .
-
-akme:Relation a owl:Class ;
-    rdfs:label "Relacao"@pt ;
-    rdfs:comment "Ligacao reificada entre entidades quando a relacao precisa de atributos proprios, como vigencia ou origem."@pt .
-
-akme:Relatorio a owl:Class ;
-    rdfs:label "Relatorio final"@pt ;
-    rdfs:comment "Relatorio final do grupo, hospedado no servidor do Capstone (RelatorioS) e, quando depositado, no repositorio DSpace (RelatorioB)."@pt ;
-    rdfs:subClassOf akme:Entrega .
-
-akme:Video a owl:Class ;
-    rdfs:label "Video do projeto"@pt ;
-    rdfs:comment "Video de apresentacao ou demonstracao do projeto entregue pelo grupo."@pt ;
-    rdfs:subClassOf akme:Entrega .
-
-akme:avalia a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "avalia"@pt ;
-    rdfs:domain akme:BancaFinal ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:temBancaFinal .
-
-akme:concedidaA a owl:ObjectProperty ;
-    rdfs:label "concedidaA"@pt ;
-    rdfs:domain akme:CertificacaoFalconi ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:recebeCertificacao .
-
-akme:entregaDe a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "entregaDe"@pt ;
-    rdfs:domain akme:Entrega ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:temEntrega .
-
-akme:integraBanca a owl:ObjectProperty ;
-    rdfs:label "integraBanca"@pt ;
-    rdfs:domain akme:MembroDeBanca ;
-    rdfs:range akme:BancaFinal ;
-    owl:inverseOf akme:temMembro .
-
-akme:matriculadoEm a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "matriculado em"@pt ;
-    rdfs:comment "Curso de graduacao do estudante, indicado pela sigla entre colchetes apos o nome."@pt ;
-    rdfs:domain akme:Estudante ;
-    rdfs:range akme:Curso ;
-    owl:inverseOf akme:temMatriculado .
-
-akme:mencionaProjeto a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "menciona projeto"@pt ;
-    rdfs:comment "Projeto citado pela materia; materias de evento de encerramento podem nao citar projeto."@pt ;
-    rdfs:domain akme:MateriaNaMidia ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:mencionadoEm .
-
-akme:mencionadoEm a owl:ObjectProperty ;
-    rdfs:label "mencionadoEm"@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:MateriaNaMidia ;
-    owl:inverseOf akme:mencionaProjeto .
-
-akme:ocorreEm a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "ocorre em"@pt ;
-    rdfs:comment "Semestre letivo em que o projeto foi desenvolvido."@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:Periodo ;
-    owl:inverseOf akme:temProjeto .
-
-akme:orienta a owl:ObjectProperty ;
-    rdfs:label "orienta"@pt ;
-    rdfs:domain akme:ProfessorOrientador ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:orientadoPor .
-
-akme:orientadoPor a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "orientado por"@pt ;
-    rdfs:comment "Professor orientador do grupo do projeto."@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:ProfessorOrientador ;
-    owl:inverseOf akme:orienta .
-
-akme:participaDe a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "participaDe"@pt ;
-    rdfs:domain akme:Estudante ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:temEstudante .
-
-akme:propoe a owl:ObjectProperty ;
-    rdfs:label "propoe"@pt ;
-    rdfs:domain akme:OrganizacaoParceira ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:propostoPor .
-
-akme:propostoPor a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "proposto por"@pt ;
-    rdfs:comment "Organizacao parceira que propos o desafio do projeto."@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:OrganizacaoParceira ;
-    owl:inverseOf akme:propoe .
-
-akme:recebeCertificacao a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "recebe certificacao"@pt ;
-    rdfs:comment "Certificacao Falconi-Insper recebida pelo projeto, quando houver."@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:CertificacaoFalconi ;
-    owl:inverseOf akme:concedidaA .
-
-akme:temBancaFinal a owl:FunctionalProperty,
-        owl:ObjectProperty ;
-    rdfs:label "tem banca final"@pt ;
-    rdfs:comment "Banca final que avaliou o projeto."@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:BancaFinal ;
-    owl:inverseOf akme:avalia .
-
-akme:temEntrega a owl:ObjectProperty ;
-    rdfs:label "tem entrega"@pt ;
-    rdfs:comment "Entregas produzidas pelo grupo do projeto."@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:Entrega ;
-    owl:inverseOf akme:entregaDe .
-
-akme:temEstudante a owl:ObjectProperty ;
-    rdfs:label "tem estudante"@pt ;
-    rdfs:comment "Estudantes do grupo do projeto; o estudante nao pode trocar de projeto no semestre."@pt ;
-    rdfs:domain akme:Projeto ;
-    rdfs:range akme:Estudante ;
-    owl:inverseOf akme:participaDe .
-
-akme:temMatriculado a owl:ObjectProperty ;
-    rdfs:label "temMatriculado"@pt ;
-    rdfs:domain akme:Curso ;
-    rdfs:range akme:Estudante ;
-    owl:inverseOf akme:matriculadoEm .
-
-akme:temMembro a owl:ObjectProperty ;
-    rdfs:label "tem membro"@pt ;
-    rdfs:comment "Avaliadores da banca final, incluindo o orientador marcado como [orientador]."@pt ;
-    rdfs:domain akme:BancaFinal ;
-    rdfs:range akme:MembroDeBanca ;
-    owl:inverseOf akme:integraBanca .
-
-akme:temProjeto a owl:ObjectProperty ;
-    rdfs:label "temProjeto"@pt ;
-    rdfs:domain akme:Periodo ;
-    rdfs:range akme:Projeto ;
-    owl:inverseOf akme:ocorreEm .
-
-akme:CertificacaoFalconi a owl:Class ;
-    rdfs:label "Certificacao Falconi-Insper"@pt ;
-    rdfs:comment "Certificacao concedida pela Falconi a projetos avaliados pela banca Falconi, em dois niveis: Destaque (nota >= 6,0) e Excelencia (nota >= 8,0, ate 25% dos projetos avaliados)."@pt ;
-    rdfs:subClassOf akme:Entity .
-
-akme:Curso a owl:Class ;
-    rdfs:label "Curso de graduacao"@pt ;
-    rdfs:comment "Curso de graduacao do Insper que preve o Capstone como TCC: Engenharia de Computacao (EC), Engenharia Mecanica (EM), Engenharia Mecatronica (EX) e Ciencia da Computacao (CC)."@pt ;
-    rdfs:subClassOf akme:Entity .
-
-akme:MateriaNaMidia a owl:Class ;
-    rdfs:label "Materia na midia"@pt ;
-    rdfs:comment "Materia, publicacao academica, patente ou evento de encerramento que menciona o Capstone ou um projeto, com data e link."@pt ;
-    rdfs:subClassOf akme:Entity .
-
-akme:MembroDeBanca a owl:Class ;
-    rdfs:label "Membro de banca"@pt ;
-    rdfs:comment "Avaliador que compoe uma banca final; membros externos ao Insper exigem autorizacao previa do Comite."@pt ;
-    rdfs:subClassOf akme:Pessoa .
-
-akme:OrganizacaoParceira a owl:Class ;
-    rdfs:label "Organizacao parceira"@pt ;
-    rdfs:comment "Empresa ou instituicao que propoe o desafio de um projeto e indica gestor responsavel e mentor tecnico."@pt ;
-    rdfs:subClassOf akme:Entity .
-
-akme:Periodo a owl:Class ;
-    rdfs:label "Periodo letivo"@pt ;
-    rdfs:comment "Semestre letivo em que o projeto acontece, no formato ano.semestre (ex: 2026.1)."@pt ;
-    rdfs:subClassOf akme:Entity .
-
-akme:ProfessorOrientador a owl:Class ;
-    rdfs:label "Professor orientador"@pt ;
-    rdfs:comment "Professor indicado pelo Comite do Capstone para orientar um grupo; seleciona a banca e emite o parecer de aprovacao."@pt ;
-    rdfs:subClassOf akme:Pessoa .
-
-akme:Rule a owl:Class ;
-    rdfs:label "Regra"@pt ;
-    rdfs:comment "Regra de negocio ou restricao que condiciona como entidades e metricas devem ser interpretadas."@pt .
-
-akme:BancaFinal a owl:Class ;
-    rdfs:label "Banca final"@pt ;
-    rdfs:comment "Banca de avaliacao final de um projeto, composta pelo orientador e por avaliadores escolhidos por ele."@pt ;
-    rdfs:subClassOf akme:Entity .
-
-akme:Estudante a owl:Class ;
-    rdfs:label "Estudante"@pt ;
-    rdfs:comment "Estudante de graduacao alocado em um grupo de projeto do Capstone; pertence a um curso."@pt ;
-    rdfs:subClassOf akme:Pessoa .
-
-akme:Pessoa a owl:Class ;
-    rdfs:label "Pessoa"@pt ;
-    rdfs:comment "Pessoa que participa do Capstone em algum papel: estudante, orientador, coorientador, membro de banca ou mentor tecnico."@pt ;
-    rdfs:subClassOf akme:Entity .
-
-akme:Entrega a owl:Class ;
-    rdfs:label "Entrega"@pt ;
-    rdfs:comment "Artefato entregue pelo grupo ao final do projeto: relatorio, video, banner ou apresentacao da banca final."@pt ;
-    rdfs:subClassOf akme:Entity .
 
 akme:Entity a owl:Class ;
     rdfs:label "Entidade"@pt ;
     rdfs:comment "Coisa do dominio do cliente que tem identidade propria, como cliente, pedido ou produto."@pt .
 
-akme:Projeto a owl:Class ;
-    rdfs:label "Projeto"@pt ;
-    rdfs:comment "Projeto Final - Capstone: desafio proposto por uma organizacao parceira e desenvolvido por um grupo de estudantes num semestre, identificado pelo numero em pfe.insper.edu.br/projetos/projeto_infos/<numero>."@pt ;
-    rdfs:subClassOf akme:Entity .
+akme:Relation a owl:Class ;
+    rdfs:label "Relacao"@pt ;
+    rdfs:comment "Ligacao reificada entre entidades quando a relacao precisa de atributos proprios, como vigencia ou origem."@pt .
 
+akme:Rule a owl:Class ;
+    rdfs:label "Regra"@pt ;
+    rdfs:comment "Regra de negocio ou restricao que condiciona como entidades e metricas devem ser interpretadas."@pt .
+
+akme:Metric a owl:Class ;
+    rdfs:label "Metrica"@pt ;
+    rdfs:comment "Medida calculada a partir de dados, com formula e unidade definidas na camada semantica."@pt .
