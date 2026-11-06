@@ -71,41 +71,50 @@ def queue(project: Project, stage: str = "all") -> list[Edit]:
                   key=lambda e: (e.created_at, e.id))
 
 
-def describe(edit: Edit, index: int = 0, total: int = 0) -> str:
-    """Texto do formulario: o mesmo conteudo do cartao da pagina, em texto corrido."""
+def _detail_lines(edit: Edit, skip: set[str] = frozenset()) -> list[str]:
+    """Campos, evidencia, o que o dado mostra, alertas e o porque da IA, uma informacao por linha."""
     v = present(edit)
-    head = f"[{index}/{total}] " if total else ""
-    lines = [f"{head}{v['group_label']}" + (f" · {v['subtitle']}" if v["subtitle"] else ""), v["title"], ""]
-    for f in v["fields"]:
-        lines.append(f"{f['label']}: {f['value']}")
-    if v["evidence"]:
-        lines.append("")
-        lines.append("Evidência:")
-        for ev in v["evidence"]:
-            where = " · ".join(x for x in (ev.get("path"), ev.get("locator")) if x)
-            quote = f' "{ev["quote"]}"' if ev.get("quote") else ""
-            who = f"conversa com {ev['who']}" if ev.get("kind") == "conversation" and ev.get("who") else ""
-            note = ev.get("note") or ""
-            lines.append("- " + " ".join(x for x in (where or who, quote.strip(), note) if x))
+    lines = [f"{f['label']}: {f['value']}" for f in v["fields"] if f["label"] not in skip]
+    for ev in v["evidence"]:
+        where = " · ".join(x for x in (ev.get("path"), ev.get("locator")) if x)
+        quote = f'"{ev["quote"]}"' if ev.get("quote") else ""
+        who = f"conversa com {ev['who']}" if ev.get("kind") == "conversation" and ev.get("who") else ""
+        lines.append("Evidência: " + " ".join(x for x in (where or who, quote, ev.get("note") or "") if x))
     observed = v.get("observed")
     if observed and observed.get("available"):
-        lines.append("")
-        lines.append("O que o dado mostra:")
-        lines.extend(f"- {line}" for line in observed["lines"])
-    for alert in v["alerts"]:
-        lines.append(f"ATENÇÃO: {alert}")
+        lines.extend(f"Dado: {line}" for line in observed["lines"])
+    lines.extend(f"ATENÇÃO: {alert}" for alert in v["alerts"])
     if v["rationale"]:
-        lines.append("")
         lines.append(f"Por que a IA propôs: {v['rationale']}")
-    return "\n".join(lines).strip()
+    return lines
+
+
+def headline(edit: Edit, index: int = 0, total: int = 0) -> str:
+    """Duas linhas: o harness (Claude Code) mostra so o comeco da mensagem do formulario e recolhe o resto."""
+    v = present(edit)
+    head = f"[{index}/{total}] " if total else ""
+    first = f"{head}{v['group_label']}" + (f" · {v['subtitle']}" if v["subtitle"] else "")
+    return f"{first}\n{v['title']}"
+
+
+def details(edit: Edit) -> str:
+    """Vai na descricao do campo de decisao, que o harness mostra inteira. Pula o que ja e campo editavel."""
+    skip = {spec["label"].split(" (")[0] for spec in EDITABLE.get(edit.type, [])}
+    return "\n".join(_detail_lines(edit, skip))
+
+
+def describe(edit: Edit, index: int = 0, total: int = 0) -> str:
+    """Texto completo da proposta, para o chat quando o harness nao desenha formularios."""
+    return "\n".join([headline(edit, index, total), *_detail_lines(edit)])
 
 
 def form_for(edit: Edit) -> type[BaseModel]:
     """Formulario de decisao por tipo de pendente, com os padroes da proposta ja preenchidos."""
     p, t = edit.payload, edit.type
+    info = details(edit)
     if t == EditType.add_competency_question:
         return _model("DecisaoCQ", {
-            "decisao": _choice(DECISION, "aceitar", "Decisão"),
+            "decisao": _choice(DECISION, "aceitar", "Decisão", info),
             "prioridade": _choice(PRIORITY, _pick(PRIORITY, p.get("priority"), "medium"), "Prioridade"),
             "uso": _choice(USE, _pick(USE, p.get("status"), "approved"), "Uso da pergunta"),
             "resposta_esperada": _text(str(p.get("answer") or ""), "Resposta esperada", "Obrigatória para guardar para o teste."),
@@ -113,19 +122,19 @@ def form_for(edit: Edit) -> type[BaseModel]:
         })
     if t in (EditType.add_gap, EditType.update_gap):
         return _model("DecisaoLacuna", {
-            "decisao": _choice(GAP, _pick(GAP, p.get("decision"), "request_from_client"), "O que fazer com esta lacuna"),
+            "decisao": _choice(GAP, _pick(GAP, p.get("decision"), "request_from_client"), "O que fazer com esta lacuna", info),
             "nota": _text(str(p.get("note") or ""), "Explicação", "Obrigatória, exceto para Deixar em aberto."),
         })
     if t in (EditType.add_divergence, EditType.update_divergence):
         labels = [str(s.get("label") or s.get("path") or "") for s in (p.get("sources") or []) if isinstance(s, dict)]
         winners = [(lbl, lbl) for lbl in labels if lbl] or [("", "(sem fontes)")]
         return _model("DecisaoDivergencia", {
-            "decisao": _choice(DIV, _pick(DIV, p.get("decision"), "precedence"), "O que fazer com esta divergência"),
+            "decisao": _choice(DIV, _pick(DIV, p.get("decision"), "precedence"), "O que fazer com esta divergência", info),
             "prevalece": _choice(winners, _pick(winners, p.get("winner"), winners[0][0]), "Fonte que prevalece",
                                  "Usada só quando uma fonte prevalece."),
             "motivo": _text(str(p.get("reason") or ""), "Explicação", "Obrigatória, exceto para Deixar em aberto."),
         })
-    fields: dict[str, tuple[Any, Any]] = {"decisao": _choice(DECISION, "aceitar", "Decisão")}
+    fields: dict[str, tuple[Any, Any]] = {"decisao": _choice(DECISION, "aceitar", "Decisão", info)}
     for spec in EDITABLE.get(t, []):
         value = p.get(spec["key"])
         text = ", ".join(str(x) for x in value) if isinstance(value, list) else str(value or "")
@@ -271,9 +280,9 @@ async def run(project: Project, ask: Ask, stage: str = "all", reviewer: str = ""
         for i, edit in enumerate(todo, 1):
             form, error = form_for(edit), None
             for _ in range(MAX_TRIES):
-                message = describe(edit, i, len(todo))
+                message = headline(edit, i, len(todo))
                 if error:
-                    message = f"Não deu para gravar: {error}\n\n{message}"
+                    message = f"Não deu para gravar: {error}\n{message}"
                 res = await ask(message, form)
                 if res.action == "cancel":
                     stopped = True

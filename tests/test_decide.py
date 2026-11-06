@@ -107,6 +107,17 @@ def test_form_schemas_only_use_primitive_fields(project):
     assert "data/pedidos.csv" in decide.describe(e) and "FATURADO" in decide.describe(e)
 
 
+def test_form_message_is_short_and_details_go_to_decision_field(project):
+    """O Claude Code mostra so o comeco da mensagem; a evidencia vai na descricao do campo, que aparece inteira."""
+    e = ontology_write.propose_edit(project, "add_requirement", {"field": "users", "value": "analista, gestor"},
+                                    rationale="citado no kickoff", evidence='[{"kind": "source", "path": "data/k.pptx", '
+                                    '"locator": "slide 2", "quote": "analistas"}]')
+    assert len(decide.headline(e, 1, 20).splitlines()) == 2
+    info = decide.form_for(e).model_json_schema()["properties"]["decisao"]["description"]
+    assert "data/k.pptx · slide 2" in info and "citado no kickoff" in info
+    assert "Valor:" not in info  # ja aparece como campo editavel
+
+
 def _call(project, monkeypatch, elicitation_callback=None):
     monkeypatch.setenv("AKME_ROOT", str(project.root))
 
