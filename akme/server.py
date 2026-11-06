@@ -145,19 +145,32 @@ def open_review(port: int = 8765, open_browser: bool = True) -> dict[str, Any]:
     abre o navegador. Devolve a URL, a etapa atual e quantos pendentes esperam decisao. Chame em toda parada
     em que o humano precisa decidir propostas; diga a URL ao humano em uma linha."""
     from .review_server import ensure_running
+    from .tools.review_round import open_round
     from .tools.stage import current_stage
     p = project()
     export_tool.export(p)
     url = ensure_running(p, port, open_browser)
+    rnd = open_round(p)
     st = current_stage(p)
-    return {"url": url, "stage": st["label"], "next_step": st["next_step"], "undecided": st["undecided"],
-            "pending": st["counts"]["pending"]}
+    return {"url": url, "round_id": rnd["id"], "stage": st["label"], "next_step": st["next_step"],
+            "undecided": st["undecided"], "pending": st["counts"]["pending"], "checklist": st["checklist"],
+            "then": "Diga a URL ao humano em uma linha e chame wait_for_review com este round_id."}
+
+
+@mcp.tool()
+def wait_for_review(round_id: str = "", timeout_seconds: float = 540) -> dict[str, Any]:
+    """Espera o humano aplicar as decisoes na pagina de revisao (rodada aberta por open_review). Bloqueia ate
+    status applied (o humano aplicou, com nome: siga para o proximo passo sem pedir "aplica" de novo),
+    nothing_pending (os pendentes acabaram por outro caminho) ou waiting no timeout (chame de novo, ate 1800 s)."""
+    from .tools.review_round import wait_for_review as wait
+    return wait(project(), round_id or None, timeout_seconds)
 
 
 @mcp.tool()
 def stage() -> dict[str, Any]:
-    """Em que etapa das seis o projeto esta, o que falta para fechar a atual e o proximo passo. Use para
-    terminar cada resposta de fim de etapa com "Etapa X de 6 concluida. Proximo passo: ..."."""
+    """Em que etapa das seis o projeto esta, o que falta para fechar a atual, o proximo passo e o checklist
+    da etapa (passos com done true, false ou null quando so voce sabe). Espelhe o checklist na lista de
+    tarefas do harness. Termine cada fim de etapa com "Etapa X de 6 concluida. Proximo passo: ..."."""
     from .tools.stage import current_stage
     return current_stage(project())
 

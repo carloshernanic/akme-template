@@ -136,9 +136,12 @@ Na página (vista **Revisão**, a inicial):
 A fila atualiza sozinha: quando o agente propõe algo novo, o item aparece com um aviso; quando o
 agente aplica pelo chat, o item sai da fila. Rascunhos locais não se perdem.
 
-De volta ao chat: "revisei". O agente lê os pendentes e resume ("8 aceitas, 2 rejeitadas, 3
-editadas, 1 criada por você, 2 lacunas para o data request, 1 divergência com precedência") e
-pede **"aplica"** com seu nome; se você já aplicou pela página, ele lê o `changelog.yml` e segue.
+Enquanto a página está aberta, o agente fica esperando no chat (`wait_for_review`) e a página
+mostra "O agente está esperando você aplicar". Depois de **Aplicar decididas**, a página diz
+**"Volte para o chat da criação de ontologia"**: o agente já recebeu o resumo ("8 aceitas,
+2 rejeitadas, aplicadas por você") e seguiu para o próximo passo, sem você escrever nada. Se
+preferir decidir no chat, escreva lá: o agente para de esperar, lê os pendentes, resume e pede
+**"aplica"** com seu nome.
 `apply_reviewed` grava em `content.yml` e `schema.ttl`, espelha as reservadas em
 `validation/questions.yml` e registra tudo em `changelog.yml`. Se menos de cinco CQs foram aceitas,
 ele oferece uma segunda rodada. Termine de salvar na página antes de dizer "aplica".

@@ -45,3 +45,11 @@ def test_skill_sends_the_human_to_the_page_not_the_file():
     assert "Aplicar decididas" in skill
     assert "aponte o humano para `docs/index.html`" not in skill
     assert "Etapa X de 6 concluida" in skill
+
+
+def test_skill_waits_for_page_and_mirrors_checklist():
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Roteiro visivel no harness" in skill and "checklist" in skill
+    assert skill.count("wait_for_review") >= 5
+    assert "Volte para o chat da criacao de ontologia" in skill
+    assert "akme wait-review" in skill

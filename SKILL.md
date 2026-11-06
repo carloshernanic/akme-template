@@ -11,7 +11,7 @@ Levar o consultor do primeiro contato com os dados do cliente ate uma camada sem
 
 ## Regras que nunca mudam
 
-1. **Nada entra na ontologia sem aprovacao explicita do humano.** Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa. `apply_reviewed` so pode ser chamado depois de voce mostrar o resumo das decisoes lidas em `list_pending` e o humano responder 'aplica' com o nome de quem aprova. O humano tambem pode aplicar pela propria pagina de revisao (botao "Aplicar decididas", que exige o nome e roda o mesmo lote validado): nesse caso `list_pending` volta vazio e o `changelog.yml` mostra quem aprovou; nao peca "aplica" de novo.
+1. **Nada entra na ontologia sem aprovacao explicita do humano.** Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa. `apply_reviewed` so pode ser chamado depois de voce mostrar o resumo das decisoes lidas em `list_pending` e o humano responder 'aplica' com o nome de quem aprova. O humano tambem pode aplicar pela propria pagina de revisao (botao "Aplicar decididas", que exige o nome e roda o mesmo lote validado): nesse caso `wait_for_review` volta com `status: applied` e o nome de quem aprovou, e isso vale como aprovacao; nao peca "aplica" de novo.
 2. **`validate` roda antes de todo `apply_edit`.** Se houver erro, mostre ao humano e proponha correcao em vez de aplicar.
 3. **Nunca responda de memoria sobre a ontologia.** Use `list_entities`, `list_relations`, `search_term`, `resolve_acronym`, `get_precedence`, `get_requirements` e `list_competency_questions` para saber o que existe.
 4. **Toda proposta carrega proveniencia.** Preencha `requirement_id` (a CQ que motiva) e `evidence` (documento, tabela, coluna ou conversa de origem). O `apply_edit` grava isso em `changelog.yml` e na secao `evidence` do `content.yml`.
@@ -19,13 +19,29 @@ Levar o consultor do primeiro contato com os dados do cliente ate uma camada sem
 6. **As tools nao chamam LLM.** O que exige julgamento semantico (redigir definicoes, propor classes, interpretar relatorios) e trabalho seu, sempre apresentado como proposta.
 7. **Toda hipotese, ambiguidade ou conflito mostrado ao humano diz de onde veio.** Antes de apresentar, chame `find_in_sources` com o termo (siglas com `case_sensitive=true`) e cite cada ocorrencia relevante com o `path` devolvido, a pagina ou slide, ou a aba e a coluna, e um trecho curto entre aspas. Nunca cite de memoria. Se a tool nao encontrar o termo por extenso, diga isso e mostre onde ele aparece abreviado. Separe sempre o que esta escrito na fonte do que e hipotese sua. Toda CQ, lacuna e divergencia proposta carrega `evidence` com `kind: source` citando `path`, `locator` e `quote`; o que vem de conversa leva `kind: conversation`. Ver "Como apresentar ambiguidades".
 
+## Roteiro visivel no harness
+
+O humano acompanha o fluxo pela lista de tarefas do harness, nao pelo texto das suas respostas. Mantenha essa lista sempre igual ao estado real:
+
+1. **Ao comecar** (e ao retomar uma conversa), chame `stage`. Crie a lista de tarefas do harness com as seis etapas (`Etapa 1 de 6: Especificar` ... `Etapa 6 de 6: Manter`), marque as anteriores a atual como concluidas e, logo abaixo da etapa atual, um item por passo do `checklist` que `stage` devolve. No Claude Code use a ferramenta de lista de tarefas (TodoWrite ou a lista do app); num harness sem lista, escreva o mesmo checklist em markdown (`- [x]` / `- [ ]`) no inicio da resposta.
+2. **Cada passo do `checklist`** tem `text`, `tools` e `done`: `true` ou `false` vem do estado em disco e nao se discute; `null` e um passo que so voce sabe se fez (ex: consultar a LOV), marque quando fizer. Nao pule passo: se um `false` ficar para tras, volte nele ou diga ao humano por que ele nao se aplica.
+3. **Ao terminar cada passo**, marque na lista antes de comecar o proximo. Ao mudar de etapa, chame `stage` de novo e troque os passos pelos da etapa nova.
+4. Comece cada resposta com uma linha curta de onde voce esta: `Etapa X de 6 · passo: <texto do passo>`.
+
 ## A pagina de revisao e o vai e volta com o humano
 
-A pagina servida por `akme review` (127.0.0.1:8765) e a caixa de entrada de decisoes do consultor em qualquer etapa: cada pendente aparece com titulo legivel, evidencia, o que o dado mostra e dois botoes, aceitar ou rejeitar. Ela atualiza sozinha quando voce propoe algo novo e mostra a etapa atual das seis. Regras para voce:
+A pagina servida por `akme review` (127.0.0.1:8765) e a caixa de entrada de decisoes do consultor em qualquer etapa: cada pendente aparece com titulo legivel, evidencia, o que o dado mostra e dois botoes, aceitar ou rejeitar. Ela atualiza sozinha quando voce propoe algo novo e mostra a etapa atual das seis. Voce nao espera o humano escrever no chat: espera ele aplicar na pagina. Regras para voce:
 
-- **Em toda parada "Pare e pergunte" das etapas 1, 2 e 3**, depois de gravar as propostas, chame `open_review` (roda `export`, sobe a pagina em segundo plano se preciso e abre o navegador) e escreva uma linha fixa: "Revise em <url> (N itens a decidir). Quando terminar, diga `revisei`, ou aplique pela pagina." No chat mostre so a lista curta (titulo e tipo de cada proposta); o detalhe e a decisao ficam na pagina. Se `open_review` falhar, diga ao humano para rodar `uv run akme review`.
-- **Ao retomar**, leia `list_pending` e trate os tres casos: (a) ha pendentes com `review` e nao aplicados: resuma as decisoes e peca "aplica" com o nome de quem aprova, depois `apply_reviewed`; (b) nao ha pendentes e o `changelog.yml` registra aplicacoes novas: o humano aplicou pela pagina, leia o resultado e siga; (c) ha pendentes sem `review`: pergunte se prefere decidir no chat ("aprovado" ou "rejeitado" item a item) e use `apply_edit` ou `reject_edit`.
-- **No fim de cada etapa**, chame `stage` e termine a resposta com a frase que a pagina tambem mostra: "Etapa X de 6 concluida. Proximo passo: ...".
+- **Em toda parada "Pare e pergunte" das etapas 1, 2 e 3**, depois de gravar as propostas:
+  1. Chame `open_review` (roda `export`, sobe a pagina em segundo plano se preciso, abre o navegador e abre uma rodada de revisao). Guarde o `round_id`.
+  2. Escreva uma linha fixa: "Revise em <url> (N itens a decidir). Aplique pela pagina e volte para este chat: eu sigo sozinho quando voce aplicar." Mostre so a lista curta (titulo e tipo de cada proposta); o detalhe e a decisao ficam na pagina.
+  3. Chame `wait_for_review` com o `round_id`, na mesma resposta. Ela bloqueia ate o humano clicar em "Aplicar decididas"; a pagina entao diz a ele "Volte para o chat da criacao de ontologia".
+  4. Se voltar `waiting` (timeout), chame `wait_for_review` de novo com o mesmo `round_id`, sem escrever nada ao humano. Repita ate outro status. Se o humano escrever no chat enquanto voce espera, pare de esperar e responda a ele.
+  5. Com `applied`: resuma em poucas linhas o que entrou (`round.applied`, `round.rejected`, `round.applied_types`, `round.approved_by`; se `round.held_by_gate` ou `pending_left` forem maiores que zero, diga quantos ficaram de fora e por que), atualize a lista de tarefas com o `checklist` devolvido e siga direto para o proximo passo, sem pedir "revisei" nem "aplica".
+  6. Com `nothing_pending`: os pendentes acabaram por outro caminho (chat ou CLI); leia `changelog.yml`, resuma e siga.
+  - Se `open_review` falhar, diga ao humano para rodar `uv run akme review --background` e use `uv run akme wait-review` (em segundo plano, quando o harness permite) no lugar de `wait_for_review`. Se nao der para esperar de nenhum jeito, volte ao combinado antigo: o humano diz `revisei`.
+- **Ao retomar sem rodada** (o humano voltou e escreveu no chat), leia `list_pending` e trate os tres casos: (a) ha pendentes com `review` e nao aplicados: resuma as decisoes e peca "aplica" com o nome de quem aprova, depois `apply_reviewed`; (b) nao ha pendentes e o `changelog.yml` registra aplicacoes novas: o humano aplicou pela pagina, leia o resultado e siga; (c) ha pendentes sem `review`: pergunte se prefere decidir no chat ("aprovado" ou "rejeitado" item a item) e use `apply_edit` ou `reject_edit`.
+- **No fim de cada etapa**, chame `stage`, atualize a lista de tarefas e termine a resposta com a frase que a pagina tambem mostra: "Etapa X de 6 concluida. Proximo passo: ...".
 - Nunca aponte o humano para o arquivo `docs/index.html`: aberto do disco a pagina fica so em modo leitura. Aponte sempre para a URL local.
 
 ## Preparacao
@@ -46,14 +62,14 @@ Cada etapa diz quais tools chamar, o que voce produz e onde parar para o humano 
 
 ### 1. Especificar (LOT: especificacao de requisitos)
 
-Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_use_case`, `add_requirement`, `add_competency_question`, `add_gap`, `add_divergence`, `add_glossary`; `open_review`, `list_pending`, `requirements_status`, `apply_reviewed`, `stage`.
+Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_use_case`, `add_requirement`, `add_competency_question`, `add_gap`, `add_divergence`, `add_glossary`; `open_review`, `wait_for_review`, `list_pending`, `requirements_status`, `apply_reviewed`, `stage`.
 
 1. Pergunte o caso de uso (ou constate que `get_requirements` ja traz um em `use_cases`; nesse caso nao pergunte de novo): nome, descricao, atores e fluxo. Proponha `add_use_case`. Se o humano disser que nao tem, registre o motivo com `add_requirement` no campo `no_use_case`, avise que as CQs sairao mais genericas e siga.
 2. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas e convencoes detectadas. O profile traz so um excerto de cada documento: para o conteudo completo, chame `read_document` sem `page` para ver o indice e depois pagina a pagina. Use `find_in_sources` nos termos que aparecerem. Cite arquivo e pagina na `evidence` (ex: `contratos/glossario.docx, pagina 3` ou `kickoff.pptx, slide 2`).
 3. Proponha proposito, escopo e usuarios (`add_requirement` com `field` purpose, scope ou users). Diferencie o que esta explicito nos documentos do que e hipotese sua.
 4. Proponha exatamente dez CQs (`add_competency_question`), distribuidas entre os seis tipos: `classificacao_hierarquia`, `relacao_entre_conceitos`, `atributos`, `quantidade_agregacao`, `tempo_estado`, `regras_restricoes`. O ideal e duas por tipo; se o dominio nao sustenta um tipo, diga qual e por que. Cada CQ leva `question`, `type`, `concepts` e `evidence` com ao menos um `{kind: source, path, locator, quote}`; `use_cases` e opcional. O `id` e o `status: proposed` o servidor preenche. Siga a regra do LOT: pergunta quando ha interrogacao de negocio, frase quando e fato, tabela quando e lista de atributos. Em seguida proponha as lacunas (`add_gap`: perguntas que o caso de uso sugere e os dados nao respondem) e as divergencias (`add_divergence`: fontes que discordam), cada uma com evidencia.
 5. Chame `open_review` e diga ao humano, em uma linha, a URL e quantos itens esperam decisao. Mostre no chat so a lista curta (id, pergunta, tipo); o detalhe e a decisao ficam na pagina. Nao mande o humano rodar `akme review` nem abrir `docs/index.html`.
-6. Pare. Quando o humano voltar, leia `list_pending` e resuma as decisoes (quantas CQs aceitas, rejeitadas, editadas e criadas; lacunas e divergencias decididas). Peca "aplica" com o nome de quem aprova. So depois chame `apply_reviewed` com esse nome. Se o humano ja aplicou pela pagina, `list_pending` volta vazio: leia o `changelog.yml` e siga.
+6. Chame `wait_for_review` e espere (ver "A pagina de revisao e o vai e volta com o humano"). Com `applied`, resuma as decisoes (quantas CQs aceitas e rejeitadas; lacunas e divergencias decididas) e siga para o passo 7. Se o humano preferir decidir no chat, leia `list_pending`, resuma, peca "aplica" com o nome de quem aprova e so depois chame `apply_reviewed`.
 7. Proponha o glossario (`add_glossary`) para siglas vistas em `profile.conventions.acronyms_found` e nos documentos. As entradas ficam pendentes e o humano decide na aba Revisao (ou diz "aprovado" no chat e voce chama `apply_edit`); a etapa so fecha depois que elas forem aplicadas. Se menos de cinco CQs foram aceitas, ofereca uma segunda rodada de ate dez, sem repetir as rejeitadas.
 
 **Pare e pergunte:** o humano decide na pagina de revisao (claro, completo, sem ambiguidade, prioridade, quais CQs sao usadas na construcao e quais ficam guardadas para o teste). Nao transforme hipotese em regra. Mesmo depois do "aplica", a etapa so termina quando `requirements_status` diz `closed`.
@@ -62,7 +78,7 @@ Saida: `use_cases`, CQs com status, `gaps`, `divergences`, `requirements` e `glo
 
 ### 2. Conceitualizar (LOT: implementacao, conceitualizacao e reuso)
 
-Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, `search_registry`, `propose_edit` com `add_class`, `add_relation`, `add_term`; `open_review`, `list_pending`, `apply_reviewed`, `stage`.
+Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, `search_registry`, `propose_edit` com `add_class`, `add_relation`, `add_term`; `open_review`, `wait_for_review`, `list_pending`, `apply_reviewed`, `stage`.
 
 0. Chame `requirements_status`; se `closed` for falso, volte a etapa 1 e mostre `missing` ao humano. Enquanto estiver aberto e a ontologia nao tiver classe de dominio, `propose_edit` recusa classes, relacoes, termos, mappings, constraints e precedencias.
 1. Leia o modelo atual com `list_entities` e `list_relations` antes de propor qualquer coisa.
@@ -73,19 +89,19 @@ Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, 
 3. Quando a conceitualizacao estiver estavel, consulte `search_registry` para termos reutilizaveis na LOV. Compare definicao com definicao, nao nome com nome. Se nao houver rede, registre que o reuso ficou pendente.
 4. Sinalize termos ambiguos, sobreposicoes e CQs ainda sem classe que as atenda.
 
-**Pare e pergunte:** chame `open_review` e aponte a URL; o humano aceita, ajusta ou rejeita cada classe, relacao e termo na pagina (ela mostra o `observed` e os alertas de fanout e orfaos). Ao voltar, resuma `list_pending` e peca "aplica", ou constate que ja foi aplicado pela pagina. Nomes de classe em PascalCase, de relacao em lowerCamelCase.
+**Pare e pergunte:** chame `open_review`, aponte a URL e chame `wait_for_review`; o humano aceita, ajusta ou rejeita cada classe, relacao e termo na pagina (ela mostra o `observed` e os alertas de fanout e orfaos) e aplica. Com `applied`, resuma e siga para a etapa 3. Nomes de classe em PascalCase, de relacao em lowerCamelCase.
 
 Saida: classes e relacoes em `schema.ttl`, termos em `content.yml`.
 
 ### 3. Codificar (LOT: implementacao, codificacao)
 
-Tools: `propose_edit` com `add_mapping`, `add_constraint`, `add_precedence`; `validate`; `open_review`, `list_pending`, `apply_reviewed`, `apply_edit`, `stage`.
+Tools: `propose_edit` com `add_mapping`, `add_constraint`, `add_precedence`; `validate`; `open_review`, `wait_for_review`, `list_pending`, `apply_reviewed`, `apply_edit`, `stage`.
 
 1. Para cada termo, proponha o mapping para `tabela.coluna` do `profile`. Metricas levam `role: metric` e `expression` SQL explicita; nao existe `SUM` implicito. Uma metrica no grao da fonte do lado `one` de uma relacao nao pode ser somada depois de juntar com o lado `many` (fanout): o `publish` registra isso em `do_not_sum_after_join_with`.
 2. Proponha `add_constraint` para regras implicitas achadas nos documentos (ex: faturamento so com status FATURADO) e `add_precedence` quando duas fontes divergem sobre o mesmo conceito, dizendo qual prevalece e por que.
 3. Rode `validate`. Corrija o que for erro antes de pedir aprovacao.
 
-**Pare e pergunte:** chame `open_review` e aponte a URL; os mappings, restricoes e precedencias aparecem na pagina com a evidencia de cada um. O humano aceita, rejeita com motivo ou pede ajuste. Ao voltar, `apply_reviewed` com o nome de quem aprova, ou constate que ja foi aplicado pela pagina.
+**Pare e pergunte:** chame `open_review`, aponte a URL e chame `wait_for_review`; os mappings, restricoes e precedencias aparecem na pagina com a evidencia de cada um. O humano aceita, rejeita com motivo ou pede ajuste, e aplica. Com `applied`, resuma e siga para a etapa 4.
 
 Saida: `mappings`, `constraints` e `precedence` aplicados; `changelog.yml` atualizado.
 
