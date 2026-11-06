@@ -91,8 +91,6 @@
   const req = () => S.data.requirements || {};
   const pending = () => S.data.pending || [];
   const stage = () => S.data.stage || null;
-  const round = () => S.data.round || {};
-  const agentWaiting = () => round().status === "waiting";
   const origin = (by) => (!by || by === "agent" || by === "IA" ? "Proposta pela IA" : "Proposta por " + by);
   const originLow = (by) => (!by || by === "agent" || by === "IA" ? "proposta pela IA" : "proposta por " + by);
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -120,7 +118,8 @@
 
   // ---------- abas e etapa ----------
   function setTab(name, persist = true) {
-    if (name !== "ontologia") name = "revisao";
+    if (S.viewOnly) name = "ontologia";
+    else if (name !== "ontologia") name = "revisao";
     S.tab = name;
     $("#view-ontologia").hidden = name !== "ontologia";
     $("#view-revisao").hidden = name !== "revisao";
@@ -870,6 +869,7 @@
   function renderBar() {
     const n = counts();
     const bar = $("#rv-bar");
+    if (!bar) return;
     const parts = [`<b>${n.todo}</b> a decidir`, `<b>${n.decided}</b> decididas` + (n.unsaved ? ` (${n.unsaved} não salvas)` : "")];
     $("#rv-counts").innerHTML = parts.join(" · ");
     const save = $("#rv-save"), apply = $("#rv-apply"), discardBtn = $("#rv-discard");
@@ -883,23 +883,8 @@
     discardBtn.disabled = S.busy || !Object.keys(S.drafts).length;
     bar.hidden = S.tab !== "revisao";
   }
-  // aviso da rodada: o agente no chat espera o humano aplicar, e depois segue sozinho
-  function renderRound() {
-    const el = $("#rv-round");
-    if (!el) return;
-    const r = round(), n = counts();
-    let html = "";
-    if (S.api && r.status === "waiting") {
-      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">Decida, salve e clique em <b>Aplicar decididas</b>. Depois volte para o chat da criação de ontologia: o agente segue sozinho, sem você precisar escrever nada.</div></div></div>`;
-    } else if (S.api && r.status === "applied" && !n.todo) {
-      html = `<div class="callout callout-ok">${I.ok}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo.</div></div></div>`;
-    }
-    el.innerHTML = html;
-    el.hidden = !html;
-  }
   function render() {
     buildCards();
-    renderRound();
     renderStage();
     renderNav();
     renderDetail();
@@ -921,6 +906,7 @@
   }
   function setMsg(kind, text) {
     const el = $("#rv-msg");
+    if (!el) return;
     el.className = "msg " + kind;
     el.textContent = text;
   }
@@ -963,7 +949,6 @@
     const btn = body.querySelector('[data-act="dlg-apply"]');
     if (btn) { btn.disabled = true; btn.textContent = "Aplicando…"; }
     S.busy = true; renderBar();
-    const waited = agentWaiting();
     let out = null, err = null;
     try { out = await S.api.post("/api/apply", { approved_by: approver.trim(), stage: "all" }); }
     catch (e) { err = e; }
@@ -983,7 +968,7 @@
     body.innerHTML = `<h2 class="h3-semibold">Aplicado</h2>
       <div class="callout callout-ok">${I.ok}<div><div class="t">${plural((out.applied || []).length, "proposta entrou", "propostas entraram")} na ontologia; ${plural((out.rejected || []).length, "rejeitada registrada", "rejeitadas registradas")} no changelog.</div>
         <div class="b">${types ? `<p>${esc(types)}.</p>` : ""}${(out.held_by_gate || []).length ? `<p>${out.held_by_gate.length} propostas da ontologia ficaram esperando os requisitos fecharem.</p>` : ""}${(out.preexisting_errors || []).length ? `<p>O validate já tinha ${out.preexisting_errors.length} erros antes; eles continuam lá.</p>` : ""}</div></div></div>
-      <div class="callout callout-back">${I.info}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">${waited ? "O agente estava esperando esta aplicação e já está seguindo para o próximo passo." : "Diga ao agente que aplicou, para ele seguir."}${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
+      <div class="callout callout-back">${I.info}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">Diga ao agente que aplicou, para ele seguir.${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
       <div class="dlg-actions"><button type="button" class="btn" data-act="dlg-close">Fechar</button></div>`;
     try { await reload(); } catch (e) {}
     render();
@@ -1117,11 +1102,11 @@
     const viewEl = $("#view-revisao");
     viewEl.innerHTML = `<div class="rv">
       ${S.api ? "" : `<div class="callout callout-nota">${I.info}<div><div class="t">Modo leitura</div><div class="b">Rode <code>uv run akme review</code> para decidir e aplicar.</div></div></div>`}
-      <div class="rv-round" id="rv-round" hidden></div>
       <div class="rv-one"><div class="rv-progress" id="rv-progress"></div><div class="rv-detail" id="rv-detail"></div><div class="rv-cardnav" id="rv-cardnav"></div></div>
     </div>
     <dialog class="dlg" id="rv-dialog"><div class="dlg-body" id="rv-dialog-body"></div></dialog>`;
     let bar = $("#rv-bar");
+    if (S.viewOnly) return;
     if (!bar) {
       bar = document.createElement("div");
       bar.id = "rv-bar"; bar.className = "rv-bar";
@@ -1151,6 +1136,7 @@
     S.data.requirements = S.data.requirements || {};
     S.api = api || null;
     S.hooks = hooks || {};
+    S.viewOnly = !!S.hooks.viewOnly;
     S.token = (data && data.token) || null;
     S.reviewer = read("akme-reviewer") || "";
     renderShell();

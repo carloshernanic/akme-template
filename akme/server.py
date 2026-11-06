@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from .project import Project
 from .tools import connect as connect_tool
@@ -140,30 +140,33 @@ def apply_reviewed(approved_by: str, stage: str = "all") -> dict[str, Any]:
 
 
 @mcp.tool()
-def open_review(port: int = 8765, open_browser: bool = True) -> dict[str, Any]:
-    """Roda export, garante a pagina de revisao servindo em 127.0.0.1 (sobe em segundo plano se preciso) e
-    abre o navegador. Devolve a URL, a etapa atual e quantos pendentes esperam decisao. Chame em toda parada
-    em que o humano precisa decidir propostas; diga a URL ao humano em uma linha."""
+async def decide_pending(ctx: Context, stage: str = "all", reviewer: str = "") -> dict[str, Any]:
+    """Conduz as decisoes do humano sobre os pendentes pelo proprio chat, com formularios do harness (MCP
+    elicitation): nome do revisor, modo (uma a uma ou aceitar todas como propostas), um formulario por
+    pendente com a evidencia e, no fim, a confirmacao de aplicar com o nome de quem aprova. stage:
+    requirements (etapa 1), ontology (etapas 2 e 3) ou all. Chame em toda parada em que o humano decide
+    propostas. status applied: o humano aprovou e aplicou no formulario, siga sem pedir "aplica" de novo.
+    status no_elicitation: o harness nao desenha formularios; decida item a item no chat com review_edit."""
+    from .tools import decide
+    p = project()
+    caps = ctx.session.client_params.capabilities if ctx.session.client_params else None
+    if caps is None or caps.elicitation is None:
+        return decide.fallback(decide.queue(p, stage))
+    return await decide.run(p, ctx.elicit, stage, reviewer)
+
+
+@mcp.tool()
+def open_ontology(port: int = 8765, open_browser: bool = True) -> dict[str, Any]:
+    """Roda export e abre a visualizacao da ontologia (grafo, termos, cobertura e pitfalls) numa pagina local
+    em 127.0.0.1, subindo o servidor em segundo plano se preciso. So leitura: as decisoes ficam no chat com
+    decide_pending. A pagina se atualiza sozinha quando a ontologia muda."""
     from .review_server import ensure_running
-    from .tools.review_round import open_round
     from .tools.stage import current_stage
     p = project()
     export_tool.export(p)
     url = ensure_running(p, port, open_browser)
-    rnd = open_round(p)
     st = current_stage(p)
-    return {"url": url, "round_id": rnd["id"], "stage": st["label"], "next_step": st["next_step"],
-            "undecided": st["undecided"], "pending": st["counts"]["pending"], "checklist": st["checklist"],
-            "then": "Diga a URL ao humano em uma linha e chame wait_for_review com este round_id."}
-
-
-@mcp.tool()
-def wait_for_review(round_id: str = "", timeout_seconds: float = 540) -> dict[str, Any]:
-    """Espera o humano aplicar as decisoes na pagina de revisao (rodada aberta por open_review). Bloqueia ate
-    status applied (o humano aplicou, com nome: siga para o proximo passo sem pedir "aplica" de novo),
-    nothing_pending (os pendentes acabaram por outro caminho) ou waiting no timeout (chame de novo, ate 1800 s)."""
-    from .tools.review_round import wait_for_review as wait
-    return wait(project(), round_id or None, timeout_seconds)
+    return {"url": url, "stage": st["label"], "next_step": st["next_step"], "checklist": st["checklist"]}
 
 
 @mcp.tool()

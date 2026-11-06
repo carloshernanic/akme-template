@@ -104,47 +104,27 @@ No chat: "mapeie o domínio do cliente". O agente:
    agregação, tempo e estado, regras e restrições), cada uma com conceitos e evidência citada.
    Propõe também as **lacunas** e as **divergências** que encontrou. Tudo vira pendente; no chat
    aparece só a lista curta.
-4. **Abre a página de revisão** (`open_review`: roda o `export`, sobe o servidor local em
-   `http://127.0.0.1:8765` em segundo plano e abre o navegador) e diz a URL em uma linha. Se
-   preferir, você mesmo roda `uv run akme review`.
+4. **Abre as decisões no próprio chat** (`decide_pending`). O harness desenha um formulário por
+   vez (MCP elicitation), sem você sair da conversa:
+   - **Seu nome**, que fica no changelog como quem revisou.
+   - **Como decidir:** uma a uma, aceitar todas como propostas (CQ sem prioridade fica Média;
+     lacunas e divergências sem decisão vão para o formulário) ou "agora não".
+   - **Um formulário por proposta**, com o título, os campos, a evidência (caminho, local e
+     trecho), o que o dado mostra e o porquê da IA. Em CQs: aceitar ou rejeitar (com motivo),
+     prioridade e uso ("Usar na construção" ou "Guardar para o teste", que pede a resposta
+     esperada). Em lacunas: pedir o dado, reformular, descartar ou deixar em aberto. Em
+     divergências: qual fonte prevalece, conceitos distintos, perguntar ao especialista, descartar
+     ou deixar em aberto. Nos demais tipos dá para ajustar o texto (rótulo, comentário, definição,
+     sinônimos) antes de aceitar. Recusar o formulário pula a proposta; cancelar interrompe.
+   - **Aplicar:** no fim, "Aplicar agora" com o nome de quem aprova, ou deixar decidido para depois.
+     O lote roda numa cópia com `validate` e só entra se não surgir erro novo.
 
-Na página (vista **Revisão**, a inicial):
+   Se o harness não desenha formulários, o agente mostra cada proposta no chat, você responde
+   "aprovado" ou "rejeitado" com motivo e, no fim, "aplica" com seu nome.
 
-- A barra lateral mostra o **fluxo LOT** com a etapa atual, a **fila** (a decidir, decididas,
-  aplicadas) e os tipos de proposta. O cabeçalho diz "Etapa X de 6" e uma faixa no topo diz o
-  próximo passo.
-- Coloque seu nome em **Revisor** (sem ele, nada salva).
-- Uma proposta por vez, em um cartão grande: campos com rótulo em português, evidência com
-  "conferir nas fontes" e, nas relações, "o que o dado mostra" (nulos, órfãos, multiplicidade
-  observada e alerta de fanout). Uma barra de progresso no topo diz quantas faltam; Anterior e
-  Próxima embaixo do cartão. A barra lateral filtra a fila (a decidir, decididas, aplicadas) e o
-  tipo de proposta.
-- Em cada item: **Aceitar** ou **Rejeitar** (com motivo). Em texto, "Ajustar texto antes de
-  aceitar" abre só os campos editáveis (rótulo, comentário, definição, sinônimos). Em CQs, aceitar
-  pede **Prioridade** e **Uso da pergunta**: "Usar na construção" (vira exemplo para o agente) ou
-  "Guardar para o teste" (gabarito do eval; pede a resposta esperada). Crie CQs suas em
-  **Nova pergunta escrita pelo revisor**.
-- Em cada lacuna: pedir o dado ao cliente, reformular, descartar ou deixar em aberto.
-- Em cada divergência: qual fonte prevalece, são conceitos distintos, perguntar ao especialista,
-  descartar ou deixar em aberto. "Prevalece" vira candidata a regra de precedência na etapa 3.
-- Atalhos: setas percorrem as propostas, `a` aceita, `r` rejeita, `e` edita.
-- **Salvar decisões.** Grava o bloco `review` em `ontology/pending/*.yml`. Nada foi aplicado ainda.
-- **Aplicar decididas.** Pede o nome de quem aprova, roda o lote numa cópia com `validate` e só
-  promove se não surgir erro novo. Mostra o resumo e a etapa seguinte. Equivale a dizer "aplica"
-  no chat ou a `uv run akme apply --all-reviewed --approved-by SEU_NOME` na CLI.
-
-A fila atualiza sozinha: quando o agente propõe algo novo, o item aparece com um aviso; quando o
-agente aplica pelo chat, o item sai da fila. Rascunhos locais não se perdem.
-
-Enquanto a página está aberta, o agente fica esperando no chat (`wait_for_review`) e a página
-mostra "O agente está esperando você aplicar". Depois de **Aplicar decididas**, a página diz
-**"Volte para o chat da criação de ontologia"**: o agente já recebeu o resumo ("8 aceitas,
-2 rejeitadas, aplicadas por você") e seguiu para o próximo passo, sem você escrever nada. Se
-preferir decidir no chat, escreva lá: o agente para de esperar, lê os pendentes, resume e pede
-**"aplica"** com seu nome.
 `apply_reviewed` grava em `content.yml` e `schema.ttl`, espelha as reservadas em
 `validation/questions.yml` e registra tudo em `changelog.yml`. Se menos de cinco CQs foram aceitas,
-ele oferece uma segunda rodada. Termine de salvar na página antes de dizer "aplica".
+ele oferece uma segunda rodada.
 
 Enquanto os requisitos não fecham, a faixa da etapa 1 diz o que falta e o agente é barrado:
 qualquer tentativa de criar classe devolve "requisitos nao fechados: ..." com a lista.
@@ -153,12 +133,12 @@ qualquer tentativa de criar classe devolve "requisitos nao fechados: ..." com a 
 
 - **2. Conceitualizar.** O agente chama `requirements_status`; se fechado, lê o modelo atual e
   propõe classes, relações e termos a partir das CQs aprovadas, cada proposta ligada à CQ que a
-  motiva. Consulta a LOV (`search_registry`) para reuso. Você decide na mesma página: cada
-  relação mostra a junção declarada e o que o dado mostra; classes e relações pendentes aparecem
-  tracejadas no grafo da vista Ontologia.
+  motiva. Consulta a LOV (`search_registry`) para reuso. Você decide nos mesmos formulários: cada
+  relação mostra a junção declarada e o que o dado mostra. Depois de aplicar, o agente abre a
+  página (`open_ontology`) para você ver o grafo.
 - **3. Codificar.** Mappings para `tabela.coluna`, métricas com SQL, restrições e precedências
   (as divergências decididas na etapa 1 viram `add_precedence` aqui). `validate` antes de aplicar.
-  Também decididos na página.
+  Também decididos nos formulários do chat.
 - **4. Avaliar.** `validate` (parse, referências, cobertura de colunas, pitfalls, e agora as regras
   de requisitos: reservada sem resposta, aprovada sem prioridade, lacuna em aberto) e `eval`
   (testes estruturais das reservadas; comparação com e sem ontologia via `--callable`).
@@ -181,11 +161,11 @@ qualquer tentativa de criar classe devolve "requisitos nao fechados: ..." com a 
 
 ### 4.5 Ver a página
 
-- **Editável:** `uv run akme review` e abrir `http://127.0.0.1:8765`; `--background` sobe sem
-  prender o terminal e imprime a URL (é o que o agente usa via `open_review`). Só aceita conexões da
-  própria máquina e só do próprio navegador (checa origem).
-- **Só leitura:** `uv run akme export` e abrir `docs/index.html` do disco. Mostra tudo, mas não
-  decide nem aplica.
+- **Ao vivo:** `uv run akme review` e abrir `http://127.0.0.1:8765`; `--background` sobe sem
+  prender o terminal e imprime a URL (é o que o agente usa via `open_ontology`). A página é só de
+  visualização (grafo, termos, cobertura e pitfalls) e se atualiza sozinha quando algo é aplicado.
+  Só aceita conexões da própria máquina.
+- **Do disco:** `uv run akme export` e abrir `docs/index.html`. Mostra o mesmo, sem atualizar.
 - **Etapa atual:** `uv run akme stage` diz em que etapa das seis o projeto está e o próximo passo.
 
 ## 5. Demonstração em dois minutos

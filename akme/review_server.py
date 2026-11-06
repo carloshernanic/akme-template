@@ -1,7 +1,7 @@
 """Servidor local da pagina de revisao (`akme review`). Somente 127.0.0.1.
 
 Rotas de leitura: /api/status, /api/stage, /api/pending, /api/requirements, /api/data, /api/sources,
-/api/events, /api/round. Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
+/api/events. Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
 cria ou altera um requisito) e /api/apply (aplica em lote as decididas, com nome de quem aprova).
 """
 from __future__ import annotations
@@ -30,7 +30,6 @@ from .tools.export import build_export, export
 from .tools.ontology_write import EditError, apply_reviewed, propose_edit, review_edit
 from .tools.requirements import cq_references, requirements_status
 from .tools.review_view import present
-from .tools.review_round import read_round, round_path
 from .tools.stage import current_stage
 
 PROPOSE_TYPES = {
@@ -72,7 +71,7 @@ def state_token(project: Project) -> str:
     """Assinatura do estado em disco que a pagina observa: pendentes, conteudo, schema, validate."""
     h = hashlib.sha1()
     paths: list[Path] = [project.content_path, project.schema_path, project.changelog_path,
-                         project.validation_path, project.questions_path, round_path(project)]
+                         project.validation_path, project.questions_path]
     if project.pending_dir.exists():
         paths += sorted(project.pending_dir.glob("*.yml"))
     for p in paths:
@@ -162,8 +161,6 @@ def make_handler(project: Project):
                     return self._json(200, requirements_status(project) | {"token": state_token(project)})
                 if url.path == "/api/stage":
                     return self._json(200, current_stage(project))
-                if url.path == "/api/round":
-                    return self._json(200, read_round(project) or {})
                 if url.path == "/api/pending":
                     return self._json(200, _pending_view(project))
                 if url.path == "/api/requirements":
@@ -172,7 +169,6 @@ def make_handler(project: Project):
                     data = build_export(project)
                     data["pending"] = _pending_view(project)
                     data["stage"] = current_stage(project)
-                    data["round"] = read_round(project) or {}
                     data["token"] = state_token(project)
                     return self._json(200, data)
                 if url.path == "/api/events":
@@ -281,7 +277,7 @@ def make_handler(project: Project):
             if not approved_by:
                 raise _HttpError(400, "approved_by obrigatorio")
             stage = str(body.get("stage") or "all")
-            out = apply_reviewed(project, approved_by, stage, via="page")
+            out = apply_reviewed(project, approved_by, stage)
             export(project)
             out["stage_after"] = current_stage(project)
             return out

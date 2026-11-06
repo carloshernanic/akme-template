@@ -52,7 +52,9 @@
     $("#version").textContent = "v" + (data.version || "0.0.0");
     $("#tabs").hidden = false;
     window.AkmeGraph.init(data);
-    window.AkmeReview.init(data, api, { onData: (d) => window.AkmeGraph.update(d) });
+    // so visualizacao: as decisoes sobre os pendentes acontecem no chat (decide_pending)
+    $("#tab-revisao").hidden = true;
+    window.AkmeReview.init(data, api, { viewOnly: true, onData: (d) => window.AkmeGraph.update(d) });
   })).catch((err) => {
     $("#tabs").hidden = false;
     $("#view-ontologia").hidden = false;

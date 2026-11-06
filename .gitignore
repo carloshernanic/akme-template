@@ -31,7 +31,3 @@ docs/graph.js
 docs/review.js
 docs/fonts/
 docs/brand/
-
-# rodada de revisao aberta pelo agente (estado efemero)
-ontology/pending/round.json
-ontology/pending/round.tmp

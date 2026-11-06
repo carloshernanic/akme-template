@@ -41,15 +41,13 @@ def test_skill_guards_apply_reviewed_and_lists_requirement_checks():
 
 def test_skill_sends_the_human_to_the_page_not_the_file():
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-    assert "open_review" in skill and "`stage`" in skill
-    assert "Aplicar decididas" in skill
+    assert "open_ontology" in skill and "`stage`" in skill
     assert "aponte o humano para `docs/index.html`" not in skill
     assert "Etapa X de 6 concluida" in skill
 
 
-def test_skill_waits_for_page_and_mirrors_checklist():
+def test_skill_decides_in_chat_and_mirrors_checklist():
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assert "## Roteiro visivel no harness" in skill and "checklist" in skill
-    assert skill.count("wait_for_review") >= 5
-    assert "Volte para o chat da criacao de ontologia" in skill
-    assert "akme wait-review" in skill
+    assert skill.count("decide_pending") >= 5 and "no_elicitation" in skill
+    assert "open_review" not in skill and "wait_for_review" not in skill

@@ -49,7 +49,7 @@ def current_stage(project: Project) -> dict[str, Any]:
     if not status["closed"]:
         number = 1
         missing = list(status["missing"])
-        next_step = ("Decida os pendentes da etapa 1 e aplique." if undecided
+        next_step = ("Decida os pendentes da etapa 1 no chat e aplique." if undecided
                      else "No chat, peça ao agente o que falta para fechar os requisitos.")
     elif classes == 0 or terms == 0 or by_stage[2]:
         number = 2
@@ -130,7 +130,7 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
             _step("Dez CQs propostas, com evidência de fonte", len(cqs) + len(of_type("add_competency_question")) >= 10,
                   "propose_edit add_competency_question"),
             _step("Lacunas e divergências propostas", None, "propose_edit add_gap, add_divergence"),
-            _step("Humano revisou e aplicou na página", review_done and bool(cqs), "open_review, wait_for_review"),
+            _step("Humano decidiu e aplicou no chat", review_done and bool(cqs), "decide_pending"),
             _step("Glossário de siglas aplicado", bool(content["glossary"]) and not of_type("add_glossary"),
                   "propose_edit add_glossary"),
             _step("Requisitos fechados", requirements_status(project)["closed"], "requirements_status, stage"),
@@ -147,7 +147,7 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
             _step("Termos ligados às classes (métricas com unidade, grão e aditividade)",
                   bool(content["terms"]) or bool(of_type("add_term")), "propose_edit add_term"),
             _step("Reuso consultado na LOV", None, "search_registry"),
-            _step("Humano revisou e aplicou na página", review_done and domain_class_count(project) > 0, "open_review, wait_for_review"),
+            _step("Humano decidiu e aplicou no chat", review_done and domain_class_count(project) > 0, "decide_pending"),
         ]
     if number == 3:
         mapped = {m.get("term") for m in content["mappings"]} | {e.payload.get("term") for e in of_type("add_mapping")}
@@ -159,7 +159,7 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
                   bool(content["terms"]) and not unmapped, "propose_edit add_mapping"),
             _step("Restrições e precedências achadas nos documentos", None, "propose_edit add_constraint, add_precedence"),
             _step("Validate sem erros", bool(validation) and not errors, "validate"),
-            _step("Humano revisou e aplicou na página", review_done and bool(content["mappings"]), "open_review, wait_for_review"),
+            _step("Humano decidiu e aplicou no chat", review_done and bool(content["mappings"]), "decide_pending"),
         ]
     if number == 4:
         validation = read_yaml(project.validation_path) if project.validation_path.exists() else {}
@@ -174,7 +174,7 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
     if number == 5:
         published = (project.docs_dir / "publish").exists() and any((project.docs_dir / "publish").iterdir())
         return [
-            _step("Humano viu a aba Ontologia na página", None, "open_review"),
+            _step("Humano viu a ontologia na página", None, "open_ontology"),
             _step("Publish em dry-run gerado", published, "publish"),
             _step("Versão definida (release)", None, "publish --release"),
             _step("Execução no alvo confirmada pelo humano na CLI", None, ""),

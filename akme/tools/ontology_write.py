@@ -484,7 +484,7 @@ def _merge_review(edit: Edit) -> dict[str, Any]:
     return p
 
 
-def apply_reviewed(project: Project, approved_by: str, stage: str = "all", via: str = "chat") -> dict[str, Any]:
+def apply_reviewed(project: Project, approved_by: str, stage: str = "all") -> dict[str, Any]:
     """Aplica em lote os pendentes com review, em ordem de created_at. `stage` limita o lote:
     requirements (etapa 1), ontology (etapas 2 e 3) ou all. Edicoes da ontologia so entram com os
     requisitos fechados; se o portao estiver ativo, elas ficam de fora e o resumo diz quantas."""
@@ -502,8 +502,6 @@ def apply_reviewed(project: Project, approved_by: str, stage: str = "all", via: 
         reviewed = [e for e in reviewed if e.type not in ONTOLOGY_TYPES]
     out = apply_batch(project, [e.id for e in reviewed], approved_by)
     out["held_by_gate"] = held
-    from .review_round import close_round
-    close_round(project, out, approved_by.strip(), via)
     return out
 
 
