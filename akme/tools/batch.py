@@ -112,6 +112,8 @@ def apply_batch(project: Project, edit_ids: list[str], approved_by: str) -> dict
     """Aplica as edicoes numa copia, valida e so promove se nao surgir erro novo."""
     if not approved_by or not approved_by.strip():
         raise EditError("apply_edit exige approved_by com o nome de quem aprovou")
+    from .decision_mode import resolve_actor
+    approved_by = resolve_actor(project, approved_by.strip(), "aplicar")
     pending = {e.id: e for e in list_pending(project)}
     missing = [i for i in edit_ids if i not in pending]
     if missing:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from .project import Project
 from .tools import connect as connect_tool
@@ -137,6 +137,19 @@ def apply_reviewed(approved_by: str, stage: str = "all") -> dict[str, Any]:
     """Aplica em lote os pendentes revisados na pagina e devolve o resumo. stage: requirements (etapa 1),
     ontology (etapas 2 e 3) ou all. Mostre o resumo e espere o "aplica" do humano antes."""
     return write_tool.apply_reviewed(project(), approved_by, stage)
+
+
+@mcp.tool()
+async def choose_decision_mode(ctx: Context, mode: str = "", authorized_by: str = "") -> dict[str, Any]:
+    """Primeiro passo de todo projeto: pergunta ao humano quem decide as propostas. human (padrao): o humano
+    decide cada uma. auto: a IA decide e aplica em nome de quem autorizou (reviewer e approved_by 'IA'); so
+    publicar no alvo continua humano. Sem mode, abre um formulario no harness (MCP elicitation); se o harness
+    nao desenha formularios, devolve ask_in_chat: pergunte no chat e chame de novo com mode e authorized_by.
+    Use tambem quando o humano pedir para trocar de modo."""
+    from .tools import decision_mode
+    caps = ctx.session.client_params.capabilities if ctx.session.client_params else None
+    supports = bool(caps and caps.elicitation is not None)
+    return await decision_mode.choose(project(), ctx.elicit, supports, mode, authorized_by)
 
 
 @mcp.tool()

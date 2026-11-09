@@ -340,6 +340,8 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
                edit_ids: list[str] | None = None) -> dict[str, Any]:
     if not approved_by or not approved_by.strip():
         raise EditError("apply_edit exige approved_by com o nome de quem aprovou")
+    from .decision_mode import resolve_actor
+    approved_by = resolve_actor(project, approved_by.strip(), "aplicar")
     if edit_ids:
         from .batch import apply_batch
         return apply_batch(project, list(edit_ids), approved_by)
@@ -400,6 +402,8 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
 
 def reject_edit(project: Project, edit_id: str, rejected_by: str, reason: str = "") -> dict[str, Any]:
     edit = _load_pending(project, edit_id)
+    from .decision_mode import resolve_actor
+    rejected_by = resolve_actor(project, rejected_by, "rejeitar")
     entry = {"edit_id": edit.id, "type": edit.type.value, "status": "rejected",
              "rejected_by": rejected_by, "reason": reason, "rejected_at": now_iso()}
     _append_changelog(project, entry)
@@ -454,6 +458,8 @@ def review_edit(project: Project, edit_id: str, decision: str, reviewer: str,
     edit = _load_pending(project, edit_id)
     if not reviewer or not reviewer.strip():
         raise EditError("review_edit exige reviewer com o nome de quem revisou")
+    from .decision_mode import resolve_actor
+    reviewer = resolve_actor(project, reviewer.strip(), "revisar")
     _check_choice("decision", decision, ["accept", "reject"])
     if decision == "reject" and edit.type in (EditType.add_gap, EditType.add_divergence):
         alt = "drop" if edit.type == EditType.add_gap else "dismiss"
@@ -490,6 +496,8 @@ def apply_reviewed(project: Project, approved_by: str, stage: str = "all", via: 
     requisitos fechados; se o portao estiver ativo, elas ficam de fora e o resumo diz quantas."""
     if not approved_by or not approved_by.strip():
         raise EditError("apply_reviewed exige approved_by com o nome de quem aprovou")
+    from .decision_mode import resolve_actor
+    approved_by = resolve_actor(project, approved_by.strip(), "aplicar")
     if stage not in APPLY_STAGES:
         raise EditError(f"stage invalido: {stage}. Opcoes: {list(APPLY_STAGES)}")
     from .batch import apply_batch

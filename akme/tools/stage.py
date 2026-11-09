@@ -10,6 +10,7 @@ from typing import Any
 from ..models import EDIT_STAGE, EditType
 from ..ontology import load_content
 from ..project import Project, read_yaml
+from .decision_mode import read_mode
 
 STAGES = [
     (1, "Especificar", "Caso de uso, perguntas de competência, lacunas e divergências"),
@@ -84,6 +85,8 @@ def current_stage(project: Project) -> dict[str, Any]:
         number = 6
         next_step = "Toda mudança começa por uma CQ nova ou uma alteração proposta na página."
 
+    if read_mode(project)["mode"] == "auto" and next_step.startswith("Decida"):
+        next_step = "A IA decide e aplica as propostas pendentes (modo automático)."
     name = next(n for num, n, _ in STAGES if num == number)
     return {
         "number": number, "name": name, "total": len(STAGES),
@@ -91,6 +94,7 @@ def current_stage(project: Project) -> dict[str, Any]:
         "missing": missing, "next_step": next_step,
         "requirements_closed": status["closed"], "gate_active": status["gate_active"],
         "checklist": checklist(project, number),
+        "decision_mode": _mode_summary(project),
         "pending_by_stage": by_stage, "undecided": len(undecided),
         "counts": {"classes": classes, "terms": terms, "mappings": mappings, "pending": len(pending)},
         "stages": [{"number": n, "name": name_, "description": d,
@@ -102,6 +106,11 @@ def current_stage(project: Project) -> dict[str, Any]:
 def _step(text: str, done: bool | None, tools: str = "") -> dict[str, Any]:
     """Um passo do checklist. done=None quando so o agente sabe (ele marca na lista de tarefas)."""
     return {"text": text, "done": done, "tools": tools}
+
+
+def _mode_summary(project: Project) -> dict[str, Any]:
+    m = read_mode(project)
+    return {"mode": m["mode"], "chosen": m["chosen"], "authorized_by": m["authorized_by"]}
 
 
 def checklist(project: Project, number: int) -> list[dict[str, Any]]:
@@ -116,9 +125,15 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
     of_type = lambda *ts: [e for e in pending if e.type.value in ts]  # noqa: E731
     stage_pending = [e for e in pending if EDIT_STAGE.get(e.type, 1) == number]
     review_done = not stage_pending
+    mode = read_mode(project)
+    auto = mode["mode"] == "auto"
+    review_text = "IA decidiu e aplicou (modo automático)" if auto else "Humano revisou e aplicou na página"
+    review_tools = "review_edit, apply_reviewed" if auto else "open_review, wait_for_review"
     if number == 1:
         cqs = r["competency_questions"]
         return [
+            _step("Modo de decisão escolhido" + (f": {'automático' if mode['mode'] == 'auto' else 'humano'}" if mode["chosen"] else ""),
+                  mode["chosen"], "choose_decision_mode"),
             _step("Caso de uso registrado (ou motivo de não ter)",
                   bool(r["use_cases"] or str(r.get("no_use_case") or "").strip() or of_type("add_use_case")),
                   "get_requirements, propose_edit add_use_case"),
@@ -130,7 +145,7 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
             _step("Dez CQs propostas, com evidência de fonte", len(cqs) + len(of_type("add_competency_question")) >= 10,
                   "propose_edit add_competency_question"),
             _step("Lacunas e divergências propostas", None, "propose_edit add_gap, add_divergence"),
-            _step("Humano revisou e aplicou na página", review_done and bool(cqs), "open_review, wait_for_review"),
+            _step(review_text, review_done and bool(cqs), review_tools),
             _step("Glossário de siglas aplicado", bool(content["glossary"]) and not of_type("add_glossary"),
                   "propose_edit add_glossary"),
             _step("Requisitos fechados", requirements_status(project)["closed"], "requirements_status, stage"),
@@ -147,7 +162,7 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
             _step("Termos ligados às classes (métricas com unidade, grão e aditividade)",
                   bool(content["terms"]) or bool(of_type("add_term")), "propose_edit add_term"),
             _step("Reuso consultado na LOV", None, "search_registry"),
-            _step("Humano revisou e aplicou na página", review_done and domain_class_count(project) > 0, "open_review, wait_for_review"),
+            _step(review_text, review_done and domain_class_count(project) > 0, review_tools),
         ]
     if number == 3:
         mapped = {m.get("term") for m in content["mappings"]} | {e.payload.get("term") for e in of_type("add_mapping")}
@@ -159,7 +174,7 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
                   bool(content["terms"]) and not unmapped, "propose_edit add_mapping"),
             _step("Restrições e precedências achadas nos documentos", None, "propose_edit add_constraint, add_precedence"),
             _step("Validate sem erros", bool(validation) and not errors, "validate"),
-            _step("Humano revisou e aplicou na página", review_done and bool(content["mappings"]), "open_review, wait_for_review"),
+            _step(review_text, review_done and bool(content["mappings"]), review_tools),
         ]
     if number == 4:
         validation = read_yaml(project.validation_path) if project.validation_path.exists() else {}
