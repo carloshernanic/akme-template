@@ -33,6 +33,9 @@ dev = [
     { name = "python-docx" },
     { name = "python-pptx" },
 ]
+neo4j = [
+    { name = "neo4j" },
+]
 office = [
     { name = "openpyxl" },
     { name = "python-docx" },
@@ -57,6 +60,7 @@ requires-dist = [
     { name = "databricks-sql-connector", marker = "extra == 'databricks'", specifier = ">=3.1" },
     { name = "mcp", specifier = ">=1.2,<2" },
     { name = "morph-kgc", marker = "extra == 'rdf'", specifier = ">=2.8" },
+    { name = "neo4j", marker = "extra == 'neo4j'", specifier = ">=6.0" },
     { name = "openpyxl", marker = "extra == 'office'", specifier = ">=3.1" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
     { name = "pydantic", specifier = ">=2.6" },
@@ -70,7 +74,7 @@ requires-dist = [
     { name = "snowflake-connector-python", marker = "extra == 'snowflake'", specifier = ">=3.7" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["postgres", "snowflake", "databricks", "rdf", "pdf", "office", "dev"]
+provides-extras = ["postgres", "snowflake", "databricks", "rdf", "neo4j", "pdf", "office", "dev"]
 
 [[package]]
 name = "annotated-doc"
@@ -889,6 +893,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d4/fd/fbc64581ab6861fa6972173c04bfb8924021e7d7415ead318f40ecdb9bf3/morph_kgc-2.8.1.tar.gz", hash = "sha256:bacd4c827ae480b3b63482a210b84c1db0f92303d8268aa4e4c041d50d175741", size = 218428, upload-time = "2025-01-03T17:19:12.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/40/6c8090ea35652ca4db5549548fbc99f7aecacb699ec2cf7afb611472fa8d/morph_kgc-2.8.1-py3-none-any.whl", hash = "sha256:b9c6e55f25a70bd821567865b58a8649add5c0baa4d3d02a514ffb0522cc458c", size = 55422, upload-time = "2025-01-03T17:19:10.271Z" },
+]
+
+[[package]]
+name = "neo4j"
+version = "6.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/d1/bc40a291c60b06738ce92d5f0259d348eee1f07ba10d569a881c848c8afe/neo4j-6.4.1.tar.gz", hash = "sha256:fac99b7cb9679b93ef97dc23f22a3f0e7c3feb2db223eddfd2521f27005cfeaf", size = 287897, upload-time = "2026-10-15T10:47:26.666Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/69/3036bdcacfba561c6ef4b00fe72529e0a1b6241a6b2de82572a0940a276b/neo4j-6.4.1-py3-none-any.whl", hash = "sha256:f56a281c74355522fc2642df8919bec450115431531b8f3f6fe1cc17acb57a27", size = 390684, upload-time = "2026-10-15T10:47:25.236Z" },
 ]
 
 [[package]]

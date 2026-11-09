@@ -9,7 +9,7 @@ import yaml
 from ..adapters import AdapterError
 from ..models import (
     ADDITIVITY, CONTENT_SECTION, CQ_STATUSES, CQ_TYPES, DIVERGENCE_DECISIONS, EVIDENCE_KINDS, GAP_DECISIONS,
-    APPLY_STAGES, METRIC_FIELDS, MULTIPLICITIES, ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit,
+    APPLY_STAGES, EXPORT_TYPES, METRIC_FIELDS, MULTIPLICITIES, ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit,
     EditType, Review, now_iso,
 )
 from ..ontology import (
@@ -37,7 +37,7 @@ def propose_edit(project: Project, type: str, payload: dict[str, Any], rationale
     missing = [f for f in REQUIRED_FIELDS[edit_type] if not payload.get(f)]
     if missing:
         raise EditError(f"{type} exige os campos: {', '.join(missing)}")
-    if edit_type in ONTOLOGY_TYPES:
+    if edit_type in ONTOLOGY_TYPES or edit_type in EXPORT_TYPES:
         status = requirements_status(project)
         if status["gate_active"]:
             raise EditError("requisitos nao fechados: " + "; ".join(status["missing"]))
@@ -137,6 +137,10 @@ def _validate_payload(project: Project, edit_type: EditType, payload: dict[str, 
         _check_metric_term(project, p)
     elif edit_type == EditType.add_mapping:
         _check_metric_mapping(project, p)
+    elif edit_type == EditType.add_source:
+        if any(e.type == EditType.add_source and e.payload.get("source") == p["source"] for e in list_pending(project)):
+            raise EditError(f"a fonte {p['source']} ja tem proposta pendente; decida ou rejeite a anterior")
+        p = _checked_source(project, p)
     elif edit_type in _LISTS:
         key, _ = _LISTS[edit_type]
         if p["id"] not in {i.get("id") for i in load_content(project)["requirements"][key]}:
@@ -380,6 +384,11 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
             k: p[k] for k in ("domain", "range", "inverse_of", "multiplicity", "join", "no_join_reason",
                               "override_reason", "observed") if p.get(k) is not None})
         save_content(project, content)
+    elif edit.type == EditType.add_source:
+        content = load_content(project)
+        decided = {k: v for k, v in p.items() if k not in ("checked", "class")}
+        content["sources"] = [s for s in content["sources"] if s.get("source") != p["source"]] + [decided]
+        save_content(project, content)
     entry = {
         "edit_id": edit.id, "type": edit.type.value, "proposed_by": edit.proposed_by,
         "approved_by": approved_by, "applied_at": now_iso(), "requirement_id": edit.requirement_id,
@@ -396,6 +405,15 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
     save_content(project, content)
     _pending_path(project, edit_id).unlink()
     return entry
+
+
+def _checked_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
+    from .sources import SourceError, check_source
+
+    try:
+        return check_source(project, payload)
+    except SourceError as exc:
+        raise EditError(str(exc)) from None
 
 
 def reject_edit(project: Project, edit_id: str, rejected_by: str, reason: str = "") -> dict[str, Any]:
@@ -427,6 +445,7 @@ _REVIEW_KEYS = {
     EditType.add_mapping: {"note"},
     EditType.add_constraint: {"rule"},
     EditType.add_precedence: {"reason"},
+    EditType.add_source: {"key", "types"},
 }
 _REVIEW_CHOICES = {"type": CQ_TYPES, "status": CQ_STATUSES, "priority": PRIORITIES}
 
@@ -464,6 +483,11 @@ def review_edit(project: Project, edit_id: str, decision: str, reviewer: str,
         raise EditError("edits deve ser um objeto")
     edits = dict(edits or {})
     _check_review_edits(edit, edits)
+    if edit.type == EditType.add_source and edits and decision == "accept":
+        if isinstance(edits.get("key"), str):
+            edits["key"] = [k.strip() for k in edits["key"].split(",") if k.strip()]
+        rechecked = _checked_source(project, dict(edit.payload) | edits)
+        edits = {k: rechecked[k] for k in ("key", "types", "checked")}
     if decision == "accept" and edit.type == EditType.add_competency_question:
         if edits.get("status", edit.payload.get("status")) not in ("approved", "reserved"):
             edits["status"] = "approved"
@@ -493,13 +517,15 @@ def apply_reviewed(project: Project, approved_by: str, stage: str = "all") -> di
     if stage not in APPLY_STAGES:
         raise EditError(f"stage invalido: {stage}. Opcoes: {list(APPLY_STAGES)}")
     from .batch import apply_batch
-    wanted = {"requirements": STAGE1_TYPES, "ontology": ONTOLOGY_TYPES, "all": STAGE1_TYPES | ONTOLOGY_TYPES}[stage]
+    wanted = {"requirements": STAGE1_TYPES, "ontology": ONTOLOGY_TYPES, "export": EXPORT_TYPES,
+              "all": STAGE1_TYPES | ONTOLOGY_TYPES | EXPORT_TYPES}[stage]
     reviewed = sorted((e for e in list_pending(project) if e.review and e.type in wanted),
                       key=lambda e: (e.created_at, e.id))
     held = []
-    if any(e.type in ONTOLOGY_TYPES for e in reviewed) and requirements_status(project)["gate_active"]:
-        held = [e.id for e in reviewed if e.type in ONTOLOGY_TYPES]
-        reviewed = [e for e in reviewed if e.type not in ONTOLOGY_TYPES]
+    gated = ONTOLOGY_TYPES | EXPORT_TYPES
+    if any(e.type in gated for e in reviewed) and requirements_status(project)["gate_active"]:
+        held = [e.id for e in reviewed if e.type in gated]
+        reviewed = [e for e in reviewed if e.type not in gated]
     out = apply_batch(project, [e.id for e in reviewed], approved_by)
     out["held_by_gate"] = held
     return out

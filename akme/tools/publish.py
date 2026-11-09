@@ -6,12 +6,12 @@ import yaml
 
 from ..adapters import load_adapter
 from ..models import now_iso
-from ..ontology import is_metric_class, load_content, load_graph, load_manifest, save_manifest
+from ..ontology import is_metric_class, load_graph, load_manifest, save_manifest
 from ..project import Project, read_yaml, write_yaml
 from .contracts import fanout_sources
 from .export import build_export, to_yarrrml
 
-TARGETS = ("yaml", "snowflake", "databricks", "rdf")
+TARGETS = ("yaml", "snowflake", "databricks", "rdf", "neo4j")
 
 
 def _q(text: str) -> str:
@@ -179,7 +179,7 @@ def publish(project: Project, target: str = "yaml", dry_run: bool = True, releas
         raise ValueError(f"target desconhecido: {target}. Opcoes: {', '.join(TARGETS)}")
     if target != "rdf":
         semantic_model(project)  # falha antes do bump se faltar contrato de metrica
-    if release:
+    if release and target != "neo4j":
         bump_version(project, release)
     out_dir = project.docs_dir / "publish"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -188,6 +188,12 @@ def publish(project: Project, target: str = "yaml", dry_run: bool = True, releas
         result.update({"target": target, "dry_run": dry_run})
         return result
     model = semantic_model(project)
+    if target == "neo4j":
+        from .n10s import publish_neo4j
+        result = publish_neo4j(project, model, dry_run)
+        if release and not result["problems"]:
+            bump_version(project, release)
+        return result
     if target == "yaml":
         path = out_dir / "semantic.yml"
         path.write_text(render_yaml(model), encoding="utf-8")

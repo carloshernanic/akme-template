@@ -21,6 +21,7 @@ EMPTY_CONTENT: dict[str, Any] = {
     "constraints": [],
     "glossary": [],
     "precedence": [],
+    "sources": [],
     "evidence": [],
 }
 

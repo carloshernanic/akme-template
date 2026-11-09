@@ -38,6 +38,8 @@ def test_present_covers_every_edit_type():
         EditType.add_mapping: {"term": "t", "source": "s", "column": "c", "role": "metric", "expression": "SUM(x)"},
         EditType.add_constraint: {"term": "t", "rule": "r", "severity": "error"},
         EditType.add_precedence: {"topic": "x", "winner": "a", "over": "b", "reason": "r"},
+        EditType.add_source: {"source": "pedidos", "key": ["id_pedido"], "types": {"dt_pedido": "date"}, "class": "Pedido",
+                              "checked": {"rows": 10, "truncated": False, "types": {"dt_pedido": {"kind": "date", "converted": 10, "filled": 10, "example": "2026-07-03"}}}},
         EditType.add_glossary: {"acronym": "UF", "meaning": "estado"},
         EditType.add_requirement: {"field": "purpose", "value": "p"},
         EditType.add_use_case: {"id": "UC-01", "name": "n", "description": "d"},
@@ -52,7 +54,7 @@ def test_present_covers_every_edit_type():
     assert set(samples) == set(EditType)
     for t, payload in samples.items():
         v = present(Edit(id=f"{t.value}-1", type=t, payload=payload, evidence="reuniao de kickoff"), current={"question": "atual", "topic": "tema"})
-        assert v["title"] and v["group"] and v["stage"] in (1, 2, 3), t
+        assert v["title"] and v["group"] and v["stage"] in (1, 2, 3, 5), t
         assert v["evidence"][-1] == {"kind": "note", "path": "", "locator": "", "quote": "", "who": "", "when": "", "note": "reuniao de kickoff"}
     assert present(Edit(id="x", type=EditType.add_gap, payload=samples[EditType.add_gap]))["rejectable"] is False
     v = present(Edit(id="x", type=EditType.add_term, payload=samples[EditType.add_term]))

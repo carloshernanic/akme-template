@@ -44,12 +44,11 @@
     gap: Object.fromEntries(GAP_DECISIONS),
     div: Object.assign({ precedence: "Precedência" }, Object.fromEntries(DIV_OTHER)),
   };
-  const GROUP_ORDER = ["uc", "cq", "gap", "div", "glossary", "class", "relation", "term", "mapping", "constraint", "precedence", "other"];
+  const GROUP_ORDER = ["uc", "cq", "gap", "div", "glossary", "class", "relation", "term", "mapping", "constraint", "precedence", "source", "other"];
   const GROUP_LABEL = {
     uc: "Caso de uso e requisitos", cq: "Perguntas de competência", gap: "Lacunas", div: "Divergências", glossary: "Glossário",
-    class: "Classes", relation: "Relações", term: "Termos", mapping: "Mappings", constraint: "Restrições", precedence: "Precedências", other: "Outros",
+    class: "Classes", relation: "Relações", term: "Termos", mapping: "Mappings", constraint: "Restrições", precedence: "Precedências", source: "Exportação Neo4j", other: "Outros",
   };
-  const STAGE_OF_GROUP = { uc: 1, cq: 1, gap: 1, div: 1, glossary: 1, class: 2, relation: 2, term: 2, mapping: 3, constraint: 3, precedence: 3 };
   const I = {
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -69,7 +68,7 @@
     rule: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h7a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4zM20 5h-7a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h7z"/></svg>',
   };
-  const GROUP_ICON = { uc: I.book, cq: I.q, gap: I.gap, div: I.div, glossary: I.book, class: I.cls, relation: I.rel, term: I.term, mapping: I.map, constraint: I.rule, precedence: I.rule, other: I.dot };
+  const GROUP_ICON = { uc: I.book, cq: I.q, gap: I.gap, div: I.div, glossary: I.book, class: I.cls, relation: I.rel, term: I.term, mapping: I.map, constraint: I.rule, precedence: I.rule, source: I.map, other: I.dot };
 
   const S = {
     data: null, api: null, hooks: {}, drafts: {}, newKeys: [], newSeq: 0, cards: {}, order: [], reviewer: "",
@@ -105,7 +104,6 @@
     if (field === "decision") return LABELS.gap[v] || LABELS.div[v] || v;
     return String(v);
   }
-  function findApplied(key, id) { return (req()[key] || []).find((x) => x.id === id) || null; }
 
   // view de reserva para dados exportados por versoes antigas (sem bloco view)
   function viewOf(p) {
@@ -187,7 +185,7 @@
       case "cq": return Object.assign({ decision: r ? r.decision : null }, cqFields(Object.assign({}, pl, e)), { reason: (r && r.reason) || "" });
       case "generic": {
         const edits = {};
-        (c.view.editable || []).forEach((f) => { edits[f.key] = f.kind === "list" ? list(e[f.key] ?? pl[f.key]) : String(e[f.key] ?? pl[f.key] ?? ""); });
+        (c.view.editable || []).forEach((f) => { edits[f.key] = f.kind === "list" ? list(e[f.key] ?? pl[f.key]) : f.kind === "map" ? mapText(e[f.key] ?? pl[f.key]) : String(e[f.key] ?? pl[f.key] ?? ""); });
         return { decision: r ? r.decision : null, reason: (r && r.reason) || "", edits };
       }
       case "gap": return { choice: r ? e.decision ?? pl.decision ?? "" : "", note: (e.note ?? pl.note) || "" };
@@ -205,11 +203,17 @@
     return S.drafts[key];
   }
 
+  // tipos por coluna ({coluna: tipo}) viram texto editavel "coluna: tipo, coluna: tipo"; o servidor confere de novo
+  function mapText(v) {
+    if (v && typeof v === "object" && !Array.isArray(v)) return Object.entries(v).map(([k, t]) => `${k}: ${t}`).join(", ");
+    return String(v ?? "").trim();
+  }
   function genericDiff(c, d) {
     const pl = c.item.payload || {}, out = {};
     (c.view.editable || []).forEach((f) => {
       const cur = d.edits[f.key];
       if (f.kind === "list") { if (!sameList(cur, pl[f.key])) out[f.key] = list(cur); }
+      else if (f.kind === "map") { if (String(cur ?? "").trim() !== mapText(pl[f.key])) out[f.key] = String(cur ?? "").trim(); }
       else if (String(cur ?? "").trim() !== String(pl[f.key] ?? "")) out[f.key] = String(cur ?? "").trim();
     });
     return out;
@@ -364,8 +368,10 @@
     S.invalid = new Set(bad.map((o) => o.key));
     if (bad.length) {
       S.selected = bad[0].key;
+      const hidden = !visibleKeys().includes(bad[0].key);
+      if (hidden) { S.group = null; S.scope = "pending"; } // o cartao com erro precisa aparecer para ser corrigido
       render();
-      setMsg("error", bad[0].error + (bad.length > 1 ? ` (e mais ${bad.length - 1})` : ""));
+      setMsg("error", bad[0].error + (bad.length > 1 ? ` (e mais ${bad.length - 1})` : "") + (hidden ? ". O filtro foi limpo para mostrar o cartão." : ""));
       const f = $("#rv-detail textarea, #rv-detail input:not([type=checkbox]), #rv-detail select");
       if (f) f.focus({ preventScroll: true });
       return;
@@ -396,29 +402,38 @@
       return !c.applied && c.kind !== "n-cq" && stateOf(k) === "todo";
     });
   }
+  // Aceita como proposto o que pode ser aceito sem escolha do revisor. O que exige escolha (pergunta sem
+  // prioridade, lacuna ou divergencia sem decisao proposta) nao e aceito em silencio: a lista passa a mostrar
+  // so os itens ainda a decidir, com o primeiro aberto e o motivo de cada um.
   function acceptAll() {
     if (!S.api) return;
-    let ok = 0, skipped = 0;
+    let ok = 0;
+    const pendingKeys = [], why = {};
     for (const k of bulkTargets()) {
       const c = S.cards[k], pl = (c.item && c.item.payload) || {};
+      const hold = (reason) => { pendingKeys.push(k); why[reason] = (why[reason] || 0) + 1; };
       if (c.kind === "generic") { draft(k).decision = "accept"; ok++; }
+      else if (c.kind === "cq" && !pl.priority) hold("pergunta sem prioridade");
       else if (c.kind === "cq") {
         const d = draft(k);
         d.decision = "accept";
-        if (!d.priority) d.priority = pl.priority || "";
+        d.priority = d.priority || pl.priority;
         if (!d.use) d.use = pl.status === "reserved" && pl.answer ? "reserved" : "approved";
         ok++;
       } else if (c.kind === "gap" && pl.decision) {
         const d = draft(k); d.choice = pl.decision; ok++;
       } else if (c.kind === "div" && pl.decision) {
         const d = draft(k); d.choice = pl.decision; d.winner = pl.winner || ""; ok++;
-      } else skipped++;
+      } else hold(c.kind === "gap" ? "lacuna sem decisão" : c.kind === "div" ? "divergência sem decisão" : "item sem decisão");
       S.invalid.delete(k);
     }
     S.editing = new Set();
+    if (pendingKeys.length) { S.scope = "todo"; S.selected = pendingKeys[0]; }
     render();
-    if (!ok) return setMsg("info", skipped ? `${plural(skipped, "item precisa", "itens precisam")} de decisão manual.` : "Nada a aceitar.");
-    setMsg("success", `${plural(ok, "proposta aceita", "propostas aceitas")}. Falta salvar.` + (skipped ? ` ${plural(skipped, "item precisa", "itens precisam")} de decisão manual.` : ""));
+    const reasons = Object.entries(why).map(([r, n]) => `${n} ${r}`).join(", ");
+    const accepted = ok ? `${plural(ok, "proposta aceita", "propostas aceitas")}, falta salvar. ` : "";
+    if (pendingKeys.length) return setMsg(ok ? "info" : "error", `${accepted}${plural(pendingKeys.length, "item continua", "itens continuam")} a decidir e ${pendingKeys.length > 1 ? "estão" : "está"} na lista ao lado: ${reasons}.`);
+    setMsg(ok ? "success" : "info", ok ? accepted.trim() : "Nada a aceitar.");
   }
 
   function discard() {
@@ -475,10 +490,6 @@
     const lines = o.available ? o.lines : [`Não foi possível ler o dado: ${o.reason}`];
     return `<section class="rv-section"><h3>O que o dado mostra</h3><ul class="obs">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
       ${(v.alerts || []).map((a) => `<div class="callout callout-atencao">${I.warn}<div><div class="t">Conferir antes de aceitar</div><div class="b">${esc(a)}</div></div></div>`).join("")}</section>`;
-  }
-  function fieldsBlock(fields) {
-    if (!fields || !fields.length) return "";
-    return `<dl class="kv">${fields.map((f) => `<dt>${esc(f.label)}</dt><dd${f.mono ? ' class="mono"' : ""}>${esc(f.value)}</dd>`).join("")}</dl>`;
   }
   function savedNote(p) {
     const r = p && p.review;
@@ -564,6 +575,7 @@
     if (editing) {
       const inputs = editable.map((f) => f.kind === "list"
         ? textField(key, "edit:" + f.key, f.label, list(d.edits[f.key]).join(", "), { input: true, full: true })
+        : f.kind === "map" ? textField(key, "edit:" + f.key, f.label, d.edits[f.key] || "", { rows: 2, full: true })
         : textField(key, "edit:" + f.key, f.label, d.edits[f.key] || "", { rows: f.kind === "textarea" ? 3 : 1, full: f.kind === "textarea" })).join("");
       const rest = fields.filter((f) => !editable.some((e) => e.label === f.label || labelOf[e.key] === f.label));
       proposal = `<div class="rv-edit-grid">${inputs}</div>${metaList(rest)}`;
@@ -779,7 +791,6 @@
     }
     return n;
   }
-  const STATE_LABEL = { todo: ["A decidir", I.dot, ""], draft: ["Não salva", I.pencil, "draft"], accept: ["Aceita", I.check, "accept"], reject: ["Rejeitada", I.x, "reject"], applied: ["Aplicada", I.ok, "new"] };
 
   function position() {
     const keys = visibleKeys();
@@ -804,7 +815,7 @@
     el.innerHTML = `<div class="line" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
       <div class="row"><span class="where">${esc(where)}</span><span class="pos">${esc(text)}</span><span class="spacer"></span>
         ${S.group ? '<button type="button" class="btn btn-ghost btn-sm" data-act="clear-group">todos os tipos</button>' : ""}
-        ${S.api && bulkTargets().length ? `<button type="button" class="btn btn-outline btn-sm" data-act="accept-all" title="Aceita como proposto tudo que ainda está a decidir${S.group ? " neste tipo" : ", em todas as etapas"}. Depois é só salvar.">${I.check}<span>Aceitar tudo (${bulkTargets().length})</span></button>` : ""}
+        ${S.api && bulkTargets().length ? `<button type="button" class="btn btn-outline btn-sm" data-act="accept-all" title="Aceita como proposto o que não exige escolha${S.group ? " neste tipo" : ", em todas as etapas"}. O que exige escolha, como a prioridade de uma pergunta, continua na lista. Depois é só salvar.">${I.check}<span>Aceitar tudo (${bulkTargets().length})</span></button>` : ""}
         ${S.scope !== "applied" && S.api ? `<button type="button" class="btn btn-ghost btn-sm" data-act="new-cq"${disPropose()}>${I.plus}<span>Nova pergunta</span></button>` : ""}</div>`;
   }
   function renderCardNav() {
@@ -831,9 +842,6 @@
     renderDetail(); renderProgress(); renderCardNav();
     const top = $("#view-revisao");
     if (top) window.scrollTo({ top: Math.max(0, top.getBoundingClientRect().top + window.scrollY - 72), behavior: "smooth" });
-  }
-  function newCqButton() {
-    return `<button type="button" class="rv-new" data-act="new-cq"${disPropose()}>${I.plus}<span>Nova pergunta escrita pelo revisor</span></button>`;
   }
   function renderDetail() {
     const el = $("#rv-detail");

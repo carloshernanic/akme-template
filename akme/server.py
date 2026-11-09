@@ -108,8 +108,19 @@ def propose_edit(type: str, payload: dict[str, Any], rationale: str = "", propos
     bloqueados ate os requisitos fecharem): add_class, add_relation, add_term, add_mapping, add_constraint, add_precedence.
     add_relation exige multiplicity (de domain para range) e join {from: {source, column}, to: {source, column}} ou
     no_join_reason; o dado e lido e a proposta e recusada se contradizer a multiplicidade. add_term de classe Metric
-    exige unit, grain e additivity; add_mapping de metrica exige expression."""
+    exige unit, grain e additivity; add_mapping de metrica exige expression. Tipo da etapa 5 (so para exportar ao
+    Neo4j): add_source {source, key: [colunas], types: {coluna: string|integer|float|date}} ou {source, exclude: motivo};
+    o dado e lido e a proposta e recusada se a chave repetir ou um valor nao converter. Use suggest_sources para o rascunho."""
     return write_tool.propose_edit(project(), type, payload, rationale, proposed_by, requirement_id, evidence).model_dump(mode="json")
+
+
+@mcp.tool()
+def suggest_sources() -> list[dict[str, Any]]:
+    """Etapa 5, antes de exportar ao Neo4j: rascunho de chave e tipos de cada fonte, tirado dos contratos de relacao e
+    do profile, sem LLM. Cada item traz class, key, key_from, types, notes e payload pronto para propose_edit
+    add_source (None quando falta a chave). Revise as notes antes de propor: o rascunho e heuristico."""
+    from .tools.sources import suggest_sources as suggest
+    return suggest(project())
 
 
 @mcp.tool()
@@ -182,7 +193,10 @@ def validate(oops: bool = False) -> dict[str, Any]:
 
 @mcp.tool()
 def publish(target: str = "yaml", dry_run: bool = True, release: str | None = None) -> dict[str, Any]:
-    """Gera a camada semantica para yaml, snowflake, databricks ou rdf. dry_run=false executa no alvo e exige aprovacao humana."""
+    """Gera a camada semantica para yaml, snowflake, databricks, rdf ou neo4j. dry_run=false executa no alvo e exige aprovacao humana.
+    Em neo4j, esta tool so roda em dry-run: a carga e pela CLI, com o humano confirmando."""
+    if target == "neo4j" and not dry_run:
+        raise PermissionError("esta tool nao carrega no Neo4j. Peca ao humano para rodar: akme publish --target neo4j --no-dry-run")
     return publish_tool.publish(project(), target, dry_run, release)
 
 

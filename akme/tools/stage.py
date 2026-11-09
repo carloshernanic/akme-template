@@ -76,10 +76,14 @@ def current_stage(project: Project) -> dict[str, Any]:
         if errors:
             missing.append(f"{len(errors)} erros no último validate")
         next_step = "No chat, peça ao agente para rodar validate e eval e propor as correções."
-    elif not published:
+    elif not published or by_stage[5]:
         number = 5
-        missing.append("nenhum artefato em docs/publish/")
-        next_step = "No chat, peça o publish em dry-run para o alvo do cliente."
+        if by_stage[5]:
+            missing.append(f"{by_stage[5]} decisões de exportação Neo4j (chave e tipos por tabela) aguardando decisão ou aplicação")
+        if not published:
+            missing.append("nenhum artefato em docs/publish/")
+        next_step = ("Decida as tabelas na página e aplique." if by_stage[5]
+                     else "No chat, peça o publish em dry-run para o alvo do cliente.")
     else:
         number = 6
         next_step = "Toda mudança começa por uma CQ nova ou uma alteração proposta na página."

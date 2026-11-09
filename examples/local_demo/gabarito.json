@@ -1,0 +1,39 @@
+{
+  "direct_answers": {
+    "clientes_sem_pedido": [
+      "3",
+      "7"
+    ],
+    "produtos_do_pedido_1001": {
+      "ARE-M3": 5,
+      "ARG-20": 10,
+      "CIM-50": 100
+    },
+    "todo_pedido_tem_um_cliente": true
+  },
+  "keys_unique": {
+    "Cliente(id_cliente)": true,
+    "ItemPedido(id_pedido, sku)": true,
+    "Pedido(id_pedido)": true,
+    "Produto(sku)": true
+  },
+  "measures": {
+    "faturamento": "23077.35",
+    "qt_itens": 2999,
+    "vl_total_sem_filtro": "26797.35"
+  },
+  "nodes": {
+    "Cliente": 8,
+    "ItemPedido": 17,
+    "Pedido": 10,
+    "Produto": 8
+  },
+  "relationships": {
+    "CONTEM": 17,
+    "PERTENCE_A": 10,
+    "REFERENCIA": 17
+  },
+  "traps": {
+    "fanout_faturamento_apos_itens": "49819.30"
+  }
+}

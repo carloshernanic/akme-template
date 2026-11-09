@@ -24,6 +24,7 @@ class EditType(str, Enum):
     add_divergence = "add_divergence"
     update_gap = "update_gap"
     update_divergence = "update_divergence"
+    add_source = "add_source"
 
 
 # Vocabularios da revisao de requisitos
@@ -50,12 +51,17 @@ ONTOLOGY_TYPES = frozenset({
     EditType.add_mapping, EditType.add_constraint, EditType.add_precedence,
 })
 
-# Etapa do fluxo (LOT) em que cada tipo e decidido: 1 especificar, 2 conceitualizar, 3 codificar
+# Etapa 5 (publicar): chave e tipos de cada fonte, decididos so quando o alvo e o Neo4j
+EXPORT_TYPES = frozenset({EditType.add_source})
+SOURCE_TYPES = ("string", "integer", "float", "date")
+
+# Etapa do fluxo (LOT) em que cada tipo e decidido: 1 especificar, 2 conceitualizar, 3 codificar, 5 publicar
 EDIT_STAGE: dict[EditType, int] = {t: 1 for t in STAGE1_TYPES} | {
     EditType.add_class: 2, EditType.add_relation: 2, EditType.add_term: 2,
     EditType.add_mapping: 3, EditType.add_constraint: 3, EditType.add_precedence: 3,
+    EditType.add_source: 5,
 }
-APPLY_STAGES = ("requirements", "ontology", "all")
+APPLY_STAGES = ("requirements", "ontology", "export", "all")
 
 
 CONTENT_SECTION = {
@@ -83,6 +89,7 @@ REQUIRED_FIELDS: dict[EditType, list[str]] = {
     EditType.add_divergence: ["topic", "sources"],
     EditType.update_gap: ["id", "decision"],
     EditType.update_divergence: ["id", "decision"],
+    EditType.add_source: ["source"],
 }
 
 
