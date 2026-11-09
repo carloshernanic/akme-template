@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import typer
-import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -14,6 +13,7 @@ from .project import CONFIG_FILE, Project, read_yaml, write_yaml
 from .tools import connect as connect_tool
 from .tools import eval as eval_tool
 from .tools import export as export_tool
+from .tools import n10s as n10s_tool
 from .tools import ontology_write as write_tool
 from .tools import profile as profile_tool
 from .tools import publish as publish_tool
@@ -110,11 +110,42 @@ def validate(oops: bool = typer.Option(False, help="chama o OOPS! remoto alem do
     raise typer.Exit(code=0 if report.ok else 1)
 
 
+def _publish_neo4j(release: str | None) -> None:
+    """Mostra destino e avisos antes de confirmar; a carga termina com erro se o banco divergir."""
+    project = _project()
+    try:
+        typer.echo(f"destino: {n10s_tool.destination()}")
+        preview = publish_tool.publish(project, "neo4j", True, None)
+        for line in n10s_tool.preview_lines(preview):
+            typer.echo(line)
+        if preview["problems"]:
+            raise typer.Exit(1)
+        described, refusal = n10s_tool.check_destination(n10s_tool.destination_state(project), project.name)
+        typer.echo(f"banco: {described}")
+        if refusal:
+            typer.echo(f"erro: {refusal}. Nada foi gravado")
+            raise typer.Exit(1)
+        if not typer.confirm("Executar no alvo neo4j? Esta acao altera a plataforma do cliente."):
+            raise typer.Abort()
+        result = publish_tool.publish(project, "neo4j", False, release)
+        _dump(result)
+        for line in n10s_tool.viewing_lines(project, result):
+            typer.echo(line)
+    except (typer.Abort, typer.Exit):
+        raise
+    except (RuntimeError, publish_tool.PublishError) as exc:
+        typer.echo(f"erro: {exc}")
+        raise typer.Exit(1) from exc
+
+
 @app.command()
-def publish(target: str = typer.Option("yaml", help="yaml, snowflake, databricks ou rdf"),
+def publish(target: str = typer.Option("yaml", help="yaml, snowflake, databricks, rdf ou neo4j"),
             dry_run: bool = typer.Option(True, help="--no-dry-run executa no alvo"),
             release: str = typer.Option(None, help="patch, minor, major ou versao explicita")) -> None:
     """Gera (ou executa) a publicacao da camada semantica. Dry-run por padrao."""
+    if target == "neo4j" and not dry_run:
+        _publish_neo4j(release)
+        return
     if not dry_run and not typer.confirm(f"Executar no alvo {target}? Esta acao altera a plataforma do cliente."):
         raise typer.Abort()
     _dump(publish_tool.publish(_project(), target, dry_run, release))

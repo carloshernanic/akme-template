@@ -289,3 +289,17 @@ edits:
       over: erp
       reason: o financeiro define inadimplencia e o ERP so registra o cadastro
     evidence: glossario.md, regras implicitas
+
+  # etapa 5: chave e tipos de cada tabela para exportar ao Neo4j
+  - type: add_source
+    payload: {source: clientes, key: [id_cliente], types: {dt_cadastro: date}}
+    rationale: chave do contrato pertenceA; dt_cadastro e data
+  - type: add_source
+    payload: {source: pedidos, key: [id_pedido], types: {dt_pedido: date, vl_total: float}}
+    rationale: chave do contrato contem; nf e cnpj ficam texto por serem identificadores
+  - type: add_source
+    payload: {source: itens_pedido, key: [id_pedido, sku], types: {qt_itens: integer, vl_item: float}}
+    rationale: um item e o par pedido e produto; nao ha coluna unica
+  - type: add_source
+    payload: {source: produtos, key: [sku], types: {vl_unitario: float}}
+    rationale: chave do contrato referencia

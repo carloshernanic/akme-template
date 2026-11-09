@@ -77,10 +77,14 @@ def current_stage(project: Project) -> dict[str, Any]:
         if errors:
             missing.append(f"{len(errors)} erros no último validate")
         next_step = "No chat, peça ao agente para rodar validate e eval e propor as correções."
-    elif not published:
+    elif not published or by_stage[5]:
         number = 5
-        missing.append("nenhum artefato em docs/publish/")
-        next_step = "No chat, peça o publish em dry-run para o alvo do cliente."
+        if by_stage[5]:
+            missing.append(f"{by_stage[5]} decisões de exportação Neo4j (chave e tipos por tabela) aguardando decisão ou aplicação")
+        if not published:
+            missing.append("nenhum artefato em docs/publish/")
+        next_step = ("Decida as tabelas na página e aplique." if by_stage[5]
+                     else "No chat, peça o publish em dry-run para o alvo do cliente.")
     else:
         number = 6
         next_step = "Toda mudança começa por uma CQ nova ou uma alteração proposta na página."
@@ -190,6 +194,10 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
         published = (project.docs_dir / "publish").exists() and any((project.docs_dir / "publish").iterdir())
         return [
             _step("Humano viu a aba Ontologia na página", None, "open_review"),
+            # so para o alvo Neo4j: sem decisao nem proposta, o passo fica para o agente marcar
+            _step("Neo4j: chave e tipos de cada tabela decididos na página",
+                  (bool(content["sources"]) and not of_type("add_source")) if content["sources"] or of_type("add_source") else None,
+                  "suggest_sources, propose_edit add_source"),
             _step("Publish em dry-run gerado", published, "publish"),
             _step("Versão definida (release)", None, "publish --release"),
             _step("Execução no alvo confirmada pelo humano na CLI", None, ""),

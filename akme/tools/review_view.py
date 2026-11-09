@@ -20,13 +20,15 @@ GROUP = {
     EditType.add_glossary: "glossary",
     EditType.add_class: "class", EditType.add_relation: "relation", EditType.add_term: "term",
     EditType.add_mapping: "mapping", EditType.add_constraint: "constraint", EditType.add_precedence: "precedence",
+    EditType.add_source: "source",
 }
 
 GROUP_LABEL = {
     "cq": "Perguntas de competência", "gap": "Lacunas", "div": "Divergências", "uc": "Caso de uso e requisitos",
     "glossary": "Glossário", "class": "Classes", "relation": "Relações", "term": "Termos",
-    "mapping": "Mappings", "constraint": "Restrições", "precedence": "Precedências",
+    "mapping": "Mappings", "constraint": "Restrições", "precedence": "Precedências", "source": "Exportação Neo4j",
 }
+TYPE_LABEL = {"string": "texto", "integer": "inteiro", "float": "decimal", "date": "data"}
 
 MULTIPLICITY_LABEL = {
     "many_to_one": "muitos para um", "one_to_many": "um para muitos",
@@ -54,6 +56,8 @@ EDITABLE: dict[EditType, list[dict[str, str]]] = {
     EditType.add_requirement: [{"key": "value", "label": "Valor", "kind": "textarea"}],
     EditType.add_use_case: [{"key": "name", "label": "Nome", "kind": "text"}, {"key": "description", "label": "Descrição", "kind": "textarea"},
                             {"key": "actors", "label": "Atores (separados por vírgula)", "kind": "list"}],
+    EditType.add_source: [{"key": "key", "label": "Chave (colunas separadas por vírgula)", "kind": "list"},
+                          {"key": "types", "label": "Tipos (coluna: tipo, separados por vírgula)", "kind": "map"}],
 }
 
 # tipos em que "rejeitar" nao existe: a decisao e sempre um aceite com escolha
@@ -164,12 +168,25 @@ def _observed(p: dict[str, Any]) -> dict[str, Any] | None:
     return {"available": True, "lines": lines, "alerts": alerts}
 
 
+def _source_checked(p: dict[str, Any]) -> dict[str, Any] | None:
+    c = p.get("checked")
+    if p.get("exclude") or not isinstance(c, dict):
+        return None
+    lines = [f"{c.get('rows', 0)} linhas, chave sem vazios nem repetição"]
+    for col, t in (c.get("types") or {}).items():
+        lines.append(f"{col}: {t.get('converted')} de {t.get('filled')} valores convertem para {TYPE_LABEL.get(t.get('kind'), t.get('kind'))}"
+                     + (f", ex. {t.get('example')}" if t.get("example") else ""))
+    if c.get("truncated"):
+        lines.append("A fonte tem mais linhas do que o limite da carga")
+    return {"available": True, "lines": lines, "alerts": ["a fonte passa do limite de linhas da carga"] if c.get("truncated") else []}
+
+
 def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]:
     """Bloco `view` de um pendente. `current` e o item aplicado que um update ou remove altera."""
     t, p = edit.type, dict(edit.payload)
     if edit.review and edit.review.edits:
         p |= edit.review.edits
-    title, subtitle, fields, mono_name = "", "", [], False
+    title, subtitle, fields = "", "", []
     if t == EditType.add_class:
         title, subtitle = f"Classe {p.get('name')}", f"subclasse de {p.get('subclass_of') or 'Entity'}"
         fields = _fields(_field("Rótulo", p.get("label")), _field("Comentário", p.get("comment")))
@@ -227,7 +244,17 @@ def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]
     elif t in (EditType.add_divergence, EditType.update_divergence):
         title, subtitle = _s(p.get("topic") or (current or {}).get("topic") or p.get("id")), f"{p.get('id') or ''} · divergência".strip(" ·")
         fields = _fields(_field("Hipótese da IA", p.get("hypothesis")))
-    observed = _observed(p) if t == EditType.add_relation else None
+    elif t == EditType.add_source:
+        title = f"Tabela {p.get('source')}"
+        if p.get("exclude"):
+            subtitle = "fica fora do Neo4j"
+            fields = _fields(_field("Motivo", p.get("exclude")))
+        else:
+            subtitle = f"vira nós {p.get('class')}" if p.get("class") else "vira nós no Neo4j"
+            types = p.get("types") or {}
+            fields = _fields(_field("Chave", p.get("key"), mono=True),
+                             _field("Tipos", ", ".join(f"{c}: {k}" for c, k in types.items()) or "todas as colunas ficam texto", mono=True))
+    observed = _observed(p) if t == EditType.add_relation else _source_checked(p) if t == EditType.add_source else None
     alerts = list(observed["alerts"]) if observed else []
     return {
         "title": title or edit.id, "subtitle": subtitle, "group": GROUP.get(t, "other"),
