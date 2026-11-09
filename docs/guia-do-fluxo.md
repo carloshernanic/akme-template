@@ -91,7 +91,23 @@ ambiente listadas em `.env.example`.
 Abra o Claude Code na pasta. O `.mcp.json` registra o servidor `akme` e a skill `akme` carrega o
 `SKILL.md`, que é o roteiro que o agente segue.
 
-### 4.2 Etapa 1: especificar (LOT: especificação de requisitos)
+### 4.2 Quem decide: você ou a IA
+
+Logo depois do pedido para criar a ontologia, o agente abre um formulário (`choose_decision_mode`)
+com duas opções e o seu nome:
+
+- **Eu decido cada proposta** (modo humano): o fluxo descrito abaixo, com a página de revisão.
+- **A IA decide tudo e eu reviso no fim** (modo automático): o agente aceita, ajusta ou rejeita
+  cada proposta e aplica em seu nome, sem parar. Cada decisão vai para o `changelog.yml` assinada
+  como "IA (modo automático, autorizado por SEU NOME)". A IA não inventa dado que falta (lacuna vira
+  pedido ao cliente), faz no máximo dois ciclos de correção na avaliação e só gera o `publish` em
+  dry-run. No fim, entrega um relatório do que decidiu e abre a página para você conferir.
+
+A escolha fica em `ontology/decision_mode.yml`, com o histórico de trocas. Para mudar, peça ao
+agente ("quero decidir eu"). Fora do modo automático, o servidor recusa revisão ou aplicação em nome
+da IA: o agente não consegue se autoaprovar.
+
+### 4.3 Etapa 1: especificar (LOT: especificação de requisitos)
 
 No chat: "mapeie o domínio do cliente". O agente:
 
@@ -136,9 +152,12 @@ Na página (vista **Revisão**, a inicial):
 A fila atualiza sozinha: quando o agente propõe algo novo, o item aparece com um aviso; quando o
 agente aplica pelo chat, o item sai da fila. Rascunhos locais não se perdem.
 
-De volta ao chat: "revisei". O agente lê os pendentes e resume ("8 aceitas, 2 rejeitadas, 3
-editadas, 1 criada por você, 2 lacunas para o data request, 1 divergência com precedência") e
-pede **"aplica"** com seu nome; se você já aplicou pela página, ele lê o `changelog.yml` e segue.
+Enquanto a página está aberta, o agente fica esperando no chat (`wait_for_review`) e a página
+mostra "O agente está esperando você aplicar". Depois de **Aplicar decididas**, a página diz
+**"Volte para o chat da criação de ontologia"**: o agente já recebeu o resumo ("8 aceitas,
+2 rejeitadas, aplicadas por você") e seguiu para o próximo passo, sem você escrever nada. Se
+preferir decidir no chat, escreva lá: o agente para de esperar, lê os pendentes, resume e pede
+**"aplica"** com seu nome.
 `apply_reviewed` grava em `content.yml` e `schema.ttl`, espelha as reservadas em
 `validation/questions.yml` e registra tudo em `changelog.yml`. Se menos de cinco CQs foram aceitas,
 ele oferece uma segunda rodada. Termine de salvar na página antes de dizer "aplica".
@@ -146,7 +165,7 @@ ele oferece uma segunda rodada. Termine de salvar na página antes de dizer "apl
 Enquanto os requisitos não fecham, a faixa da etapa 1 diz o que falta e o agente é barrado:
 qualquer tentativa de criar classe devolve "requisitos nao fechados: ..." com a lista.
 
-### 4.3 Etapas 2 a 6 (sem mudança hoje além do portão)
+### 4.4 Etapas 2 a 6 (sem mudança hoje além do portão)
 
 - **2. Conceitualizar.** O agente chama `requirements_status`; se fechado, lê o modelo atual e
   propõe classes, relações e termos a partir das CQs aprovadas, cada proposta ligada à CQ que a
@@ -165,7 +184,7 @@ qualquer tentativa de criar classe devolve "requisitos nao fechados: ..." com a 
   `remove_competency_question`), passa pela mesma revisão. Depois da primeira classe, CQs novas não
   travam a ontologia.
 
-### 4.4 Onde cada coisa fica gravada
+### 4.5 Onde cada coisa fica gravada
 
 | Arquivo | Conteúdo |
 |---|---|
@@ -176,7 +195,7 @@ qualquer tentativa de criar classe devolve "requisitos nao fechados: ..." com a 
 | `validation/questions.yml` | CQs reservadas espelhadas automaticamente, com `expects` e `answer` |
 | `akme/static/` | A página (HTML, CSS, JS, fontes e marca); `akme export` copia para `docs/` e gera `docs/ontology.js` |
 
-### 4.5 Ver a página
+### 4.6 Ver a página
 
 - **Editável:** `uv run akme review` e abrir `http://127.0.0.1:8765`; `--background` sobe sem
   prender o terminal e imprime a URL (é o que o agente usa via `open_review`). Só aceita conexões da

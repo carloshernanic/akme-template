@@ -37,3 +37,7 @@ docs/brand/
 
 # macOS
 .DS_Store
+
+# rodada de revisao aberta pelo agente (estado efemero)
+ontology/pending/round.json
+ontology/pending/round.tmp

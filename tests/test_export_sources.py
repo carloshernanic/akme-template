@@ -163,3 +163,14 @@ def test_old_neo4j_block_in_config_is_refused(seeded):
     write_yaml(seeded.root / "akme.yml", {**config, "neo4j": {"keys": {"pedidos": "id_pedido"}}})
     r = publish(Project(seeded.root), "neo4j")
     assert any("akme.yml" in p and "neo4j" in p for p in r["problems"])
+
+
+def test_stage_five_checklist_tracks_neo4j_decisions(seeded):
+    from akme.tools.stage import checklist
+
+    step = lambda: next(s for s in checklist(seeded, 5) if s["text"].startswith("Neo4j"))  # noqa: E731
+    assert step()["done"] is True, "demo ja traz as quatro tabelas decididas"
+    _without_sources(seeded)
+    assert step()["done"] is None, "sem Neo4j no projeto, o passo nao cobra nada"
+    _propose(seeded, {"source": "pedidos", "key": ["id_pedido"]})
+    assert step()["done"] is False

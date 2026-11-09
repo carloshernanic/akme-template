@@ -232,6 +232,10 @@ a { color: var(--text-primary); text-decoration: underline; text-underline-offse
 .callout-erro > svg { color: var(--status-error); }
 .callout-ok > svg { color: var(--status-success); }
 .callout-exemplo > svg { color: var(--text-secondary); }
+.callout-back { border-color: var(--status-information); }
+.callout-back > svg { color: var(--status-information); }
+.callout-back .t { font-size: 16px; line-height: 24px; }
+.rv-round { margin-bottom: 16px; }
 .callout .t { font-weight: 600; font-size: 14px; line-height: 20px; }
 .callout .b { font-size: 14px; line-height: 20px; color: var(--text-secondary); }
 .callout .b ul { list-style: disc; padding-left: 18px; margin-top: 4px; }

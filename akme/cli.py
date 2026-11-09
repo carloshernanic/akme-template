@@ -241,9 +241,26 @@ def review(
     project = _project()
     export_tool.export(project)
     if background:
-        console.print(ensure_running(project, port, open_browser))
+        from .tools.review_round import open_round
+        url = ensure_running(project, port, open_browser)
+        console.print(f"{url} (rodada {open_round(project)['id']})")
         return
     serve_review(project, port, open_browser)
+
+
+@app.command("wait-review")
+def wait_review(
+    round_id: str = typer.Option("", "--round", help="id da rodada devolvido por open_review"),
+    timeout: float = typer.Option(0, "--timeout", help="segundos; 0 espera ate o humano aplicar"),
+) -> None:
+    """Espera o humano aplicar as decisoes na pagina de revisao e imprime o resumo (para rodar em segundo plano)."""
+    from .tools.review_round import WAIT_MAX, wait_for_review
+    project = _project()
+    while True:
+        out = wait_for_review(project, round_id or None, timeout or WAIT_MAX)
+        if out["status"] != "waiting" or timeout:
+            break
+    _dump(out)
 
 
 @app.command()

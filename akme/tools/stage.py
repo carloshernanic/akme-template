@@ -10,6 +10,7 @@ from typing import Any
 from ..models import EDIT_STAGE, EditType
 from ..ontology import load_content
 from ..project import Project, read_yaml
+from .decision_mode import read_mode
 
 STAGES = [
     (1, "Especificar", "Caso de uso, perguntas de competência, lacunas e divergências"),
@@ -88,18 +89,125 @@ def current_stage(project: Project) -> dict[str, Any]:
         number = 6
         next_step = "Toda mudança começa por uma CQ nova ou uma alteração proposta na página."
 
+    if read_mode(project)["mode"] == "auto" and next_step.startswith("Decida"):
+        next_step = "A IA decide e aplica as propostas pendentes (modo automático)."
     name = next(n for num, n, _ in STAGES if num == number)
     return {
         "number": number, "name": name, "total": len(STAGES),
         "label": f"Etapa {number} de {len(STAGES)}: {name}",
         "missing": missing, "next_step": next_step,
         "requirements_closed": status["closed"], "gate_active": status["gate_active"],
+        "checklist": checklist(project, number),
+        "decision_mode": _mode_summary(project),
         "pending_by_stage": by_stage, "undecided": len(undecided),
         "counts": {"classes": classes, "terms": terms, "mappings": mappings, "pending": len(pending)},
         "stages": [{"number": n, "name": name_, "description": d,
                     "status": "completed" if n < number else "active" if n == number else "incomplete"}
                    for n, name_, d in STAGES],
     }
+
+
+def _step(text: str, done: bool | None, tools: str = "") -> dict[str, Any]:
+    """Um passo do checklist. done=None quando so o agente sabe (ele marca na lista de tarefas)."""
+    return {"text": text, "done": done, "tools": tools}
+
+
+def _mode_summary(project: Project) -> dict[str, Any]:
+    m = read_mode(project)
+    return {"mode": m["mode"], "chosen": m["chosen"], "authorized_by": m["authorized_by"]}
+
+
+def checklist(project: Project, number: int) -> list[dict[str, Any]]:
+    """Os passos da etapa `number` como no SKILL.md, marcados pelo que esta em disco."""
+    from ..ontology import load_graph, relations
+    from .ontology_write import list_pending
+    from .requirements import domain_class_count, requirements_status
+
+    content = load_content(project)
+    r = content["requirements"]
+    pending = list_pending(project)
+    of_type = lambda *ts: [e for e in pending if e.type.value in ts]  # noqa: E731
+    stage_pending = [e for e in pending if EDIT_STAGE.get(e.type, 1) == number]
+    review_done = not stage_pending
+    mode = read_mode(project)
+    auto = mode["mode"] == "auto"
+    review_text = "IA decidiu e aplicou (modo automático)" if auto else "Humano revisou e aplicou na página"
+    review_tools = "review_edit, apply_reviewed" if auto else "open_review, wait_for_review"
+    if number == 1:
+        cqs = r["competency_questions"]
+        return [
+            _step("Modo de decisão escolhido" + (f": {'automático' if mode['mode'] == 'auto' else 'humano'}" if mode["chosen"] else ""),
+                  mode["chosen"], "choose_decision_mode"),
+            _step("Caso de uso registrado (ou motivo de não ter)",
+                  bool(r["use_cases"] or str(r.get("no_use_case") or "").strip() or of_type("add_use_case")),
+                  "get_requirements, propose_edit add_use_case"),
+            _step("Fontes perfiladas e documentos lidos", project.profile_path.exists(),
+                  "profile, read_document, find_in_sources"),
+            _step("Propósito, escopo e usuários propostos",
+                  bool(str(r.get("purpose") or "").strip() and str(r.get("scope") or "").strip()) or bool(of_type("add_requirement")),
+                  "propose_edit add_requirement"),
+            _step("Dez CQs propostas, com evidência de fonte", len(cqs) + len(of_type("add_competency_question")) >= 10,
+                  "propose_edit add_competency_question"),
+            _step("Lacunas e divergências propostas", None, "propose_edit add_gap, add_divergence"),
+            _step(review_text, review_done and bool(cqs), review_tools),
+            _step("Glossário de siglas aplicado", bool(content["glossary"]) and not of_type("add_glossary"),
+                  "propose_edit add_glossary"),
+            _step("Requisitos fechados", requirements_status(project)["closed"], "requirements_status, stage"),
+        ]
+    if number == 2:
+        rels = relations(load_graph(project.schema_path))
+        return [
+            _step("Requisitos fechados", requirements_status(project)["closed"], "requirements_status"),
+            _step("Modelo atual lido", None, "list_entities, list_relations"),
+            _step("Classes propostas a partir das CQs aprovadas",
+                  domain_class_count(project) > 0 or bool(of_type("add_class")), "propose_edit add_class"),
+            _step("Relações com multiplicidade e join", bool(rels) or bool(of_type("add_relation")),
+                  "propose_edit add_relation"),
+            _step("Termos ligados às classes (métricas com unidade, grão e aditividade)",
+                  bool(content["terms"]) or bool(of_type("add_term")), "propose_edit add_term"),
+            _step("Reuso consultado na LOV", None, "search_registry"),
+            _step(review_text, review_done and domain_class_count(project) > 0, review_tools),
+        ]
+    if number == 3:
+        mapped = {m.get("term") for m in content["mappings"]} | {e.payload.get("term") for e in of_type("add_mapping")}
+        unmapped = [t.get("name") for t in content["terms"] if t.get("name") not in mapped]
+        validation = read_yaml(project.validation_path) if project.validation_path.exists() else {}
+        errors = [f for f in validation.get("findings", []) if f.get("level") == "error"]
+        return [
+            _step("Mapping proposto para cada termo" + (f" (faltam {len(unmapped)})" if unmapped else ""),
+                  bool(content["terms"]) and not unmapped, "propose_edit add_mapping"),
+            _step("Restrições e precedências achadas nos documentos", None, "propose_edit add_constraint, add_precedence"),
+            _step("Validate sem erros", bool(validation) and not errors, "validate"),
+            _step(review_text, review_done and bool(content["mappings"]), review_tools),
+        ]
+    if number == 4:
+        validation = read_yaml(project.validation_path) if project.validation_path.exists() else {}
+        fresh = bool(validation) and project.validation_path.stat().st_mtime >= project.content_path.stat().st_mtime
+        errors = [f for f in validation.get("findings", []) if f.get("level") == "error"]
+        return [
+            _step("Validate na versão atual, sem erros", fresh and not errors, "validate"),
+            _step("Eval estrutural rodado", None, "evaluate"),
+            _step("Correções propostas como novas edições", None, "propose_edit"),
+            _step("Humano decidiu: voltar à etapa 2 ou 3, ou publicar", None, ""),
+        ]
+    if number == 5:
+        published = (project.docs_dir / "publish").exists() and any((project.docs_dir / "publish").iterdir())
+        return [
+            _step("Humano viu a aba Ontologia na página", None, "open_review"),
+            # so para o alvo Neo4j: sem decisao nem proposta, o passo fica para o agente marcar
+            _step("Neo4j: chave e tipos de cada tabela decididos na página",
+                  (bool(content["sources"]) and not of_type("add_source")) if content["sources"] or of_type("add_source") else None,
+                  "suggest_sources, propose_edit add_source"),
+            _step("Publish em dry-run gerado", published, "publish"),
+            _step("Versão definida (release)", None, "publish --release"),
+            _step("Execução no alvo confirmada pelo humano na CLI", None, ""),
+        ]
+    return [
+        _step("Mudança registrada (issue ou CQ nova)", None, "propose_edit add_competency_question"),
+        _step("Pedido classificado: bug, requisito novo ou mudança na fonte", None, ""),
+        _step("Impacto listado: CQs, termos, mappings e publicações", None, "validate, evaluate"),
+        _step("Humano decidiu escopo e release", None, ""),
+    ]
 
 
 def stage_for(edit_type: EditType) -> int:

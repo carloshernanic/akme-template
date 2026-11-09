@@ -90,6 +90,8 @@
   const req = () => S.data.requirements || {};
   const pending = () => S.data.pending || [];
   const stage = () => S.data.stage || null;
+  const round = () => S.data.round || {};
+  const agentWaiting = () => round().status === "waiting";
   const origin = (by) => (!by || by === "agent" || by === "IA" ? "Proposta pela IA" : "Proposta por " + by);
   const originLow = (by) => (!by || by === "agent" || by === "IA" ? "proposta pela IA" : "proposta por " + by);
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -402,22 +404,24 @@
       return !c.applied && c.kind !== "n-cq" && stateOf(k) === "todo";
     });
   }
-  // Aceita como proposto o que pode ser aceito sem escolha do revisor. O que exige escolha (pergunta sem
-  // prioridade, lacuna ou divergencia sem decisao proposta) nao e aceito em silencio: a lista passa a mostrar
-  // so os itens ainda a decidir, com o primeiro aberto e o motivo de cada um.
+  // Aceita como proposto o que pode ser aceito sem escolha do revisor. CQ sem prioridade ganha media (o revisor
+  // pode trocar antes de salvar). Lacuna ou divergencia sem decisao proposta nao e aceita em silencio: a lista passa
+  // a mostrar so os itens ainda a decidir, com o primeiro aberto e o motivo de cada um.
   function acceptAll() {
     if (!S.api) return;
-    let ok = 0;
+    let ok = 0, defaulted = 0;
     const pendingKeys = [], why = {};
     for (const k of bulkTargets()) {
       const c = S.cards[k], pl = (c.item && c.item.payload) || {};
       const hold = (reason) => { pendingKeys.push(k); why[reason] = (why[reason] || 0) + 1; };
       if (c.kind === "generic") { draft(k).decision = "accept"; ok++; }
-      else if (c.kind === "cq" && !pl.priority) hold("pergunta sem prioridade");
       else if (c.kind === "cq") {
         const d = draft(k);
         d.decision = "accept";
-        d.priority = d.priority || pl.priority;
+        if (!d.priority) {
+          if (PRIORITIES.some(([v]) => v === pl.priority)) d.priority = pl.priority;
+          else { d.priority = "medium"; defaulted++; }
+        }
         if (!d.use) d.use = pl.status === "reserved" && pl.answer ? "reserved" : "approved";
         ok++;
       } else if (c.kind === "gap" && pl.decision) {
@@ -431,9 +435,10 @@
     if (pendingKeys.length) { S.scope = "todo"; S.selected = pendingKeys[0]; }
     render();
     const reasons = Object.entries(why).map(([r, n]) => `${n} ${r}`).join(", ");
-    const accepted = ok ? `${plural(ok, "proposta aceita", "propostas aceitas")}, falta salvar. ` : "";
-    if (pendingKeys.length) return setMsg(ok ? "info" : "error", `${accepted}${plural(pendingKeys.length, "item continua", "itens continuam")} a decidir e ${pendingKeys.length > 1 ? "estão" : "está"} na lista ao lado: ${reasons}.`);
-    setMsg(ok ? "success" : "info", ok ? accepted.trim() : "Nada a aceitar.");
+    const accepted = ok ? `${plural(ok, "proposta aceita", "propostas aceitas")}, falta salvar.` : "";
+    const medium = defaulted ? ` ${plural(defaulted, "pergunta ficou", "perguntas ficaram")} com prioridade Média; troque se quiser.` : "";
+    if (pendingKeys.length) return setMsg(ok ? "info" : "error", `${accepted}${medium} ${plural(pendingKeys.length, "item continua", "itens continuam")} a decidir e ${pendingKeys.length > 1 ? "estão" : "está"} na lista ao lado: ${reasons}.`.trim());
+    setMsg(ok ? "success" : "info", ok ? accepted + medium : "Nada a aceitar.");
   }
 
   function discard() {
@@ -815,7 +820,7 @@
     el.innerHTML = `<div class="line" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
       <div class="row"><span class="where">${esc(where)}</span><span class="pos">${esc(text)}</span><span class="spacer"></span>
         ${S.group ? '<button type="button" class="btn btn-ghost btn-sm" data-act="clear-group">todos os tipos</button>' : ""}
-        ${S.api && bulkTargets().length ? `<button type="button" class="btn btn-outline btn-sm" data-act="accept-all" title="Aceita como proposto o que não exige escolha${S.group ? " neste tipo" : ", em todas as etapas"}. O que exige escolha, como a prioridade de uma pergunta, continua na lista. Depois é só salvar.">${I.check}<span>Aceitar tudo (${bulkTargets().length})</span></button>` : ""}
+        ${S.api && bulkTargets().length ? `<button type="button" class="btn btn-outline btn-sm" data-act="accept-all" title="Aceita como proposto o que não exige escolha${S.group ? " neste tipo" : ", em todas as etapas"}. Pergunta sem prioridade fica com Média; lacuna ou divergência sem decisão continua na lista. Depois é só salvar.">${I.check}<span>Aceitar tudo (${bulkTargets().length})</span></button>` : ""}
         ${S.scope !== "applied" && S.api ? `<button type="button" class="btn btn-ghost btn-sm" data-act="new-cq"${disPropose()}>${I.plus}<span>Nova pergunta</span></button>` : ""}</div>`;
   }
   function renderCardNav() {
@@ -885,8 +890,23 @@
     discardBtn.disabled = S.busy || !Object.keys(S.drafts).length;
     bar.hidden = S.tab !== "revisao";
   }
+  // aviso da rodada: o agente no chat espera o humano aplicar, e depois segue sozinho
+  function renderRound() {
+    const el = $("#rv-round");
+    if (!el) return;
+    const r = round(), n = counts();
+    let html = "";
+    if (S.api && r.status === "waiting") {
+      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">Decida, salve e clique em <b>Aplicar decididas</b>. Depois volte para o chat da criação de ontologia: o agente segue sozinho, sem você precisar escrever nada.</div></div></div>`;
+    } else if (S.api && r.status === "applied" && !n.todo) {
+      html = `<div class="callout callout-ok">${I.ok}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo.</div></div></div>`;
+    }
+    el.innerHTML = html;
+    el.hidden = !html;
+  }
   function render() {
     buildCards();
+    renderRound();
     renderStage();
     renderNav();
     renderDetail();
@@ -950,6 +970,7 @@
     const btn = body.querySelector('[data-act="dlg-apply"]');
     if (btn) { btn.disabled = true; btn.textContent = "Aplicando…"; }
     S.busy = true; renderBar();
+    const waited = agentWaiting();
     let out = null, err = null;
     try { out = await S.api.post("/api/apply", { approved_by: approver.trim(), stage: "all" }); }
     catch (e) { err = e; }
@@ -969,11 +990,11 @@
     body.innerHTML = `<h2 class="h3-semibold">Aplicado</h2>
       <div class="callout callout-ok">${I.ok}<div><div class="t">${plural((out.applied || []).length, "proposta entrou", "propostas entraram")} na ontologia; ${plural((out.rejected || []).length, "rejeitada registrada", "rejeitadas registradas")} no changelog.</div>
         <div class="b">${types ? `<p>${esc(types)}.</p>` : ""}${(out.held_by_gate || []).length ? `<p>${out.held_by_gate.length} propostas da ontologia ficaram esperando os requisitos fecharem.</p>` : ""}${(out.preexisting_errors || []).length ? `<p>O validate já tinha ${out.preexisting_errors.length} erros antes; eles continuam lá.</p>` : ""}</div></div></div>
-      ${after.label ? `<div class="callout callout-nota">${I.info}<div><div class="t">${esc(after.label)}</div><div class="b">${esc(after.next_step || "")}</div></div></div>` : ""}
+      <div class="callout callout-back">${I.info}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">${waited ? "O agente estava esperando esta aplicação e já está seguindo para o próximo passo." : "Diga ao agente que aplicou, para ele seguir."}${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
       <div class="dlg-actions"><button type="button" class="btn" data-act="dlg-close">Fechar</button></div>`;
     try { await reload(); } catch (e) {}
     render();
-    setMsg("success", "Decisões aplicadas. " + (after.next_step || ""));
+    setMsg("success", "Decisões aplicadas. Volte para o chat da criação de ontologia.");
   }
 
   // ---------- eventos ----------
@@ -1103,6 +1124,7 @@
     const viewEl = $("#view-revisao");
     viewEl.innerHTML = `<div class="rv">
       ${S.api ? "" : `<div class="callout callout-nota">${I.info}<div><div class="t">Modo leitura</div><div class="b">Rode <code>uv run akme review</code> para decidir e aplicar.</div></div></div>`}
+      <div class="rv-round" id="rv-round" hidden></div>
       <div class="rv-one"><div class="rv-progress" id="rv-progress"></div><div class="rv-detail" id="rv-detail"></div><div class="rv-cardnav" id="rv-cardnav"></div></div>
     </div>
     <dialog class="dlg" id="rv-dialog"><div class="dlg-body" id="rv-dialog-body"></div></dialog>`;

@@ -40,7 +40,7 @@ tools:
     output_format: json
 
   - name: review
-    description: review_edit grava a decisao do humano em uma edicao pendente de qualquer tipo; apply_reviewed aplica em lote as revisadas (stage requirements, ontology ou all), validando antes em copia temporaria. A CLI akme review serve a pagina em 127.0.0.1; open_review roda export, sobe essa pagina em segundo plano e devolve a URL; stage diz a etapa atual das seis e o proximo passo. A pagina tambem aplica (botao Aplicar decididas, com nome) e akme apply --all-reviewed --approved-by NOME faz o mesmo na CLI.
+    description: review_edit grava a decisao do humano em uma edicao pendente de qualquer tipo; apply_reviewed aplica em lote as revisadas (stage requirements, ontology ou all), validando antes em copia temporaria. A CLI akme review serve a pagina em 127.0.0.1; open_review roda export, sobe essa pagina em segundo plano e devolve a URL; open_review tambem abre uma rodada de revisao e wait_for_review bloqueia ate o humano aplicar pela pagina (akme wait-review faz o mesmo na CLI); stage diz a etapa atual das seis, o proximo passo e o checklist da etapa. A pagina tambem aplica (botao Aplicar decididas, com nome) e akme apply --all-reviewed --approved-by NOME faz o mesmo na CLI.
     when: Toda parada em que o humano decide propostas (etapas 1, 2 e 3). apply_reviewed so apos o humano dizer "aplica" com o nome de quem aprova, ou constatar que ele aplicou pela pagina.
     requires_approval: true
     runs_before: [validate]
