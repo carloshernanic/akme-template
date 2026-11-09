@@ -1,0 +1,140 @@
+{
+ "vocab": "SHORTEN",
+ "entrada": "R2",
+ "C1_graphconfig": "ok",
+ "C2_onto_import": [
+  {
+   "terminationStatus": "OK",
+   "triplesLoaded": 55,
+   "extraInfo": ""
+  }
+ ],
+ "C2_classes": [],
+ "C2_subclasses": [],
+ "C2_class_props": {
+  "erro": "IndexError: list index out of range"
+ },
+ "import_1": [
+  {
+   "terminationStatus": "OK",
+   "triplesLoaded": 300,
+   "triplesParsed": 300,
+   "extraInfo": ""
+  }
+ ],
+ "C3_contagens": {
+  "nos": {
+   "Resource": 57,
+   "n4sch__Class": 9,
+   "n4sch__Relationship": 5,
+   "ns0__ItemPedido": 17,
+   "ns0__Pedido": 10,
+   "ns0__Produto": 8,
+   "ns0__Cliente": 8
+  },
+  "arestas": {
+   "n4sch__RANGE": 5,
+   "n4sch__DOMAIN": 5,
+   "n4sch__SCO": 5,
+   "ns0__referencia": 17,
+   "ns0__contem": 17,
+   "ns0__pertenceA": 10
+  }
+ },
+ "C4_C5_valores_tipos": {
+  "celulas": 216,
+  "diferentes": 213,
+  "exemplos": [
+   [
+    "Cliente",
+    "id_cliente",
+    "1",
+    "None"
+   ],
+   [
+    "Cliente",
+    "nm_cliente",
+    "Construtora Horizonte",
+    "None"
+   ],
+   [
+    "Cliente",
+    "cnpj",
+    "12345678000101",
+    "None"
+   ],
+   [
+    "Cliente",
+    "uf",
+    "SP",
+    "None"
+   ],
+   [
+    "Cliente",
+    "dt_cadastro",
+    "2023-01-15",
+    "None"
+   ],
+   [
+    "Cliente",
+    "fl_ativo",
+    "S",
+    "None"
+   ]
+  ],
+  "tipos": {}
+ },
+ "C6_antes": {
+  "nos": 59,
+  "arestas": 59,
+  "conteudo": "3b3aa38e1d792e9e",
+  "identidades": "44afc5d9c0953dba",
+  "arestas_hash": "9acc05d92c894a93"
+ },
+ "import_2": [
+  {
+   "terminationStatus": "OK",
+   "triplesLoaded": 300,
+   "triplesParsed": 300,
+   "extraInfo": ""
+  }
+ ],
+ "C6_depois": {
+  "nos": 59,
+  "arestas": 59,
+  "conteudo": "3b3aa38e1d792e9e",
+  "identidades": "44afc5d9c0953dba",
+  "arestas_hash": "9acc05d92c894a93"
+ },
+ "C7_hierarquia_por_inferencia": 0,
+ "C7_definicao": [],
+ "C8_shapes": [
+  {
+   "target": "ns0__Cliente",
+   "propertyOrRelationshipPath": "ns0__uf",
+   "param": "sh:minCount"
+  }
+ ],
+ "C8_sem_violacao": 0,
+ "C8_violacao_plantada": [
+  {
+   "nodeType": "https://akme.example/ontology#Cliente",
+   "resultPath": "https://akme.example/ontology#uf",
+   "severity": "http://www.w3.org/ns/shacl#Violation",
+   "resultMessage": "cardinality (0) is outside the defined min-max limits"
+  }
+ ],
+ "C9_produtos_pedido_1001": {},
+ "labels_dos_nos": [
+  "[\"Resource\", \"n4sch__Class\"]",
+  "[\"Resource\", \"n4sch__Relationship\"]",
+  "[\"Resource\", \"ns0__Cliente\"]",
+  "[\"Resource\", \"ns0__ItemPedido\"]",
+  "[\"Resource\", \"ns0__Pedido\"]",
+  "[\"Resource\", \"ns0__Produto\"]",
+  "[\"_GraphConfig\"]",
+  "[\"_NsPrefDef\"]",
+  "[\"_n10sValidatorConfig\"]"
+ ],
+ "exemplo_no_pedido": []
+}
