@@ -11,7 +11,7 @@ Levar o consultor do primeiro contato com os dados do cliente ate uma camada sem
 
 ## Regras que nunca mudam
 
-1. **Nada entra na ontologia sem aprovacao explicita do humano.** Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa. `apply_reviewed` so pode ser chamado depois de voce mostrar o resumo das decisoes lidas em `list_pending` e o humano responder 'aplica' com o nome de quem aprova. O humano tambem pode aplicar pela propria pagina de revisao (botao "Aplicar decididas", que exige o nome e roda o mesmo lote validado): nesse caso `wait_for_review` volta com `status: applied` e o nome de quem aprovou, e isso vale como aprovacao; nao peca "aplica" de novo.
+1. **Nada entra na ontologia sem aprovacao explicita do humano.** No modo automatico (ver "Modo de decisao"), essa aprovacao foi dada no inicio, uma vez, para todas as propostas: a IA decide e aplica em nome de quem autorizou. No modo humano, vale o resto desta regra. Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa. `apply_reviewed` so pode ser chamado depois de voce mostrar o resumo das decisoes lidas em `list_pending` e o humano responder 'aplica' com o nome de quem aprova. O humano tambem pode aplicar pela propria pagina de revisao (botao "Aplicar decididas", que exige o nome e roda o mesmo lote validado): nesse caso `wait_for_review` volta com `status: applied` e o nome de quem aprovou, e isso vale como aprovacao; nao peca "aplica" de novo.
 2. **`validate` roda antes de todo `apply_edit`.** Se houver erro, mostre ao humano e proponha correcao em vez de aplicar.
 3. **Nunca responda de memoria sobre a ontologia.** Use `list_entities`, `list_relations`, `search_term`, `resolve_acronym`, `get_precedence`, `get_requirements` e `list_competency_questions` para saber o que existe.
 4. **Toda proposta carrega proveniencia.** Preencha `requirement_id` (a CQ que motiva) e `evidence` (documento, tabela, coluna ou conversa de origem). O `apply_edit` grava isso em `changelog.yml` e na secao `evidence` do `content.yml`.
@@ -28,7 +28,22 @@ O humano acompanha o fluxo pela lista de tarefas do harness, nao pelo texto das 
 3. **Ao terminar cada passo**, marque na lista antes de comecar o proximo. Ao mudar de etapa, chame `stage` de novo e troque os passos pelos da etapa nova.
 4. Comece cada resposta com uma linha curta de onde voce esta: `Etapa X de 6 · passo: <texto do passo>`.
 
-## A pagina de revisao e o vai e volta com o humano
+## Modo de decisao: o humano decide ou a IA decide
+
+**Passo zero de todo projeto, antes de qualquer outra tool:** logo depois do pedido para criar ou mapear a ontologia, chame `choose_decision_mode` sem argumentos. Ela abre um formulario no harness perguntando quem decide as propostas e o nome de quem escolhe. Se voltar `ask_in_chat`, faca a pergunta no chat com as duas opcoes e chame de novo com `mode` (`human` ou `auto`) e `authorized_by`. Se `stage` mostrar `decision_mode.chosen: true`, o modo ja foi escolhido: nao pergunte de novo, so lembre em uma linha qual e. Se o humano pedir para trocar de modo em qualquer momento, chame `choose_decision_mode` com o modo novo.
+
+- **Modo humano (`human`):** siga as paradas "Pare e pergunte" como estao descritas abaixo.
+- **Modo automatico (`auto`):** voce e quem decide. Nas paradas "Pare e pergunte" das etapas 1, 2, 3 e 4 nao pare, nao chame `open_review` nem `wait_for_review`:
+  1. Leia `list_pending` e decida cada pendente com `review_edit`, usando `reviewer: "IA"` e, em toda rejeicao, `reason` com o motivo. O servidor troca "IA" pela assinatura com quem autorizou e recusa esse nome fora do modo automatico.
+  2. Aplique com `apply_reviewed` usando `approved_by: "IA"` e siga para o proximo passo. Se o lote falhar no validate, corrija com nova proposta e repita.
+  3. Seja um revisor exigente, nao um carimbo. Rejeite CQ sem evidencia `kind: source`, vaga ou repetida. De `priority` a toda CQ aceita e guarde de duas a tres como `reserved`, com `answer` tirada das fontes, para o eval ter gabarito. Lacuna vira `request_from_client` (nunca invente o dado que falta). Divergencia vira `precedence` para a fonte mais formal (regulamento, contrato, sistema de registro) com o motivo, ou `ask_expert` quando nao ha como decidir pelas fontes. Rejeite relacao cuja multiplicidade o `observed` contradiz e corrija a proposta. Metrica sem `unit`, `grain`, `additivity` ou `expression` nao passa.
+  4. Caso de uso: tire dos documentos; se nao houver base, registre o motivo em `no_use_case` e siga.
+  5. Etapa 4: no maximo dois ciclos de correcao (validate, eval, propostas, aplicar). O que sobrar vai para o relatorio final em vez de travar o fluxo.
+  6. Etapa 5: so `publish` em dry-run. Executar no alvo (`--no-dry-run`) continua exigindo o humano nesta conversa e na CLI, em qualquer modo.
+  7. No fim, entregue o relatorio do que voce decidiu: CQs aceitas, rejeitadas (com motivo) e reservadas; lacunas pedidas ao cliente; divergencias e a fonte que prevaleceu; pontos de atencao do validate e do eval. Chame `open_review` para o humano ver a aba Ontologia e ofereca rever qualquer decisao (uma decisao revista vira nova proposta, como na etapa 6).
+  - Continue mantendo a lista de tarefas do harness e a linha `Etapa X de 6 · passo: ...`: e por ela que o humano acompanha o que a IA esta fazendo.
+
+## A pagina de revisao e o vai e volta com o humano (modo humano)
 
 A pagina servida por `akme review` (127.0.0.1:8765) e a caixa de entrada de decisoes do consultor em qualquer etapa: cada pendente aparece com titulo legivel, evidencia, o que o dado mostra e dois botoes, aceitar ou rejeitar. Ela atualiza sozinha quando voce propoe algo novo e mostra a etapa atual das seis. Voce nao espera o humano escrever no chat: espera ele aplicar na pagina. Regras para voce:
 
@@ -58,11 +73,11 @@ Por padrao os dados do cliente ficam em `data/`, cujo conteudo o git ignora; nun
 
 ## Fluxo em seis etapas
 
-Cada etapa diz quais tools chamar, o que voce produz e onde parar para o humano decidir. A classificacao vem da tabela da secao 5 de `docs/research/lot-neon.md`.
+Cada etapa diz quais tools chamar, o que voce produz e onde parar para o humano decidir. No modo automatico, as paradas "Pare e pergunte" das etapas 1 a 4 viram decisoes suas (ver "Modo de decisao"); a da etapa 5 continua humana. A classificacao vem da tabela da secao 5 de `docs/research/lot-neon.md`.
 
 ### 1. Especificar (LOT: especificacao de requisitos)
 
-Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_use_case`, `add_requirement`, `add_competency_question`, `add_gap`, `add_divergence`, `add_glossary`; `open_review`, `wait_for_review`, `list_pending`, `requirements_status`, `apply_reviewed`, `stage`.
+Tools: `choose_decision_mode`, `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_use_case`, `add_requirement`, `add_competency_question`, `add_gap`, `add_divergence`, `add_glossary`; `open_review`, `wait_for_review`, `list_pending`, `requirements_status`, `apply_reviewed`, `stage`.
 
 1. Pergunte o caso de uso (ou constate que `get_requirements` ja traz um em `use_cases`; nesse caso nao pergunte de novo): nome, descricao, atores e fluxo. Proponha `add_use_case`. Se o humano disser que nao tem, registre o motivo com `add_requirement` no campo `no_use_case`, avise que as CQs sairao mais genericas e siga.
 2. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas e convencoes detectadas. O profile traz so um excerto de cada documento: para o conteudo completo, chame `read_document` sem `page` para ver o indice e depois pagina a pagina. Use `find_in_sources` nos termos que aparecerem. Cite arquivo e pagina na `evidence` (ex: `contratos/glossario.docx, pagina 3` ou `kickoff.pptx, slide 2`).
