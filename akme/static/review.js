@@ -448,8 +448,12 @@
   }
 
   // ---------- peças de HTML ----------
-  const dis = () => (S.api ? "" : " disabled");
-  const disPropose = () => (S.api && S.reviewer.trim() ? "" : " disabled");
+  // modo automatico: a IA decide e aplica; a pagina so mostra (chat.js marca o body com o modo)
+  const isAuto = () => document.body.dataset.decisionMode === "auto";
+  const DECISION_ACTS = new Set(["set", "alter", "remove", "cancel", "edit-on", "edit-off", "new-cq", "drop-new",
+    "accept-all", "save", "discard", "apply", "dlg-apply"]);
+  const dis = () => (S.api && !isAuto() ? "" : " disabled");
+  const disPropose = () => (S.api && !isAuto() && S.reviewer.trim() ? "" : " disabled");
   const badge = (text, cls = "badge-alt") => `<span class="badge ${cls}">${esc(text)}</span>`;
 
   function seg(key, field, options, isOn, opts = {}) {
@@ -1002,6 +1006,7 @@
     const b = e.target.closest("[data-act]");
     if (!b || b.disabled) return;
     const act = b.dataset.act, key = b.dataset.key;
+    if (isAuto() && DECISION_ACTS.has(act)) return;
     switch (act) {
       case "scope": S.scope = b.dataset.scope; S.group = null; S.selected = null; render(); return;
       case "group": S.group = b.dataset.group; if (S.scope === "applied" || S.scope === "context") S.scope = "todo"; S.selected = null; render(); return;
@@ -1074,7 +1079,7 @@
     if (["input", "textarea", "select"].includes(tag) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "j" || e.key === "n") { e.preventDefault(); go(1); }
     else if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "k" || e.key === "p") { e.preventDefault(); go(-1); }
-    else if ((e.key === "a" || e.key === "r") && S.selected && S.api) {
+    else if ((e.key === "a" || e.key === "r") && S.selected && S.api && !isAuto()) {
       const c = S.cards[S.selected];
       if (!c || c.applied || c.kind === "n-cq" || c.kind === "gap" || c.kind === "div") return;
       if (e.key === "r" && c.view && c.view.rejectable === false) return;
@@ -1082,7 +1087,7 @@
       draft(S.selected).decision = e.key === "a" ? "accept" : "reject";
       if (e.key === "r") S.editing.delete(S.selected);
       rerenderCard(S.selected, e.key === "r" ? "textarea" : null);
-    } else if (e.key === "e" && S.selected && S.api) {
+    } else if (e.key === "e" && S.selected && S.api && !isAuto()) {
       const c = S.cards[S.selected];
       if (c && !c.applied && (c.kind === "cq" || (c.kind === "generic" && (c.view.editable || []).length))) { e.preventDefault(); const d = draft(S.selected); if (!d.decision) d.decision = "accept"; S.editing.add(S.selected); rerenderCard(S.selected, "textarea, input"); }
     }
@@ -1170,6 +1175,7 @@
       $("#tab-ontologia").addEventListener("click", () => setTab("ontologia"));
       $("#tab-revisao").addEventListener("click", () => setTab("revisao"));
       document.addEventListener("keydown", onKey);
+      document.addEventListener("akme:mode", () => render());
       S.wired = true;
     }
     const n = counts();

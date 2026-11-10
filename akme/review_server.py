@@ -1,8 +1,9 @@
 """Servidor local da pagina de revisao (`akme review`). Somente 127.0.0.1.
 
 Rotas de leitura: /api/status, /api/stage, /api/pending, /api/requirements, /api/data, /api/sources,
-/api/events, /api/round. Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
-cria ou altera um requisito) e /api/apply (aplica em lote as decididas, com nome de quem aprova).
+/api/events, /api/round, /api/chat. Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
+cria ou altera um requisito), /api/apply (aplica em lote as decididas, com nome de quem aprova), /api/chat
+(mensagem do consultor para o agente, pelo canal) e /api/chat/permission (permitir ou negar uma tool).
 """
 from __future__ import annotations
 
@@ -23,9 +24,10 @@ from urllib.parse import parse_qs, urlparse
 from .models import now_iso
 from .ontology import load_content
 from .project import Project
-from .tools import ontology_read, ontology_write
+from .tools import chat, ontology_read, ontology_write
 from .tools.batch import BatchError
 from .tools.connect import find_in_sources
+from .tools.decision_mode import mode_path, read_mode
 from .tools.export import build_export, export
 from .tools.ontology_write import EditError, apply_reviewed, propose_edit, review_edit
 from .tools.requirements import cq_references, requirements_status
@@ -39,6 +41,7 @@ PROPOSE_TYPES = {
 }
 CQ_TYPES_WITH_REFS = {"update_competency_question", "remove_competency_question"}
 EVENTS_MAX_WAIT = 25.0
+REQUEST_ID_CHARS = set("abcdefghijkmnopqrstuvwxyz")  # 5 letras, sem l (contrato do canal)
 
 
 def _current(content: dict[str, Any], key: str, item_id: Any) -> dict[str, Any] | None:
@@ -177,6 +180,8 @@ def make_handler(project: Project):
                     return self._json(200, data)
                 if url.path == "/api/events":
                     return self._json(200, self._events(parse_qs(url.query)))
+                if url.path == "/api/chat":
+                    return self._json(200, self._chat_poll(parse_qs(url.query)))
                 if url.path == "/api/sources":
                     q = parse_qs(url.query)
                     query = (q.get("q") or [""])[0]
@@ -213,6 +218,52 @@ def make_handler(project: Project):
                 token = state_token(project)
             return {"token": token, "changed": bool(since) and token != since}
 
+        def _chat_poll(self, q: dict[str, list[str]]) -> dict[str, Any]:
+            """Long-polling do chat: devolve as mensagens depois do byte `offset` (ou espera ate o timeout)."""
+            try:
+                offset = max(int((q.get("offset") or ["0"])[0]), 0)
+                wait = min(float((q.get("timeout") or ["0"])[0]), EVENTS_MAX_WAIT)
+            except ValueError:
+                raise ValueError("offset e timeout devem ser numeros")
+            since = (q.get("sig") or [""])[0]
+            deadline = time.monotonic() + max(wait, 0.0)
+            items, new_offset = chat.read_from(project, offset)
+            sig = self._chat_sig()
+            while not items and sig == since and time.monotonic() < deadline:
+                time.sleep(0.3)
+                items, new_offset = chat.read_from(project, offset)
+                sig = self._chat_sig()
+            return {"items": items, "offset": new_offset, "sig": sig, "activity": chat.read_activity(project),
+                    "decision": {k: read_mode(project)[k] for k in ("mode", "authorized_by")}}
+
+        def _chat_sig(self) -> str:
+            """Muda quando o agente chama uma tool ou o modo de decisao muda."""
+            parts = []
+            for path in (chat.activity_path(project), mode_path(project)):
+                try:
+                    parts.append(str(path.stat().st_mtime_ns))
+                except OSError:
+                    parts.append("-")
+            return ":".join(parts)
+
+        def _chat_send(self, body: dict[str, Any]) -> dict[str, Any]:
+            author = str(body.get("author") or "").strip()[:80]
+            return chat.append(project, "human", str(body.get("text") or ""), author=author)
+
+        def _chat_permission(self, body: dict[str, Any]) -> dict[str, Any]:
+            request_id, behavior = str(body.get("request_id") or ""), body.get("behavior")
+            if behavior not in ("allow", "deny"):
+                raise _HttpError(400, "behavior deve ser allow ou deny")
+            if len(request_id) != 5 or not set(request_id) <= REQUEST_ID_CHARS:
+                raise _HttpError(400, "request_id invalido")
+            items, _ = chat.read_from(project, 0)
+            if not any(i.get("role") == "permission" and i.get("request_id") == request_id for i in items):
+                raise _HttpError(404, "pedido de permissao nao encontrado")
+            if any(i.get("role") == "verdict" and i.get("request_id") == request_id for i in items):
+                raise _HttpError(409, "pedido de permissao ja respondido")
+            author = str(body.get("author") or "").strip()[:80]
+            return chat.append(project, "verdict", "", request_id=request_id, behavior=behavior, author=author)
+
         def do_HEAD(self):  # noqa: N802
             if self._host_ok() and self._static_ok():
                 super().do_HEAD()
@@ -233,6 +284,10 @@ def make_handler(project: Project):
                     return self._json(200, self._propose(self._body()))
                 if path == "/api/apply":
                     return self._json(200, self._apply(self._body()))
+                if path == "/api/chat":
+                    return self._json(200, self._chat_send(self._body()))
+                if path == "/api/chat/permission":
+                    return self._json(200, self._chat_permission(self._body()))
                 return self._json(404, {"error": "rota nao encontrada"})
             except _HttpError as exc:
                 return self._json(exc.code, {"error": exc.message} | exc.extra)
@@ -241,6 +296,8 @@ def make_handler(project: Project):
             except EditError as exc:
                 code = 404 if "nao encontrada" in str(exc) else 400
                 return self._json(code, {"error": str(exc)})
+            except ValueError as exc:
+                return self._json(400, {"error": str(exc)})
             except Exception as exc:  # noqa: BLE001 - responde JSON em vez de derrubar a conexao
                 return self._json(500, {"error": str(exc)})
 

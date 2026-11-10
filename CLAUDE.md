@@ -28,6 +28,7 @@ Template para construir, validar e publicar uma ontologia e uma camada semântic
 - `uv run akme init --demo` e `uv run akme demo` — prepara e roda a demo
 - `uv run akme review` — serve a página local em `http://127.0.0.1:8765`
 - `uv run akme serve` — sobe o servidor MCP (stdio); registrado em `.mcp.json`
+- `claude --dangerously-load-development-channels server:akme` — modo canal (experimental): a conversa com o agente acontece no painel "Conversa" da página local (`akme/channel.py`, log em `ontology/pending/chat.jsonl`)
 - `uv run akme connect | profile | validate | eval | export | stage | publish` — passos individuais
 
 ## Convenções
