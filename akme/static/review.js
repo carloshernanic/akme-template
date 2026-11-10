@@ -20,11 +20,8 @@
     ["regras_restricoes", "Regras e restrições"],
   ];
   const PRIORITIES = [["high", "Alta"], ["medium", "Média"], ["low", "Baixa"]];
-  const USES = [["approved", "Usar na construção"], ["reserved", "Guardar para o teste"]];
-  const USE_HELP = {
-    approved: "Vira exemplo para o agente construir a ontologia e a camada semântica.",
-    reserved: "Fica fora da construção e serve de gabarito no eval. Exige a resposta esperada.",
-  };
+  // motivos de rejeicao de pergunta: o rotulo vira o reason; "outro" pede texto livre
+  const WHY = [["clara", "Pouco clara"], ["escopo", "Fora do caso de uso"], ["dados", "Os dados não respondem"], ["repetida", "Repetida"], ["outro", "Outro motivo"]];
   const GAP_DECISIONS = [
     ["request_from_client", "Pedir o dado ao cliente"],
     ["reformulate", "Reformular a pergunta"],
@@ -40,7 +37,7 @@
   const LABELS = {
     type: Object.fromEntries(CQ_TYPES),
     priority: Object.fromEntries(PRIORITIES),
-    status: { proposed: "Proposta", approved: "Usar na construção", reserved: "Guardar para o teste", rejected: "Rejeitada", deprecated: "Descontinuada" },
+    status: { proposed: "Proposta", approved: "Aprovada", reserved: "Reservada para o teste", rejected: "Rejeitada", deprecated: "Descontinuada" },
     gap: Object.fromEntries(GAP_DECISIONS),
     div: Object.assign({ precedence: "Precedência" }, Object.fromEntries(DIV_OTHER)),
   };
@@ -72,9 +69,13 @@
 
   const S = {
     data: null, api: null, hooks: {}, drafts: {}, newKeys: [], newSeq: 0, cards: {}, order: [], reviewer: "",
-    busy: false, invalid: new Set(), editing: new Set(), selected: null, scope: "pending", group: null,
-    tab: null, wired: false, token: null, polling: false,
+    busy: false, invalid: new Set(), editing: new Set(), open: new Set(), selected: null, scope: "pending", group: null,
+    tab: null, wired: false, token: null, polling: false, mode: "outras",
   };
+  // a etapa 1 tem tela propria (etapa1.js); o que ela cobre sai da caixa de entrada
+  const E1 = () => window.AkmeEtapa1 || null;
+  const coveredByE1 = (p) => !!(E1() && E1().covers(p));
+  const e1Count = () => (E1() ? E1().pendingCount(S.data) : 0);
 
   // ---------- utilidades ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -128,7 +129,7 @@
     $("#rv-nav").hidden = name !== "revisao";
     $("#sidebar-mode").textContent = name === "ontologia" ? "ontologia" : "revisão";
     const bar = $("#rv-bar");
-    if (bar) bar.hidden = name !== "revisao";
+    if (bar) bar.hidden = name !== "revisao" || S.mode === "etapa1";
     if (persist) store("akme-tab", name);
     if (name === "ontologia" && window.AkmeGraph) { window.AkmeGraph.show(); dispatchEvent(new Event("resize")); }
   }
@@ -146,7 +147,7 @@
     const missing = st.missing || [];
     banner.className = "callout callout-atencao";
     banner.innerHTML = `${I.warn}<div><div class="t">Requisitos abertos</div><div class="b">${missing.length ? `<ul>${missing.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : esc(st.next_step || "")}</div></div>`;
-    banner.hidden = !st.gate_active;
+    banner.hidden = !st.gate_active || S.mode === "etapa1";
   }
 
   // ---------- modelo de cartões ----------
@@ -154,6 +155,7 @@
     const cards = {}, order = [];
     const byGroup = {};
     for (const p of pending()) {
+      if (coveredByE1(p)) continue;
       const v = viewOf(p);
       let kind = "generic";
       if (p.type === "add_competency_question") kind = "cq";
@@ -184,7 +186,11 @@
     if (!c) return null;
     const p = c.item, r = p && p.review, e = (r && r.edits) || {}, pl = (p && p.payload) || {};
     switch (c.kind) {
-      case "cq": return Object.assign({ decision: r ? r.decision : null }, cqFields(Object.assign({}, pl, e)), { reason: (r && r.reason) || "" });
+      case "cq": {
+        const f = cqFields(Object.assign({}, pl, e));
+        if (!f.use) f.use = "approved";
+        return Object.assign({ decision: r ? r.decision : null }, f, { reason: (r && r.reason) || "" });
+      }
       case "generic": {
         const edits = {};
         (c.view.editable || []).forEach((f) => { edits[f.key] = f.kind === "list" ? list(e[f.key] ?? pl[f.key]) : f.kind === "map" ? mapText(e[f.key] ?? pl[f.key]) : String(e[f.key] ?? pl[f.key] ?? ""); });
@@ -195,7 +201,7 @@
       case "a-cq": return Object.assign({ mode: "" }, cqFields(p), { reason: "" });
       case "a-gap": return { mode: "", choice: p.decision || "", note: p.note || "" };
       case "a-div": return { mode: "", choice: p.decision || "", winner: p.winner || "", reason: p.reason || "" };
-      case "n-cq": return { question: "", type: "", concepts: [], priority: "", use: "", answer: "", use_cases: [] };
+      case "n-cq": return { question: "", type: "", concepts: [], priority: "", use: "approved", answer: "", use_cases: [] };
     }
     return null;
   }
@@ -272,8 +278,7 @@
     if (!d.type) return "escolha o tipo da pergunta";
     if (!d.concepts.length) return "informe ao menos um conceito";
     if (!d.priority) return "escolha a prioridade";
-    if (!d.use) return "escolha o uso: construção ou teste";
-    if (d.use === "reserved" && !d.answer.trim()) return "guardar para o teste exige a resposta esperada";
+    if (d.use === "reserved" && !d.answer.trim()) return "pergunta reservada para o teste exige a resposta esperada";
     return "";
   }
   function buildOp(key) {
@@ -634,27 +639,54 @@
   function cqEditFields(key, v) {
     return `<div class="rv-edit-grid">${textField(key, "question", "Pergunta", v.question, { lg: true, rows: 2, full: true })}${typeSelect(key, v.type)}${conceptsField(key, v.concepts)}</div>`;
   }
-  function cqDecisionFields(key, v) {
-    return `<div class="choice"><span class="field-label">Prioridade</span>${seg(key, "priority", PRIORITIES, (x) => v.priority === x, { label: "Prioridade" })}</div>
-      <div class="choice"><span class="field-label">Uso da pergunta</span>${seg(key, "use", USES, (x) => v.use === x, { label: "Uso" })}
-        ${v.use ? `<span class="choice-help">${esc(USE_HELP[v.use])}</span>` : ""}</div>
-      ${v.use === "reserved" ? textField(key, "answer", "Resposta esperada", v.answer, { placeholder: "trecho que a resposta precisa conter" }) : ""}`;
+  function cqDecisionFields(key, v, opts) {
+    return `<div class="choice"><span class="field-label">Prioridade${v.priority ? "" : ' <span class="req">obrigatório</span>'}</span>${seg(key, "priority", PRIORITIES, (x) => v.priority === x, { label: "Prioridade" })}
+        ${opts && opts.suggested && v.priority === opts.suggested ? '<span class="choice-help">Sugestão da IA. Troque se não concordar.</span>' : ""}</div>
+      ${v.use === "reserved" ? textField(key, "answer", "Resposta esperada (pergunta guardada para o teste)", v.answer, { placeholder: "trecho que a resposta precisa conter" }) : ""}`;
+  }
+  // primeira evidencia de fonte, em uma linha: e o sinal que fica visivel no card enxuto
+  function firstSource(evs) {
+    const ev = (Array.isArray(evs) ? evs : []).find((x) => x && x.path);
+    return ev ? ev.path + (ev.locator ? " · " + ev.locator : "") : "";
+  }
+  const whyOf = (v) => v.why || (WHY.find(([, l]) => l === v.reason) || [])[0] || (v.reason ? "outro" : "");
+  function whyChips(key, v) {
+    const cur = whyOf(v);
+    return `<div class="why${cur ? "" : " miss"}" role="group" aria-label="Motivo da rejeição">${WHY.map(([k, l]) =>
+      `<button type="button" data-act="why" data-key="${esc(key)}" data-value="${k}" aria-pressed="${cur === k}"${dis()}>${esc(l)}</button>`).join("")}</div>`;
   }
   function pendingCqCard(key, c) {
-    const p = c.item, v = view(key), pl = p.payload || {}, editing = S.editing.has(key);
+    const p = c.item, v = view(key), pl = p.payload || {}, editing = S.editing.has(key), open = S.open.has(key);
     const edited = v.question.trim() !== (pl.question || "") || (v.type && v.type !== pl.type) || !sameList(v.concepts, pl.concepts);
-    const head = eyebrow(["Pergunta de competência", originLow(p.proposed_by), pl.id, edited ? "editada por você" : ""]);
-    const editBtn = v.decision !== "reject" ? `<button type="button" class="btn btn-outline btn-sm" data-act="${editing ? "edit-off" : "edit-on"}" data-key="${esc(key)}"${dis()}>${editing ? "Manter texto original" : I.pencil + "<span>Editar a pergunta</span>"}</button>` : "";
-    return `${cardOpen(key)}
-      <div class="rv-card-head">${head}${editing ? "" : `<h2 class="title">${esc(v.question)}</h2>`}</div>
-      <section class="rv-section"><h3>Proposta</h3>${editing ? cqEditFields(key, v) : cqProposalRead(v, Object.assign({}, pl, { type: v.type, concepts: v.concepts }))}</section>
-      ${evidenceBlock(pl.evidence)}
-      ${p.rationale ? `<section class="rv-section"><h3>Justificativa do agente</h3><p class="p">${esc(p.rationale)}</p></section>` : ""}
-      <section class="rv-section rv-decide"><h3>Decisão</h3>
-        <div class="row">${decisionSeg(key, v)}${editBtn}</div>
-        ${v.decision === "reject" ? textField(key, "reason", "Motivo da rejeição", v.reason, { placeholder: "obrigatório" }) : v.decision === "accept" ? cqDecisionFields(key, v) : ""}
+    const src = firstSource(pl.evidence);
+    const st = v.decision === "accept" ? "st-ok" : v.decision === "reject" ? "st-rej" : "";
+    const big = (val, icon, label, cls) => `<button type="button" class="${cls}" data-act="set" data-key="${esc(key)}" data-field="decision" data-value="${val}" aria-pressed="${v.decision === val}"${dis()}>${icon} ${label}</button>`;
+    const details = open ? `<div class="cq-det" id="${fid(key, "det")}">
+        ${eyebrow(["Pergunta de competência", originLow(p.proposed_by), pl.id])}
+        ${cqProposalRead(v, Object.assign({}, pl, { type: v.type, concepts: v.concepts }))}
+        ${v.use === "reserved" ? '<p class="label secondary">A IA propôs guardar esta pergunta para o teste do eval.</p>' : ""}
+        ${(pl.evidence || []).map((ev) => ev.kind === "conversation" ? `<div class="ev">${badge("conversa")} ${esc(ev.who)} · ${esc(fmtDate(ev.when))}</div>` : ev.path ? `<div class="ev">${sourceLine(ev)}</div>` : ev.note ? `<div class="ev">${esc(ev.note)}</div>` : "").join("")}
+        ${p.rationale ? `<p class="p secondary"><b>Justificativa da IA:</b> ${esc(p.rationale)}</p>` : ""}</div>` : "";
+    let after = "";
+    if (v.decision === "accept") after = cqDecisionFields(key, v, { suggested: pl.priority });
+    else if (v.decision === "reject") {
+      after = `<div class="choice"><span class="field-label">Por que rejeitar?${whyOf(v) ? "" : ' <span class="req">obrigatório</span>'}</span>${whyChips(key, v)}</div>
+        ${whyOf(v) === "outro" ? textField(key, "reason", "Qual o motivo?", v.reason, { placeholder: "obrigatório" }) : ""}`;
+    }
+    return `<article class="rv-card cq-lean ${st}${S.invalid.has(key) ? " invalid" : ""}" data-card="${esc(key)}">
+      <div class="cq-body">
+        ${editing ? cqEditFields(key, v) : `<h2 class="cq-q">${esc(v.question)}</h2>`}
+        <div class="cq-sig">${src ? `<span class="mono">${esc(src)}</span>` : '<span class="warn">sem evidência de fonte</span>'}
+          <button type="button" class="lnk" data-act="details" data-key="${esc(key)}" aria-expanded="${open}" aria-controls="${fid(key, "det")}">${open ? "esconder detalhes" : "ver detalhes"}</button>
+          ${edited ? '<span class="mark">editada por você</span>' : ""}</div>
+        ${details}
+      </div>
+      <div class="cq-decide">
+        <div class="big">${big("accept", "✓", "Aceitar", "bok")}${big("reject", "✕", "Rejeitar", "brej")}
+          ${v.decision !== "reject" ? `<button type="button" class="lnk" data-act="${editing ? "edit-off" : "edit-on"}" data-key="${esc(key)}"${dis()}>${editing ? "manter texto original" : "editar a pergunta"}</button>` : ""}</div>
+        ${after}
         ${savedNote(p)}
-      </section></article>`;
+      </div></article>`;
   }
 
   function appliedCqCard(key, q) {
@@ -664,7 +696,7 @@
     let body, decide;
     if (mode === "alter") {
       body = `<section class="rv-section"><h3>Alteração proposta</h3>${cqEditFields(key, v)}</section>${evidenceBlock(q.evidence)}`;
-      decide = `<section class="rv-section rv-decide"><h3>Prioridade e uso</h3>${cqDecisionFields(key, v)}<div class="row"><button type="button" class="btn btn-ghost btn-sm" data-act="cancel" data-key="${esc(key)}">Cancelar</button></div></section>`;
+      decide = `<section class="rv-section rv-decide"><h3>Prioridade</h3>${cqDecisionFields(key, v)}<div class="row"><button type="button" class="btn btn-ghost btn-sm" data-act="cancel" data-key="${esc(key)}">Cancelar</button></div></section>`;
     } else {
       body = `<section class="rv-section"><h3>Pergunta</h3>${cqProposalRead(v, q)}
           ${q.status === "reserved" && q.answer ? `<p class="p"><b>Resposta esperada:</b> ${esc(q.answer)}</p>` : ""}
@@ -688,7 +720,7 @@
     return `${cardOpen(key)}
       <div class="rv-card-head"><div class="badges">${badge("Nova pergunta")}${badge("por " + (S.reviewer.trim() || "revisor"), "badge-alt")}${badge("evidência: conversa com o revisor", "badge-outline")}</div><h2 class="title">Nova pergunta de competência</h2></div>
       <section class="rv-section"><h3>Pergunta</h3>${cqEditFields(key, v)}${ucField}</section>
-      <section class="rv-section rv-decide"><h3>Prioridade e uso</h3>${cqDecisionFields(key, v)}
+      <section class="rv-section rv-decide"><h3>Prioridade</h3>${cqDecisionFields(key, v)}
         <div class="row"><button type="button" class="btn btn-ghost btn-sm" data-act="drop-new" data-key="${esc(key)}">Remover rascunho</button></div></section></article>`;
   }
 
@@ -864,15 +896,17 @@
   function renderNav() {
     const n = counts();
     const nav = $("#rv-nav");
+    const badgeEl = $("#tab-revisao-count");
+    const total = n.todo + e1Count();
+    badgeEl.textContent = total ? String(total) : "";
+    badgeEl.hidden = !total;
+    if (S.mode === "etapa1") { nav.innerHTML = ""; return; }
     const item = (scope, label, count, hot) => `<button type="button" class="nav-item" data-act="scope" data-scope="${scope}" aria-current="${S.scope === scope && !S.group}">${esc(label)}<span class="count${hot && count ? " hot" : ""}">${count}</span></button>`;
     const groups = GROUP_ORDER.filter((g) => S.order.some((k) => S.cards[k].group === g && !S.cards[k].applied));
     nav.innerHTML = `<div class="group-label">Fila</div>
       ${item("todo", "A decidir", n.todo, true)}${item("decided", "Decididas", n.decided, false)}${item("applied", "Aplicadas", n.applied, false)}
       ${groups.length ? `<div class="group-label" style="margin-top:12px">Por tipo</div>${groups.map((g) => `<button type="button" class="nav-item nav-sub" data-act="group" data-group="${g}" aria-current="${S.group === g}">${GROUP_ICON[g] || ""}${esc(GROUP_LABEL[g])}<span class="count">${n.byGroup[g] || 0}</span></button>`).join("")}` : ""}
       <div class="group-label" style="margin-top:12px">Contexto</div>${item("context", "Caso de uso e fontes", (req().use_cases || []).length, false)}`;
-    const badgeEl = $("#tab-revisao-count");
-    badgeEl.textContent = n.todo ? String(n.todo) : "";
-    badgeEl.hidden = !n.todo;
   }
   function renderBar() {
     const n = counts();
@@ -888,7 +922,7 @@
     apply.title = !S.api ? "abra com akme review" : n.unsaved ? "salve as decisões antes de aplicar" : !savedDecisions ? "nenhuma decisão salva para aplicar" : "";
     save.title = !S.api ? "abra com akme review para editar" : !S.reviewer.trim() ? "preencha o revisor" : "Atalhos: ← → navegam, a aceita, r rejeita, e edita";
     discardBtn.disabled = S.busy || !Object.keys(S.drafts).length;
-    bar.hidden = S.tab !== "revisao";
+    bar.hidden = S.tab !== "revisao" || S.mode === "etapa1";
   }
   // aviso da rodada: o agente no chat espera o humano aplicar, e depois segue sozinho
   function renderRound() {
@@ -904,8 +938,31 @@
     el.innerHTML = html;
     el.hidden = !html;
   }
+  // seletor no topo: Etapa 1 (tres telas) ou Outras propostas (caixa de entrada)
+  function renderMode() {
+    const el = $("#rv-mode"), root = $("#e1-root"), one = $("#rv-one");
+    if (!E1()) { el.hidden = true; root.hidden = true; one.hidden = false; S.mode = "outras"; return; }
+    const outras = S.order.filter((k) => !S.cards[k].applied).length;
+    const btn = (m, label, n) => `<button type="button" data-act="mode" data-value="${m}" aria-pressed="${S.mode === m}">${esc(label)} <span class="count">${n}</span></button>`;
+    el.hidden = false;
+    el.innerHTML = `<div class="seg" role="group" aria-label="O que revisar">${btn("etapa1", "Etapa 1", e1Count())}${btn("outras", "Outras propostas", outras)}</div>`;
+    const e1 = S.mode === "etapa1";
+    root.hidden = !e1; one.hidden = e1;
+    if (e1) E1().mount(root, { data: S.data, api: S.api, reviewer: S.reviewer, toast, onDone: afterE1, onOutras: () => { S.mode = "outras"; render(); renderBar(); } });
+  }
+  async function afterE1() {
+    await reload();
+    S.mode = defaultMode();
+    render();
+  }
+  function defaultMode() {
+    if (!E1()) return "outras";
+    const st = stage() || {};
+    return st.requirements_closed || !e1Count() ? "outras" : "etapa1";
+  }
   function render() {
     buildCards();
+    renderMode();
     renderRound();
     renderStage();
     renderNav();
@@ -1003,6 +1060,7 @@
     if (!b || b.disabled) return;
     const act = b.dataset.act, key = b.dataset.key;
     switch (act) {
+      case "mode": S.mode = b.dataset.value === "etapa1" ? "etapa1" : "outras"; S.selected = null; render(); renderBar(); return;
       case "scope": S.scope = b.dataset.scope; S.group = null; S.selected = null; render(); return;
       case "group": S.group = b.dataset.group; if (S.scope === "applied" || S.scope === "context") S.scope = "todo"; S.selected = null; render(); return;
       case "clear-group": S.group = null; render(); return;
@@ -1015,7 +1073,7 @@
         else d[f] = val;
         if (f === "decision" && val === "reject") S.editing.delete(key);
         S.invalid.delete(key);
-        rerenderCard(key, f === "decision" && val === "reject" ? "textarea" : `[data-act="set"][data-field="${sel(f)}"][data-value="${sel(val)}"]`);
+        rerenderCard(key, f === "decision" && val === "reject" ? (S.cards[key].kind === "cq" ? '[data-act="why"]' : "textarea") : `[data-act="set"][data-field="${sel(f)}"][data-value="${sel(val)}"]`);
         return;
       }
       case "edit-on": { const d = draft(key); if (!d.decision && (S.cards[key].kind === "cq" || S.cards[key].kind === "generic")) d.decision = "accept"; S.editing.add(key); rerenderCard(key, "textarea, input"); return; }
@@ -1025,6 +1083,15 @@
         if (c.kind === "generic") d.edits = base.edits;
         else if (c.kind === "cq") Object.assign(d, { question: base.question, type: base.type, concepts: base.concepts });
         rerenderCard(key, null);
+        return;
+      }
+      case "details": { if (S.open.has(key)) S.open.delete(key); else S.open.add(key); rerenderCard(key, `[data-act="details"]`); return; }
+      case "why": {
+        const d = draft(key), k = b.dataset.value, label = (WHY.find(([x]) => x === k) || [])[1] || "";
+        if (k === "outro") { d.why = "outro"; if (WHY.some(([, l]) => l === d.reason)) d.reason = ""; }
+        else { d.why = k; d.reason = label; }
+        S.invalid.delete(key);
+        rerenderCard(key, k === "outro" ? "textarea" : `[data-act="why"][data-value="${sel(k)}"]`);
         return;
       }
       case "alter": case "remove": draft(key).mode = act; rerenderCard(key, null); return;
@@ -1069,7 +1136,7 @@
     renderNav(); renderProgress(); renderBar();
   }
   function onKey(e) {
-    if (S.tab !== "revisao" || $("#rv-dialog").open) return;
+    if (S.tab !== "revisao" || S.mode === "etapa1" || $("#rv-dialog").open) return;
     const tag = (e.target.tagName || "").toLowerCase();
     if (["input", "textarea", "select"].includes(tag) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "j" || e.key === "n") { e.preventDefault(); go(1); }
@@ -1125,7 +1192,9 @@
     viewEl.innerHTML = `<div class="rv">
       ${S.api ? "" : `<div class="callout callout-nota">${I.info}<div><div class="t">Modo leitura</div><div class="b">Rode <code>uv run akme review</code> para decidir e aplicar.</div></div></div>`}
       <div class="rv-round" id="rv-round" hidden></div>
-      <div class="rv-one"><div class="rv-progress" id="rv-progress"></div><div class="rv-detail" id="rv-detail"></div><div class="rv-cardnav" id="rv-cardnav"></div></div>
+      <div class="rv-mode" id="rv-mode" hidden></div>
+      <div class="e1-root" id="e1-root" hidden></div>
+      <div class="rv-one" id="rv-one"><div class="rv-progress" id="rv-progress"></div><div class="rv-detail" id="rv-detail"></div><div class="rv-cardnav" id="rv-cardnav"></div></div>
     </div>
     <dialog class="dlg" id="rv-dialog"><div class="dlg-body" id="rv-dialog-body"></div></dialog>`;
     let bar = $("#rv-bar");
@@ -1176,8 +1245,9 @@
     const saved = read("akme-tab");
     buildCards();
     const c0 = counts();
+    S.mode = defaultMode();
     S.scope = c0.todo ? "todo" : c0.pending ? "decided" : "todo";
-    setTab(c0.todo ? "revisao" : saved || "revisao", false);
+    setTab(c0.todo || S.mode === "etapa1" ? "revisao" : saved || "revisao", false);
     render();
     void n;
     if (S.api) poll();
