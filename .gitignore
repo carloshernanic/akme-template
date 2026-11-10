@@ -9,6 +9,7 @@ build/
 .env.*
 akme.local.yml
 docs/profile.json
+docs/databricks_catalog.json
 docs/validation.json
 examples/local_demo/ontology/
 docs/publish/
@@ -41,3 +42,7 @@ docs/brand/
 # rodada de revisao aberta pelo agente (estado efemero)
 ontology/pending/round.json
 ontology/pending/round.tmp
+
+# Configurações de mcp
+.agents
+.gemini

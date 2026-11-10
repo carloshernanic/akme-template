@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .project import CONFIG_FILE, Project, read_yaml, write_yaml
+from .tools import catalog as catalog_tool
 from .tools import connect as connect_tool
 from .tools import eval as eval_tool
 from .tools import export as export_tool
@@ -69,6 +70,29 @@ def init(adapter: str = typer.Option("local_folder", help="local_folder, postgre
     Path(config.get("ontology_dir", "ontology"), "pending").mkdir(parents=True, exist_ok=True)
     Path("docs").mkdir(exist_ok=True)
     console.print(f"[green]{CONFIG_FILE} criado[/] com adapter {adapter}")
+    if adapter == "databricks":
+        _inventory_databricks()
+
+
+def _inventory_databricks() -> None:
+    """Com as credenciais preenchidas, grava o inventario de catalogos, schemas e tabelas da conta."""
+    project = Project(".")
+    missing = catalog_tool.missing_credentials(project)
+    if missing:
+        console.print(f"[yellow]inventario do Databricks nao gerado: credenciais vazias ({', '.join(missing)}). "
+                      "Preencha o .env e rode 'akme init --adapter databricks' de novo.[/]")
+        return
+    console.print("listando catalogos, schemas e tabelas do Databricks...")
+    try:
+        result = catalog_tool.discover_catalog(project)
+    except Exception as exc:  # init nao deve falhar por causa do inventario
+        console.print(f"[red]inventario do Databricks falhou:[/] {exc}")
+        return
+    s = result["summary"]
+    console.print(f"[green]{project.catalog_path.relative_to(project.root).as_posix()} gravado[/]: "
+                  f"{s['catalogs']} catalogos, {s['schemas']} schemas, {s['tables']} tabelas")
+    if s["errors"]:
+        console.print(f"[yellow]{s['errors']} locais sem acesso; veja 'errors' no arquivo[/]")
 
 
 @app.command()
