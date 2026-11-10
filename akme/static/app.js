@@ -51,6 +51,8 @@
     $("#project-title").textContent = data.project || "Akme";
     $("#version").textContent = "v" + (data.version || "0.0.0");
     $("#tabs").hidden = false;
+    const mode = data.stage && data.stage.decision_mode && data.stage.decision_mode.mode;
+    if (mode) document.body.dataset.decisionMode = mode;
     window.AkmeGraph.init(data);
     window.AkmeReview.init(data, api, { onData: (d) => window.AkmeGraph.update(d) });
   })).catch((err) => {

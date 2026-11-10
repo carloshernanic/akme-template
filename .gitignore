@@ -45,6 +45,8 @@ ontology/pending/round.json
 ontology/pending/round.tmp
 # conversa da pagina com o agente (canal)
 ontology/pending/chat.jsonl
+ontology/pending/activity.json
+ontology/pending/activity.tmp
 
 # Configurações de mcp
 .agents

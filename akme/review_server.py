@@ -27,6 +27,7 @@ from .project import Project
 from .tools import chat, ontology_read, ontology_write
 from .tools.batch import BatchError
 from .tools.connect import find_in_sources
+from .tools.decision_mode import mode_path, read_mode
 from .tools.export import build_export, export
 from .tools.ontology_write import EditError, apply_reviewed, propose_edit, review_edit
 from .tools.requirements import cq_references, requirements_status
@@ -224,12 +225,26 @@ def make_handler(project: Project):
                 wait = min(float((q.get("timeout") or ["0"])[0]), EVENTS_MAX_WAIT)
             except ValueError:
                 raise ValueError("offset e timeout devem ser numeros")
+            since = (q.get("sig") or [""])[0]
             deadline = time.monotonic() + max(wait, 0.0)
             items, new_offset = chat.read_from(project, offset)
-            while not items and time.monotonic() < deadline:
+            sig = self._chat_sig()
+            while not items and sig == since and time.monotonic() < deadline:
                 time.sleep(0.3)
                 items, new_offset = chat.read_from(project, offset)
-            return {"items": items, "offset": new_offset}
+                sig = self._chat_sig()
+            return {"items": items, "offset": new_offset, "sig": sig, "activity": chat.read_activity(project),
+                    "decision": {k: read_mode(project)[k] for k in ("mode", "authorized_by")}}
+
+        def _chat_sig(self) -> str:
+            """Muda quando o agente chama uma tool ou o modo de decisao muda."""
+            parts = []
+            for path in (chat.activity_path(project), mode_path(project)):
+                try:
+                    parts.append(str(path.stat().st_mtime_ns))
+                except OSError:
+                    parts.append("-")
+            return ":".join(parts)
 
         def _chat_send(self, body: dict[str, Any]) -> dict[str, Any]:
             author = str(body.get("author") or "").strip()[:80]

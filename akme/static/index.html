@@ -67,6 +67,10 @@
 
     <main class="content" id="conteudo">
       <div id="gate-banner" role="status" hidden></div>
+      <div class="auto-banner" id="auto-banner" role="status" hidden>
+        <span class="spinner" id="auto-spinner" aria-hidden="true"></span>
+        <div><div class="auto-title" id="auto-title">Modo automático</div><div class="p secondary" id="auto-text"></div></div>
+      </div>
 
       <section id="view-revisao" role="tabpanel" aria-labelledby="tab-revisao" hidden></section>
 
@@ -114,6 +118,7 @@
     </button>
   </div>
   <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+  <div class="chat-typing" id="chat-typing" role="status" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="chat-typing-text">O agente está trabalhando</span></div>
   <p class="chat-hint" id="chat-hint" hidden></p>
   <p class="chat-error" id="chat-error" role="alert" hidden></p>
   <form class="chat-form" id="chat-form">

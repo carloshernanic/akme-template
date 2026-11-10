@@ -570,6 +570,27 @@ body.chat-open .rv-bar { right: var(--chat-w); }
   .chat-panel { box-shadow: var(--elevation-1); }
 }
 
+/* indicador de trabalho do agente e modo automatico */
+.chat-typing { display: flex; align-items: center; gap: 10px; padding: 8px 16px; font-size: 13px; line-height: 18px; color: var(--text-secondary); border-top: 1px solid var(--border-divider); }
+.chat-typing[hidden] { display: none; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 6px; height: 6px; border-radius: var(--rad-round); background: var(--text-secondary); animation: akme-dot 1.2s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes akme-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.spinner { width: 18px; height: 18px; flex-shrink: 0; border: 2px solid var(--border-tertiary); border-top-color: var(--status-information); border-radius: var(--rad-round); animation: akme-spin .8s linear infinite; }
+.spinner[hidden] { display: none; }
+@keyframes akme-spin { to { transform: rotate(360deg); } }
+.auto-banner { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--status-information); background: var(--surface-primary); }
+.auto-banner[hidden] { display: none; }
+.auto-banner .spinner { margin-top: 2px; }
+.auto-title { font-weight: 600; font-size: 14px; line-height: 20px; }
+/* modo automatico: a IA decide; some tudo que decide, salva ou aplica */
+body[data-decision-mode="auto"] .rv-bar,
+body[data-decision-mode="auto"] #view-revisao :is([data-act="set"], [data-act="alter"], [data-act="remove"], [data-act="cancel"], [data-act^="edit-"], [data-act="new-cq"], [data-act="drop-new"], [data-act="accept-all"], [data-act="save"], [data-act="discard"], [data-act="apply"]),
+body[data-decision-mode="auto"] #view-revisao .seg:has([data-act="set"]),
+body[data-decision-mode="auto"] #view-revisao .rv-decide:not(:has(.kv)) { display: none !important; }
+
 /* ---------- responsivo e movimento ---------- */
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 1fr; }

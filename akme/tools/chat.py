@@ -20,6 +20,7 @@ from ..models import now_iso
 from ..project import Project
 
 CHAT_FILE = "chat.jsonl"
+ACTIVITY_FILE = "activity.json"
 ROLES = {"human", "agent", "event", "permission", "verdict"}
 MAX_TEXT = 20_000
 _lock = threading.Lock()
@@ -76,3 +77,24 @@ def size(project: Project) -> int:
         return chat_path(project).stat().st_size
     except OSError:
         return 0
+
+
+def activity_path(project: Project) -> Path:
+    return project.pending_dir / ACTIVITY_FILE
+
+
+def mark_activity(project: Project, tool: str) -> None:
+    """O agente chamou uma tool do akme: a pagina mostra que ele esta trabalhando."""
+    path = activity_path(project)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"tool": str(tool)[:80], "at": now_iso()}), encoding="utf-8")
+    tmp.replace(path)
+
+
+def read_activity(project: Project) -> dict[str, Any]:
+    try:
+        data = json.loads(activity_path(project).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}

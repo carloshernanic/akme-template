@@ -9,8 +9,11 @@
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const START_CMD = "claude --dangerously-load-development-channels server:akme";
   const NO_REPLY_MS = 45000;
+  const ACTIVE_MS = 90000;      // sem tool do akme por 90 s, o agente provavelmente parou
+  const WAIT_REPLY_MS = 600000; // pergunta sem resposta conta como trabalho por ate 10 min
 
-  const S = { offset: 0, items: [], verdicts: {}, unread: 0, open: false, sending: false, waitTimer: null };
+  const S = { offset: 0, sig: "", items: [], verdicts: {}, unread: 0, open: false, sending: false,
+    activity: {}, decision: { mode: "", authorized_by: "" } };
 
   async function call(path, opts) {
     const r = await fetch(path, opts);
@@ -67,18 +70,47 @@
     log.innerHTML = visible.length ? visible.map(renderItem).join("")
       : `<div class="chat-empty"><p>Converse com o agente aqui, sem voltar ao terminal.</p><p class="tertiary">O Claude Code precisa estar aberto com o canal ligado:</p><pre><code>${esc(START_CMD)}</code></pre></div>`;
     log.scrollTop = log.scrollHeight;
-    const last = [...S.items].reverse().find((i) => i.role === "human" || i.role === "agent");
-    clearTimeout(S.waitTimer);
-    const hint = $("#chat-hint");
-    hint.hidden = true;
-    if (last && last.role === "human") {
-      const left = NO_REPLY_MS - (Date.now() - new Date(last.at).getTime());
-      const show = () => { hint.hidden = false; hint.innerHTML = `Sem resposta ainda. Se o agente estiver parado, confira se o Claude Code foi aberto com <code>${esc(START_CMD)}</code>.`; };
-      if (left <= 0) show(); else S.waitTimer = setTimeout(show, left);
-    }
+    renderStatus();
     const badge = $("#chat-unread");
     badge.hidden = !S.unread;
     badge.textContent = String(S.unread);
+  }
+
+  const since = (iso) => (iso ? Date.now() - new Date(iso).getTime() : Infinity);
+
+  // o agente esta trabalhando: chamou uma tool do akme ha pouco (que nao foi a resposta final) ou ainda
+  // nao respondeu a ultima mensagem do consultor
+  function status() {
+    const last = [...S.items].reverse().find((i) => i.role === "human" || i.role === "agent");
+    const act = S.activity || {};
+    const waiting = !!last && last.role === "human" && since(last.at) < WAIT_REPLY_MS;
+    const actedAfter = waiting && act.at && new Date(act.at) >= new Date(last.at);
+    const recent = since(act.at) < ACTIVE_MS && act.tool !== "reply";
+    return { busy: recent || waiting, tool: recent ? act.tool : "", silent: waiting && !actedAfter && since(last.at) > NO_REPLY_MS };
+  }
+
+  function renderStatus() {
+    const st = status();
+    $("#chat-typing").hidden = !st.busy || st.silent;
+    $("#chat-typing-text").textContent = st.tool ? `O agente está trabalhando (${st.tool})` : "O agente está pensando";
+    const hint = $("#chat-hint");
+    hint.hidden = !st.silent;
+    if (st.silent) hint.innerHTML = `Sem resposta ainda. Se o agente estiver parado, confira se o Claude Code foi aberto com <code>${esc(START_CMD)}</code>.`;
+    const auto = S.decision.mode === "auto";
+    $("#auto-banner").hidden = !auto;
+    if (auto) {
+      $("#auto-spinner").hidden = !st.busy;
+      $("#auto-title").textContent = st.busy ? "A IA está decidindo e aplicando as propostas" : "Modo automático";
+      $("#auto-text").textContent = `A IA decide em nome de ${S.decision.authorized_by || "quem autorizou"}; as decisões não aparecem aqui para não competir com ela. Você revê tudo no fim e pode pedir mudanças pela conversa.`;
+    }
+  }
+
+  function setDecision(d) {
+    if (!d) return;
+    const changed = d.mode !== S.decision.mode;
+    S.decision = d;
+    if (d.mode) document.body.dataset.decisionMode = d.mode;
+    if (changed) document.dispatchEvent(new CustomEvent("akme:mode", { detail: d }));
   }
 
   function ingest(items) {
@@ -94,9 +126,12 @@
   async function poll() {
     for (;;) {
       try {
-        const r = await call(`/api/chat?offset=${S.offset}&timeout=25`, { headers: { Accept: "application/json" } });
+        const r = await call(`/api/chat?offset=${S.offset}&timeout=25&sig=${encodeURIComponent(S.sig)}`, { headers: { Accept: "application/json" } });
         S.offset = r.offset;
-        if (r.items.length) { ingest(r.items); render(); }
+        S.sig = r.sig || "";
+        S.activity = r.activity || {};
+        setDecision(r.decision);
+        if (r.items.length) { ingest(r.items); render(); } else renderStatus();
       } catch (e) {
         await new Promise((ok) => setTimeout(ok, 3000));
       }
@@ -149,6 +184,9 @@
     try { first = await call("/api/chat?offset=0&timeout=0", { headers: { Accept: "application/json" } }); } catch (e) { return; }
     $("#chat-toggle").hidden = false;
     S.offset = first.offset;
+    S.sig = first.sig || "";
+    S.activity = first.activity || {};
+    setDecision(first.decision);
     ingest(first.items);
     S.unread = 0;
     $("#chat-toggle").addEventListener("click", () => setOpen(!S.open));
@@ -160,6 +198,7 @@
     $("#chat-log").addEventListener("click", (e) => { const b = e.target.closest("[data-perm]"); if (b) verdict(b); });
     setOpen(read("akme-chat-open") !== "0");
     render();
+    setInterval(renderStatus, 3000); // o "trabalhando" expira com o tempo, sem evento
     poll();
   }
   init();

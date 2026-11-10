@@ -17,7 +17,7 @@ from typing import Any
 import anyio
 from mcp.server.stdio import stdio_server
 from mcp.shared.message import SessionMessage
-from mcp.types import JSONRPCMessage, JSONRPCNotification
+from mcp.types import JSONRPCMessage, JSONRPCNotification, JSONRPCRequest
 
 from .project import Project
 from .tools import chat
@@ -47,10 +47,17 @@ def _round_state(project: Project) -> dict[str, Any] | None:
 
 
 def handle_incoming(project: Project, msg: Any) -> bool:
-    """Trata o pedido de permissao do Claude Code (o SDK nao conhece esse metodo). True se consumiu."""
+    """Trata o pedido de permissao do Claude Code (o SDK nao conhece esse metodo) e marca a atividade
+    do agente a cada tools/call. True se consumiu a mensagem."""
     if not isinstance(msg, SessionMessage):
         return False
     root = msg.message.root
+    if isinstance(root, JSONRPCRequest) and root.method == "tools/call":
+        try:
+            chat.mark_activity(project, str((root.params or {}).get("name") or ""))
+        except OSError:
+            pass  # o sinal e so visual: nunca derruba a chamada
+        return False
     if not (isinstance(root, JSONRPCNotification) and root.method == PERMISSION_REQUEST):
         return False
     p = root.params or {}

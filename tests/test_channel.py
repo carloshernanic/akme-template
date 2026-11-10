@@ -13,6 +13,7 @@ import pytest
 
 from akme import channel, review_server
 from akme.tools import chat
+from akme.tools.decision_mode import set_mode
 from akme.tools.review_round import close_round, open_round
 
 
@@ -74,6 +75,14 @@ def test_page_chat_routes(server):
     assert code == 200 and sent["role"] == "human"
     got = json.loads(urllib.request.urlopen(base + "/api/chat?offset=0&timeout=0").read())
     assert [i["text"] for i in got["items"]] == ["oi agente"]
+    assert got["decision"]["mode"] == "human" and got["activity"] == {}
+    # o long-polling volta quando o agente chama uma tool, mesmo sem mensagem nova
+    chat.mark_activity(project, "profile")
+    moved = json.loads(urllib.request.urlopen(base + f"/api/chat?offset={got['offset']}&timeout=5&sig={got['sig']}").read())
+    assert moved["items"] == [] and moved["activity"]["tool"] == "profile" and moved["sig"] != got["sig"]
+    set_mode(project, "auto", "Ana")
+    auto = json.loads(urllib.request.urlopen(base + f"/api/chat?offset={got['offset']}&timeout=5&sig={moved['sig']}").read())
+    assert auto["decision"] == {"mode": "auto", "authorized_by": "Ana"}
     again = json.loads(urllib.request.urlopen(base + f"/api/chat?offset={got['offset']}&timeout=0").read())
     assert again["items"] == []
     # permissao: so responde pedido que existe, uma vez, com allow ou deny
@@ -154,6 +163,7 @@ def test_stdio_server_speaks_the_channel_protocol(project):
         # o servidor continua atendendo tools normais
         _send(proc, {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "stage", "arguments": {}}})
         assert "result" in _wait(out, lambda m: m.get("id") == 3)
+        assert chat.read_activity(project)["tool"] == "stage"
     finally:
         proc.kill()
         proc.wait()
