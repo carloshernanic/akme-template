@@ -7,3 +7,4 @@ theme:
 nav:
   - Visão geral: index.md
   - "Task 1: leitura em blocos nos adapters": task-1-adapters.md
+  - "Task 2: conversão de valores e identidade do nó": task-2-valores.md

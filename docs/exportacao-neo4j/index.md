@@ -32,7 +32,7 @@ Tudo em Cypher puro, pelo driver oficial, sem plugin:
 | # | Tarefa | Status |
 |---|--------|--------|
 | 1 | Leitura em blocos nos adapters e BOM | concluída (aguardando commit) |
-| 2 | Conversão de valores e identidade do nó | a fazer |
+| 2 | Conversão de valores e identidade do nó | concluída (aguardando commit) |
 | 3 | Plano da carga (dry-run) lendo em blocos | a fazer |
 | 4 | Camada de ontologia (Conceito) | a fazer |
 | 5 | Validação do `add_source` lendo a fonte inteira | a fazer |
@@ -41,4 +41,4 @@ Tudo em Cypher puro, pelo driver oficial, sem plugin:
 | 8 | Documentação, guia e verificador da demo | a fazer |
 | 9 | Aceitação real (demo, Olist e Postgres) | a fazer |
 
-Veja a [Task 1](task-1-adapters.md) para o que já mudou.
+Veja a [Task 1](task-1-adapters.md) e a [Task 2](task-2-valores.md) para o que já mudou.
