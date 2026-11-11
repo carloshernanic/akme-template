@@ -1,0 +1,9 @@
+site_name: Exportação Neo4j em Cypher
+docs_dir: docs/exportacao-neo4j
+site_dir: site
+theme:
+  name: material
+  language: pt-BR
+nav:
+  - Visão geral: index.md
+  - "Task 1: leitura em blocos nos adapters": task-1-adapters.md

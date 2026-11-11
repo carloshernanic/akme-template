@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import re
 import unicodedata
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .base import Adapter, AdapterError, require
 
@@ -18,7 +19,7 @@ OFFICE_MISSING = "[{} ignorado: instale o extra 'office' (uv sync --extra office
 class LocalFolderAdapter(Adapter):
     name = "local_folder"
 
-    def __init__(self, path: str | list[str] = "data", encoding: str = "utf-8", delimiter: str = ",",
+    def __init__(self, path: str | list[str] = "data", encoding: str = "utf-8-sig", delimiter: str = ",",
                  recursive: bool = True) -> None:
         self.roots = [Path(p) for p in ([path] if isinstance(path, str) else path)]
         missing = [str(r) for r in self.roots if not r.is_dir()]
@@ -73,21 +74,24 @@ class LocalFolderAdapter(Adapter):
         root, file, sheet = self._source(source)
         return {"file": file, "path": file.relative_to(root).as_posix(), "sheet": sheet}
 
-    def _table(self, source: str, n: int) -> tuple[list[str], list[list[Any]]]:
+    def _rows(self, source: str) -> tuple[list[str], Iterator[list[Any]]]:
+        """Devolve o cabecalho e um gerador de linhas ja ajustadas ao numero de colunas."""
         _, file, sheet = self._source(source)
-        if file.suffix.lower() == ".xlsx":
-            header, rows = _xlsx_table(file, sheet, n)
-        else:
-            with file.open(encoding=self.encoding, newline="") as fh:
-                reader = csv.reader(fh, delimiter=self.delimiter)
-                header = next(reader, [])
-                rows = []
-                for row in reader:
-                    if len(rows) >= n:
-                        break
-                    rows.append([v if v != "" else None for v in row])
-        columns = _header(header)
-        return columns, [(r + [None] * len(columns))[: len(columns)] for r in rows]
+        raw_rows = _xlsx_rows(file, sheet) if file.suffix.lower() == ".xlsx" else self._csv_rows(file)
+        columns = _header(next(raw_rows, []))
+        return columns, ((r + [None] * len(columns))[: len(columns)] for r in raw_rows)
+
+    def _csv_rows(self, file: Path) -> Iterator[list[Any]]:
+        with file.open(encoding=self.encoding, newline="") as fh:
+            reader = csv.reader(fh, delimiter=self.delimiter)
+            header = next(reader, [])
+            yield header
+            for row in reader:
+                yield [v if v != "" else None for v in row]
+
+    def _table(self, source: str, n: int) -> tuple[list[str], list[list[Any]]]:
+        columns, rows = self._rows(source)
+        return columns, list(itertools.islice(rows, n))
 
     def read_schema(self, source: str) -> dict[str, Any]:
         columns, _ = self._table(source, 0)
@@ -96,6 +100,11 @@ class LocalFolderAdapter(Adapter):
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]:
         columns, rows = self._table(source, n)
         return [dict(zip(columns, r)) for r in rows]
+
+    def iter_rows(self, source: str, batch: int = 5000) -> Iterator[list[dict[str, Any]]]:
+        columns, rows = self._rows(source)
+        while chunk := list(itertools.islice(rows, batch)):
+            yield [dict(zip(columns, r)) for r in chunk]
 
     def _doc(self, name: str, file: Path) -> dict[str, Any]:
         pages = _doc_pages(file, self.encoding)
@@ -154,26 +163,21 @@ def _sheet_names(file: Path) -> list[str]:
         wb.close()
 
 
-def _xlsx_table(file: Path, sheet: str | None, n: int) -> tuple[list[Any], list[list[Any]]]:
+def _xlsx_rows(file: Path, sheet: str | None) -> Iterator[list[Any]]:
     require("openpyxl", "office")
     import openpyxl
     wb = openpyxl.load_workbook(file, read_only=True, data_only=True)
     try:
-        header: list[Any] | None = None
-        rows: list[list[Any]] = []
+        first = True
         for raw in wb[sheet].iter_rows(values_only=True):
             values = [_cell(v) for v in raw]
             if all(v is None for v in values):
                 continue
-            if header is None:
-                header = values
-                while header and header[-1] is None:
-                    header.pop()
-                continue
-            if len(rows) >= n:
-                break
-            rows.append(values)
-        return header or [], rows
+            if first:
+                first = False
+                while values and values[-1] is None:
+                    values.pop()
+            yield values
     finally:
         wb.close()
 

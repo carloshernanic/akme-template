@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Iterator
 
 
 class AdapterError(RuntimeError):
@@ -28,6 +28,9 @@ class Adapter(ABC):
 
     @abstractmethod
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]: ...
+
+    def iter_rows(self, source: str, batch: int = 5000) -> Iterator[list[dict[str, Any]]]:
+        raise AdapterError(f"o adapter {self.name} nao le em blocos")
 
     def read_docs(self) -> list[dict[str, Any]]:
         return []
@@ -68,6 +71,19 @@ class SqlAdapter(Adapter):
         cols = [d[0] for d in cur.description]
         cur.close()
         return [dict(zip(cols, r)) for r in rows]
+
+    def _iter_query(self, sql: str, batch: int, cursor: Any = None) -> Iterator[list[dict[str, Any]]]:
+        cur = cursor if cursor is not None else self.conn.cursor()
+        try:
+            cur.execute(sql)
+            cols = [d[0] for d in cur.description]
+            while True:
+                rows = cur.fetchmany(batch)
+                if not rows:
+                    break
+                yield [dict(zip(cols, r)) for r in rows]
+        finally:
+            cur.close()
 
     def execute(self, statement: str) -> Any:
         cur = self.conn.cursor()

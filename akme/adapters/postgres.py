@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterator
 
 from .base import SqlAdapter, require
 
@@ -35,3 +35,7 @@ class PostgresAdapter(SqlAdapter):
 
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]:
         return self.query(f'SELECT * FROM "{self.schema}"."{source}" LIMIT {int(n)}')
+
+    def iter_rows(self, source: str, batch: int = 5000) -> Iterator[list[dict[str, Any]]]:
+        yield from self._iter_query(f'SELECT * FROM "{self.schema}"."{source}"', batch,
+                                    cursor=self.conn.cursor(name="akme_iter"))

@@ -53,3 +53,6 @@ ontology/pending/activity.tmp
 # Configurações de mcp
 .agents
 .gemini
+
+# Site MkDocs gerado
+site/
