@@ -304,14 +304,15 @@
     const total = cqs.length + gaps.length + divs.length;
     if (!total) return "";
     const can = !isAuto() && !!O.ctx.api;
-    const acts = (id, btns) => { const b = busyFor(M, id); return b ? `<span class="m">${esc(b)}</span>` : can ? btns : ""; };
-    const cqRows = cqs.map((q) => `<div class="e1-line mute"><span class="q">${esc(q.question)}</span><span class="m">${esc([PRIO_L[q.priority], q.status && q.status !== "approved" ? STATUS_L[q.status] || q.status : ""].filter(Boolean).join(" · "))}</span>
-      ${acts(q.id, `<button type="button" class="lnk" data-o="acq" data-ref="${esc(q.id)}">alterar</button><button type="button" class="lnk" data-o="rcq" data-ref="${esc(q.id)}">excluir</button>`)}</div>`).join("");
-    const gapRows = gaps.map((g) => `<div class="e1-line mute"><span class="q">${esc(g.question)}</span><span class="m">${esc(GAP_L[g.decision] || g.decision || "")}</span>
-      ${acts(g.id, `<button type="button" class="lnk" data-o="agap" data-ref="${esc(g.id)}">alterar</button>`)}</div>`).join("");
-    const divRows = divs.map((d) => `<div class="e1-line mute"><span class="q">${esc(d.topic)}</span><span class="m">${esc(d.decision === "precedence" ? `Vale ${d.winner || "?"}` : DIV_L[d.decision] || d.decision || "")}</span>
-      ${acts(d.id, `<button type="button" class="lnk" data-o="adiv" data-ref="${esc(d.id)}">alterar</button>`)}</div>`).join("");
-    return `<details class="e1-more" data-od="ap"${M.apOpen ? " open" : ""}><summary>Já aplicadas (${total}): perguntas, lacunas e divergências</summary>
+    const acts = (id, btns) => { const b = busyFor(M, id); return b ? `<span class="m">${esc(b)}</span>` : can ? `<span class="ou-ap-acts">${btns}</span>` : ""; };
+    // linha de item aplicado: cartao com fundo e texto forte, para ler e revisar
+    const row = (txt, meta, btns, id) => `<div class="e1-line ok ou-ap"><span class="i" aria-hidden="true">✓</span><span class="q">${esc(txt)}</span>${meta ? `<span class="ou-ap-meta">${esc(meta)}</span>` : ""}${acts(id, btns)}</div>`;
+    const bt = (o, id, label) => `<button type="button" class="btn btn-outline ou-ap-btn" data-o="${o}" data-ref="${esc(id)}">${label}</button>`;
+    const cqRows = cqs.map((q) => row(q.question, [PRIO_L[q.priority] ? "Prioridade " + PRIO_L[q.priority].toLowerCase() : "", q.status && q.status !== "approved" ? STATUS_L[q.status] || q.status : ""].filter(Boolean).join(" · "),
+      bt("acq", q.id, "Alterar") + bt("rcq", q.id, "Excluir"), q.id)).join("");
+    const gapRows = gaps.map((g) => row(g.question, GAP_L[g.decision] || g.decision || "", bt("agap", g.id, "Alterar"), g.id)).join("");
+    const divRows = divs.map((d) => row(d.topic, d.decision === "precedence" ? `Vale ${d.winner || "?"}` : DIV_L[d.decision] || d.decision || "", bt("adiv", d.id, "Alterar"), d.id)).join("");
+    return `<details class="e1-more ou-ap-wrap" data-od="ap"${M.apOpen ? " open" : ""}><summary><b>Já aplicadas</b> <span class="ou-ap-n">${total}</span><span class="ou-ap-hint">perguntas, lacunas e divergências que você pode alterar</span></summary>
       ${cqRows ? `<h3 class="e1-sub">Perguntas</h3>${cqRows}` : ""}${gapRows ? `<h3 class="e1-sub">Lacunas</h3>${gapRows}` : ""}${divRows ? `<h3 class="e1-sub">Divergências</h3>${divRows}` : ""}
       <p class="p secondary">A alteração vira uma proposta sua e entra junto quando você salvar.</p></details>`;
   }
@@ -328,13 +329,22 @@
   }
   function contextSection(M) {
     const r = M.req, ucs = r.use_cases || [], srcs = sourcesRead(M);
-    const about = [["Propósito", r.purpose], ["Escopo", r.scope], ["Usuários", list(r.users).join(", ")]].filter(([, x]) => x);
-    return `<details class="e1-more" data-od="ctx"${M.ctxOpen ? " open" : ""}><summary>Caso de uso e fontes</summary>
-      <h3 class="e1-sub">Caso de uso</h3>${ucs.length ? ucs.map((u) => `<div class="e1-line mute"><span class="q"><b>${esc(u.name)}</b>${u.description ? " · " + esc(u.description) : ""}</span><span class="m mono">${esc(u.id)}</span></div>`).join("")
-        : `<div class="e1-line mute"><span class="q">${r.no_use_case ? "Sem caso de uso: " + esc(r.no_use_case) : "Nenhum caso de uso registrado."}</span></div>`}
-      ${about.length ? `<h3 class="e1-sub">Sobre o projeto</h3><dl class="kv e1-kv">${about.map(([k, x]) => `<dt>${k}</dt><dd>${esc(x)}</dd>`).join("")}</dl>` : ""}
-      <h3 class="e1-sub">Fontes citadas</h3>${srcs.length ? srcs.map(([p, n]) => `<div class="e1-line mute"><span class="q mono">${esc(p)}</span><span class="m">${plural(n, "citação", "citações")}</span></div>`).join("")
-        : '<div class="e1-line mute"><span class="q">Nenhuma fonte citada ainda.</span></div>'}</details>`;
+    const R = { purpose: r.purpose || "", scope: r.scope || "", users: list(r.users).join(", ") };
+    const E1 = window.AkmeEtapa1;
+    // mesmo cartao de "Sobre o projeto" da etapa 1; sem o modulo, a lista simples
+    const about = !(R.purpose || R.scope || R.users) ? ""
+      : E1 && E1.aboutCard ? E1.aboutCard(R)
+      : `<dl class="kv e1-kv">${[["Propósito", R.purpose], ["Escopo", R.scope], ["Usuários", R.users]].filter(([, x]) => x).map(([k, x]) => `<dt>${k}</dt><dd>${esc(x)}</dd>`).join("")}</dl>`;
+    const ucHtml = ucs.length
+      ? ucs.map((u) => `<article class="ou-uc"><div class="ou-uc-h"><b>${esc(u.name)}</b><span class="ou-ap-meta mono">${esc(u.id)}</span></div>${u.description ? `<p>${esc(u.description)}</p>` : ""}</article>`).join("")
+      : `<article class="ou-uc"><p>${r.no_use_case ? "Sem caso de uso: " + esc(r.no_use_case) : "Nenhum caso de uso registrado."}</p></article>`;
+    const srcHtml = srcs.length
+      ? `<ul class="ou-src">${srcs.map(([p, n]) => { const i = p.lastIndexOf("/"); return `<li><span class="ou-src-f"><b class="mono">${esc(p.slice(i + 1))}</b>${i > 0 ? `<span class="mono">${esc(p.slice(0, i + 1))}</span>` : ""}</span><span class="ou-ap-meta">${plural(n, "citação", "citações")}</span></li>`; }).join("")}</ul>`
+      : '<ul class="ou-src"><li><span class="ou-src-f">Nenhuma fonte citada ainda.</span></li></ul>';
+    return `<details class="e1-more ou-ap-wrap" data-od="ctx"${M.ctxOpen ? " open" : ""}><summary><b>Caso de uso e fontes</b><span class="ou-ap-hint">o que já foi definido na etapa 1 e de onde a IA tirou as propostas</span></summary>
+      <h3 class="e1-sub">Caso de uso</h3>${ucHtml}
+      ${about ? `<h3 class="e1-sub">Sobre o projeto</h3>${about}` : ""}
+      <h3 class="e1-sub">Fontes citadas <span class="ou-n">${srcs.length}</span></h3>${srcHtml}</details>`;
   }
 
   // ---------- render ----------

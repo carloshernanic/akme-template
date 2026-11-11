@@ -470,12 +470,26 @@
         <button type="button" class="lnk" data-e1="req-edit">${editing ? "pronto" : "ajustar"}</button>
       </div></article>`;
   }
+  // sobre o projeto ja aplicado: proposito em destaque, escopo em dentro/fora, usuarios em etiquetas
+  function aboutCard(R) {
+    const sc = String(R.scope || ""), m = sc.match(/^\s*dentro:\s*([\s\S]*?)\s*fora:\s*([\s\S]*)$/i);
+    const scope = !sc ? "" : m
+      ? `<div class="e1-about-scope"><div><span class="e1-about-k in">Dentro</span><p>${esc(m[1].replace(/[.;]\s*$/, ""))}</p></div><div><span class="e1-about-k out">Fora</span><p>${esc(m[2].replace(/[.;]\s*$/, ""))}</p></div></div>`
+      : `<p>${esc(sc)}</p>`;
+    const users = String(R.users || "").split(",").map((u) => u.trim()).filter(Boolean);
+    return `<article class="e1-about">
+      <div class="e1-about-head"><span class="e1-about-ok" aria-hidden="true">✓</span>aplicado</div>
+      ${R.purpose ? `<section><h4>${REQ_LABEL.purpose}</h4><p class="e1-about-lead">${esc(R.purpose)}</p></section>` : ""}
+      ${scope ? `<section><h4>${REQ_LABEL.scope}</h4>${scope}</section>` : ""}
+      ${users.length ? `<section><h4>${REQ_LABEL.users}</h4><div class="e1-about-users">${users.map((u) => `<span>${esc(u)}</span>`).join("")}</div></section>` : ""}
+    </article>`;
+  }
   function screenUc(M) {
     const cards = M.ucs.map(ucCard).join("") + M.applied.ucs.map(appliedUcCard).join("") + M.owns.map(ownCard).join("") + addTile();
     const reqs = M.reqs.length
       ? `<h3 class="e1-sub">Sobre o projeto</h3>${reqCard(M)}`
       : M.appliedReq.purpose || M.appliedReq.scope
-        ? `<h3 class="e1-sub">Sobre o projeto</h3><dl class="kv e1-kv">${REQ_FIELDS.filter((f) => M.appliedReq[f]).map((f) => `<dt>${REQ_LABEL[f]}</dt><dd>${esc(M.appliedReq[f])}</dd>`).join("")}</dl>`
+        ? `<h3 class="e1-sub">Sobre o projeto</h3>${aboutCard(M.appliedReq)}`
         : "";
     const nada = !M.ucs.length && !M.reqs.length && (chosenUcs(M).length || M.appliedReq.no_use_case)
       ? `<div class="e1-empty"><b>Nada a decidir</b><span>Caso de uso já aprovado.</span></div>` : "";
@@ -959,5 +973,5 @@
     }
   }
 
-  window.AkmeEtapa1 = { mount, pendingCount, remaining, covers };
+  window.AkmeEtapa1 = { mount, pendingCount, remaining, covers, aboutCard };
 })();
