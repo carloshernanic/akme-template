@@ -44,7 +44,7 @@
   const GROUP_ORDER = ["uc", "cq", "gap", "div", "glossary", "class", "relation", "term", "mapping", "constraint", "precedence", "source", "other"];
   const GROUP_LABEL = {
     uc: "Caso de uso e requisitos", cq: "Perguntas de competência", gap: "Lacunas", div: "Divergências", glossary: "Glossário",
-    class: "Classes", relation: "Relações", term: "Termos", mapping: "Mappings", constraint: "Restrições", precedence: "Precedências", source: "Exportação Neo4j", other: "Outros",
+    class: "Classes", relation: "Relações", term: "Termos", mapping: "Mapeamentos", constraint: "Restrições", precedence: "Precedências", source: "Exportação Neo4j", other: "Outros",
   };
   const I = {
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -75,7 +75,24 @@
   // a etapa 1 tem tela propria (etapa1.js); o que ela cobre sai da caixa de entrada
   const E1 = () => window.AkmeEtapa1 || null;
   const coveredByE1 = (p) => !!(E1() && E1().covers(p));
-  const e1Count = () => (E1() ? E1().pendingCount(S.data) : 0);
+  // e1Has decide se a etapa 1 abre; e1Count e o numero mostrado, que cai conforme o revisor decide
+  const e1Has = () => (E1() ? E1().pendingCount(S.data) : 0);
+  const e1Count = () => (E1() ? (E1().remaining || E1().pendingCount)(S.data) : 0);
+  function updateE1Count() {
+    const c = $('#rv-mode [data-value="etapa1"] .count');
+    if (c) c.textContent = String(e1Count());
+    renderNav();
+  }
+  // outras propostas tem tela propria no padrao novo (outras.js); sem ela, fica a caixa de entrada antiga
+  const OU = () => window.AkmeOutras || null;
+  const ouCount = () => (OU() ? OU().remaining(S.data) : 0);
+  // tela no padrao novo: a fila lateral, a barra de baixo e os atalhos da caixa antiga nao valem
+  const lean = () => S.mode === "etapa1" || !!OU();
+  function updateOuCount(n) {
+    const c = $('#rv-mode [data-value="outras"] .count');
+    if (c) c.textContent = String(n);
+    renderNav();
+  }
 
   // ---------- utilidades ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -129,12 +146,24 @@
     $("#rv-nav").hidden = name !== "revisao";
     $("#sidebar-mode").textContent = name === "ontologia" ? "ontologia" : "revisão";
     const bar = $("#rv-bar");
-    if (bar) bar.hidden = name !== "revisao" || S.mode === "etapa1";
+    if (bar) bar.hidden = name !== "revisao" || lean();
     if (persist) store("akme-tab", name);
     if (name === "ontologia" && window.AkmeGraph) { window.AkmeGraph.show(); dispatchEvent(new Event("resize")); }
   }
 
-  function renderStage() {
+  // traduz o "missing" do servidor (escrito para o agente, com ids) para uma frase ao revisor
+  function humanMissing(m) {
+    const n = (txt) => (String(txt).split(":")[1] || "").split(",").filter((x) => x.trim()).length;
+    const pl = (k, um, varios) => `${k} ${k === 1 ? um : varios}`;
+    if (/^sem caso de uso/.test(m)) return "Escolher um caso de uso (ou dizer que não há)";
+    if (/^CQs ainda em proposed/.test(m)) return `Decidir ${pl(n(m), "pergunta", "perguntas")}`;
+    if (/^pendentes da etapa 1 sem revisao/.test(m)) return `Decidir ${pl(n(m), "item da etapa 1", "itens da etapa 1")}`;
+    if (/^nenhuma CQ approved/.test(m)) return "Aprovar ao menos uma pergunta";
+    if (/^lacunas ou divergencias em open/.test(m)) return `Decidir ${pl(n(m), "lacuna ou divergência", "lacunas ou divergências")}`;
+    if (/^purpose ou scope vazios/.test(m)) return "Registrar propósito e escopo";
+    return String(m).replace(/\bmapping\b/g, "mapeamento").replace(/\bvalidate\b/g, "validação");
+  }
+    function renderStage() {
     const st = stage();
     const stepper = $("#stepper"), chip = $("#stage-chip"), banner = $("#gate-banner");
     if (!st) { stepper.innerHTML = ""; chip.textContent = ""; banner.hidden = true; return; }
@@ -144,7 +173,7 @@
     chip.innerHTML = `<span class="status-dot ${st.gate_active ? "warning" : "information"}"></span>${esc(st.label)}`;
     chip.title = st.next_step || "";
     // a faixa so aparece quando os requisitos estao abertos: e o unico caso em que o humano precisa ler o que falta
-    const missing = st.missing || [];
+    const missing = (st.missing || []).map(humanMissing);
     banner.className = "callout callout-atencao";
     banner.innerHTML = `${I.warn}<div><div class="t">Requisitos abertos</div><div class="b">${missing.length ? `<ul>${missing.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : esc(st.next_step || "")}</div></div>`;
     banner.hidden = !st.gate_active || S.mode === "etapa1";
@@ -362,7 +391,7 @@
     S.token = data.token || S.token;
     if (S.hooks.onData) S.hooks.onData(data);
     const fresh = pending().filter((p) => !before.has(p.id));
-    if (opts.announce && fresh.length) toast(`${plural(fresh.length, "proposta nova", "propostas novas")} do agente na fila.`, { label: "Ver", onClick: () => { S.scope = "pending"; S.group = null; S.selected = "p:" + fresh[0].id; render(); } });
+    if (opts.announce && fresh.length) toast(`${plural(fresh.length, "proposta nova", "propostas novas")} do agente na fila.`, { label: "Ver", onClick: () => { S.scope = "pending"; S.group = null; S.selected = "p:" + fresh[0].id; if (OU()) S.mode = coveredByE1(fresh[0]) ? "etapa1" : "outras"; setTab("revisao"); render(); } });
     return fresh.length;
   }
 
@@ -892,7 +921,10 @@
     if (!S.selected) {
       const n = counts();
       const done = S.scope === "todo" && n.pending && !n.todo;
-      el.innerHTML = `<div class="callout ${done ? "callout-ok" : "callout-nota"}">${done ? I.ok : I.info}<div><div class="t">${esc(done ? "Tudo decidido" : S.scope === "applied" ? "Nada aplicado ainda" : S.scope === "decided" ? "Nenhuma decisão ainda" : (stage() || {}).label || "Nada a decidir")}</div><div class="b">${esc(done ? (n.unsaved ? "Salve as decisões e depois aplique, na barra de baixo." : "Aplique as decisões na barra de baixo.") : (stage() || {}).next_step || "")}</div></div></div>`;
+      // tudo decidido pede uma acao (salvar ou aplicar): fica como aviso; o resto e tela vazia no formato comum
+      el.innerHTML = done
+        ? `<div class="callout callout-ok">${I.ok}<div><div class="t">Tudo decidido</div><div class="b">${esc(n.unsaved ? "Salve as decisões e depois aplique, na barra de baixo." : "Aplique as decisões na barra de baixo.")}</div></div></div>`
+        : `<div class="rv-empty"><b>${esc(S.scope === "applied" ? "Nada aplicado ainda" : S.scope === "decided" ? "Nenhuma decisão ainda" : "Nada a decidir aqui")}</b><span>${esc(S.scope === "todo" ? `${(stage() || {}).label || ""}. ${(stage() || {}).next_step || ""}`.replace(/^\. /, "") : "Quando houver, aparece nesta lista.")}</span></div>`;
       return;
     }
     el.innerHTML = cardHtml(S.selected);
@@ -901,10 +933,10 @@
     const n = counts();
     const nav = $("#rv-nav");
     const badgeEl = $("#tab-revisao-count");
-    const total = n.todo + e1Count();
+    const total = (OU() ? ouCount() : n.todo) + e1Count();
     badgeEl.textContent = total ? String(total) : "";
     badgeEl.hidden = !total;
-    if (S.mode === "etapa1") { nav.innerHTML = ""; return; }
+    if (lean()) { nav.innerHTML = ""; return; }
     const item = (scope, label, count, hot) => `<button type="button" class="nav-item" data-act="scope" data-scope="${scope}" aria-current="${S.scope === scope && !S.group}">${esc(label)}<span class="count${hot && count ? " hot" : ""}">${count}</span></button>`;
     const groups = GROUP_ORDER.filter((g) => S.order.some((k) => S.cards[k].group === g && !S.cards[k].applied));
     nav.innerHTML = `<div class="group-label">Fila</div>
@@ -926,7 +958,7 @@
     apply.title = !S.api ? "abra com akme review" : n.unsaved ? "salve as decisões antes de aplicar" : !savedDecisions ? "nenhuma decisão salva para aplicar" : "";
     save.title = !S.api ? "abra com akme review para editar" : !S.reviewer.trim() ? "preencha o revisor" : "Atalhos: ← → navegam, a aceita, r rejeita, e edita";
     discardBtn.disabled = S.busy || !Object.keys(S.drafts).length;
-    bar.hidden = S.tab !== "revisao" || S.mode === "etapa1";
+    bar.hidden = S.tab !== "revisao" || lean();
   }
   // aviso da rodada: o agente no chat espera o humano aplicar, e depois segue sozinho
   function renderRound() {
@@ -935,7 +967,7 @@
     const r = round(), n = counts();
     let html = "";
     if (S.api && r.status === "waiting") {
-      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">Decida, salve e clique em <b>Aplicar decididas</b>. Depois volte para o chat da criação de ontologia: o agente segue sozinho, sem você precisar escrever nada.</div></div></div>`;
+      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">${lean() ? "Decida e clique em <b>Conferir e salvar</b>" : "Decida, salve e clique em <b>Aplicar decididas</b>"}. Depois volte para o chat da criação de ontologia: o agente segue sozinho, sem você precisar escrever nada.</div></div></div>`;
     } else if (S.api && r.status === "applied" && !n.todo) {
       html = `<div class="callout callout-ok">${I.ok}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo.</div></div></div>`;
     }
@@ -944,25 +976,34 @@
   }
   // seletor no topo: Etapa 1 (tres telas) ou Outras propostas (caixa de entrada)
   function renderMode() {
-    const el = $("#rv-mode"), root = $("#e1-root"), one = $("#rv-one");
-    if (!E1()) { el.hidden = true; root.hidden = true; one.hidden = false; S.mode = "outras"; return; }
-    const outras = S.order.filter((k) => !S.cards[k].applied).length;
+    const el = $("#rv-mode"), root = $("#e1-root"), one = $("#rv-one"), ouRoot = $("#ou-root");
+    const ou = S.mode !== "etapa1" && !!OU();
+    if (ouRoot) ouRoot.hidden = !ou;
+    if (ou) OU().mount(ouRoot, { data: S.data, api: S.api, reviewer: S.reviewer, toast, onDone: afterOu, onCount: updateOuCount,
+      setBusy: (v) => { S.busy = !!v; }, refresh: async () => { try { await reload(); } catch (e) { /* o poll tenta de novo */ } render(); } });
+    if (!E1()) { el.hidden = true; root.hidden = true; one.hidden = ou; S.mode = "outras"; return; }
+    const outras = OU() ? ouCount() : S.order.filter((k) => !S.cards[k].applied).length;
     const btn = (m, label, n) => `<button type="button" data-act="mode" data-value="${m}" aria-pressed="${S.mode === m}">${esc(label)} <span class="count">${n}</span></button>`;
     el.hidden = false;
     el.innerHTML = `<div class="seg" role="group" aria-label="O que revisar">${btn("etapa1", "Etapa 1", e1Count())}${btn("outras", "Outras propostas", outras)}</div>`;
     const e1 = S.mode === "etapa1";
-    root.hidden = !e1; one.hidden = e1;
-    if (e1) E1().mount(root, { data: S.data, api: S.api, reviewer: S.reviewer, toast, onDone: afterE1, onOutras: () => { S.mode = "outras"; render(); renderBar(); } });
+    root.hidden = !e1; one.hidden = e1 || ou;
+    if (e1) E1().mount(root, { data: S.data, api: S.api, reviewer: S.reviewer, toast, onDone: afterE1, onCount: updateE1Count, onOutras: () => { if (OU()) OU().showApplied(); S.mode = "outras"; render(); renderBar(); } });
   }
   async function afterE1() {
     await reload();
     S.mode = defaultMode();
     render();
   }
+  async function afterOu() {
+    try { await reload(); } catch (e) { /* o poll tenta de novo */ }
+    S.mode = defaultMode();
+    render();
+  }
   function defaultMode() {
     if (!E1()) return "outras";
     const st = stage() || {};
-    return st.requirements_closed || !e1Count() ? "outras" : "etapa1";
+    return st.requirements_closed || !e1Has() ? "outras" : "etapa1";
   }
   function render() {
     buildCards();
@@ -1050,7 +1091,7 @@
     const types = Object.entries(s.applied_types || {}).map(([t, n]) => `${n} ${t.replace("add_", "").replace("_", " ")}`).join(", ");
     body.innerHTML = `<h2 class="h3-semibold">Aplicado</h2>
       <div class="callout callout-ok">${I.ok}<div><div class="t">${plural((out.applied || []).length, "proposta entrou", "propostas entraram")} na ontologia; ${plural((out.rejected || []).length, "rejeitada registrada", "rejeitadas registradas")} no changelog.</div>
-        <div class="b">${types ? `<p>${esc(types)}.</p>` : ""}${(out.held_by_gate || []).length ? `<p>${out.held_by_gate.length} propostas da ontologia ficaram esperando os requisitos fecharem.</p>` : ""}${(out.preexisting_errors || []).length ? `<p>O validate já tinha ${out.preexisting_errors.length} erros antes; eles continuam lá.</p>` : ""}</div></div></div>
+        <div class="b">${types ? `<p>${esc(types)}.</p>` : ""}${(out.held_by_gate || []).length ? `<p>${out.held_by_gate.length} propostas da ontologia ficaram esperando os requisitos fecharem.</p>` : ""}${(out.preexisting_errors || []).length ? `<p>A validação já tinha ${out.preexisting_errors.length} erros antes; eles continuam lá.</p>` : ""}</div></div></div>
       <div class="callout callout-back">${I.info}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">${waited ? "O agente estava esperando esta aplicação e já está seguindo para o próximo passo." : "Diga ao agente que aplicou, para ele seguir."}${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
       <div class="dlg-actions"><button type="button" class="btn" data-act="dlg-close">Fechar</button></div>`;
     try { await reload(); } catch (e) {}
@@ -1141,7 +1182,7 @@
     renderNav(); renderProgress(); renderBar();
   }
   function onKey(e) {
-    if (S.tab !== "revisao" || S.mode === "etapa1" || $("#rv-dialog").open) return;
+    if (S.tab !== "revisao" || lean() || $("#rv-dialog").open) return;
     const tag = (e.target.tagName || "").toLowerCase();
     if (["input", "textarea", "select"].includes(tag) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "j" || e.key === "n") { e.preventDefault(); go(1); }
@@ -1199,6 +1240,7 @@
       <div class="rv-round" id="rv-round" hidden></div>
       <div class="rv-mode" id="rv-mode" hidden></div>
       <div class="e1-root" id="e1-root" hidden></div>
+      <div class="e1-root" id="ou-root" hidden></div>
       <div class="rv-one" id="rv-one"><div class="rv-progress" id="rv-progress"></div><div class="rv-detail" id="rv-detail"></div><div class="rv-cardnav" id="rv-cardnav"></div></div>
     </div>
     <dialog class="dlg" id="rv-dialog"><div class="dlg-body" id="rv-dialog-body"></div></dialog>`;

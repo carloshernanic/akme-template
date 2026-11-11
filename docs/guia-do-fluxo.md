@@ -54,7 +54,7 @@ O que entrou (desenho em `docs/superpowers/specs/2026-10-30-revisao-de-requisito
 
 | Peça | O que é | Onde vive |
 |---|---|---|
-| Caso de uso | Nome, descrição, atores e fluxo, como na LOT. Um ou vários por ontologia. Opcional, mas o agente sempre pergunta | `content.yml` → `requirements.use_cases` |
+| Caso de uso | Nome, descrição, atores e fluxo, como na LOT. Um ou vários por ontologia. O agente propõe de 2 a 3 tirados das fontes e você escolhe ou escreve o seu na página | `content.yml` → `requirements.use_cases` |
 | CQ completa | Pergunta, tipo (seis tipos), conceitos envolvidos, evidência com arquivo e trecho, prioridade, status (`proposed`, `approved`, `reserved`, `rejected`, `deprecated`), resposta esperada quando reservada, quem propôs e quem revisou | `requirements.competency_questions` |
 | Lacuna | Pergunta que o caso de uso sugere e os dados não respondem, com motivo e o que faltaria. As marcadas "pedir ao cliente" formam o **data request** | `requirements.gaps` |
 | Divergência | Duas fontes que discordam, com citação de cada uma, a hipótese da IA rotulada como hipótese, e a decisão (qual prevalece, são termos distintos, perguntar ao especialista, descartar) | `requirements.divergences` |
@@ -111,53 +111,57 @@ da IA: o agente não consegue se autoaprovar.
 
 No chat: "mapeie o domínio do cliente". O agente:
 
-1. **Pergunta o caso de uso.** Nome, uma descrição, atores e fluxo. Pode responder "não tem"; ele
-   registra o motivo e segue, avisando que as CQs sairão mais genéricas.
-2. **Lê as fontes.** `profile` (colunas, tipos, chaves, siglas), `read_document` página a página,
-   `find_in_sources` para localizar termos.
-3. **Propõe propósito, escopo e usuários**, e em seguida **dez CQs**, duas por tipo quando o
-   domínio permite (classificação e hierarquia, relação entre conceitos, atributos, quantidade e
-   agregação, tempo e estado, regras e restrições), cada uma com conceitos e evidência citada.
-   Propõe também as **lacunas** e as **divergências** que encontrou. Tudo vira pendente; no chat
-   aparece só a lista curta.
-4. **Abre a página de revisão** (`open_review`: roda o `export`, sobe o servidor local em
-   `http://127.0.0.1:8765` em segundo plano e abre o navegador) e diz a URL em uma linha. Se
-   preferir, você mesmo roda `uv run akme review`.
+O caso de uso vem antes de tudo e é escolhido na página, em duas rodadas de revisão.
+
+1. **Lê as fontes.** `profile` (colunas, tipos, chaves, siglas), `read_document` página a página,
+   `find_in_sources` para localizar termos. Com Databricks, pergunta antes quais catálogos ou
+   schemas perfilar.
+2. **Propõe de 2 a 3 casos de uso** tirados das fontes (nome, para que serve, quem usa), cada um
+   com a evidência, e **abre a página na hora** (`open_review`). Na tela "Caso de uso" você marca
+   os que valem, escreve o seu ou diz "Não temos caso de uso", e clica em **Conferir e salvar**,
+   que grava e aplica com o seu nome. O agente estava esperando e segue sozinho.
+3. **Propõe propósito, escopo e usuários**, e em seguida **dez CQs** ligadas aos casos escolhidos,
+   duas por tipo quando o domínio permite (classificação e hierarquia, relação entre conceitos,
+   atributos, quantidade e agregação, tempo e estado, regras e restrições), cada uma com conceitos
+   e evidência citada. Propõe também as **lacunas** e as **divergências** que encontrou. Tudo vira
+   pendente; no chat aparece só a lista curta.
+4. **Abre a página de novo**, nas telas "Perguntas" e "Lacunas e divergências", e diz a URL em
+   uma linha. Se preferir, você mesmo roda `uv run akme review`.
 
 Na página (vista **Revisão**, a inicial):
 
-- A barra lateral mostra o **fluxo LOT** com a etapa atual, a **fila** (a decidir, decididas,
-  aplicadas) e os tipos de proposta. O cabeçalho diz "Etapa X de 6" e uma faixa no topo diz o
-  próximo passo.
-- Coloque seu nome em **Revisor** (sem ele, nada salva).
-- Uma proposta por vez, em um cartão grande: campos com rótulo em português, evidência com
-  "conferir nas fontes" e, nas relações, "o que o dado mostra" (nulos, órfãos, multiplicidade
-  observada e alerta de fanout). Uma barra de progresso no topo diz quantas faltam; Anterior e
-  Próxima embaixo do cartão. A barra lateral filtra a fila (a decidir, decididas, aplicadas) e o
-  tipo de proposta.
-- Em cada item: **Aceitar** ou **Rejeitar** (com motivo). Em texto, "Ajustar texto antes de
-  aceitar" abre só os campos editáveis (rótulo, comentário, definição, sinônimos). Em CQs, aceitar
-  pede **Prioridade** e **Uso da pergunta**: "Usar na construção" (vira exemplo para o agente) ou
-  "Guardar para o teste" (gabarito do eval; pede a resposta esperada). Crie CQs suas em
-  **Nova pergunta escrita pelo revisor**.
-- Em cada lacuna: pedir o dado ao cliente, reformular, descartar ou deixar em aberto.
-- Em cada divergência: qual fonte prevalece, são conceitos distintos, perguntar ao especialista,
-  descartar ou deixar em aberto. "Prevalece" vira candidata a regra de precedência na etapa 3.
-- Atalhos: setas percorrem as propostas, `a` aceita, `r` rejeita, `e` edita.
-- **Salvar decisões.** Grava o bloco `review` em `ontology/pending/*.yml`. Nada foi aplicado ainda.
-- **Aplicar decididas.** Pede o nome de quem aprova, roda o lote numa cópia com `validate` e só
-  promove se não surgir erro novo. Mostra o resumo e a etapa seguinte. Equivale a dizer "aplica"
-  no chat ou a `uv run akme apply --all-reviewed --approved-by SEU_NOME` na CLI.
+- A barra lateral mostra o **fluxo LOT** com a etapa atual. O cabeçalho diz "Etapa X de 6" e,
+  enquanto os requisitos estão abertos, uma faixa no topo diz o que falta.
+- Um seletor no topo separa **Etapa 1** (telas Caso de uso, Perguntas, Lacunas e divergências e
+  Glossário; só aparecem as que têm algo a decidir) de **Outras propostas** (classes, relações,
+  termos, mapeamentos, restrições, precedências, fontes e alterações do que já foi aplicado). O
+  número ao lado de cada um cai conforme você decide.
+- Cada proposta é um cartão enxuto: título, fonte citada, **ver detalhes** (evidência com
+  "conferir", justificativa da IA e, nas relações, o que o dado mostra) e os botões **✓ Aceitar**
+  e **✕ Rejeitar**. Rejeitar pede o motivo em botões. O que já foi decidido vira uma linha com
+  **rever**. Textos ajustáveis (rótulo, comentário, definição, sinônimos) ficam em "ajustar
+  texto". Em CQs, aceitar pede a **Prioridade**. **Aceitar tudo** aceita o que ainda está sem
+  decisão.
+- Em cada lacuna: pedir o dado ao cliente, reformular, descartar ou deixar em aberto. Em cada
+  divergência: qual fonte vale, são coisas diferentes, perguntar ao especialista, descartar ou
+  deixar em aberto. "Vale a fonte X" vira candidata a regra de precedência na etapa 3. Deixar em
+  aberto mantém a etapa 1 aberta até alguém decidir.
+- Criar algo (caso de uso, pergunta) ou alterar o que já foi aplicado (em **Já aplicadas**, dentro
+  de Outras propostas) abre uma janela no centro da tela.
+- **Conferir e salvar.** Mostra o resumo e pede o nome de quem aprova. **Salvar e aplicar** grava
+  as decisões e roda o lote numa cópia com `validate`; só promove se não surgir erro novo.
+  Equivale a dizer "aplica" no chat ou a `uv run akme apply --all-reviewed --approved-by SEU_NOME`
+  na CLI.
 
-A fila atualiza sozinha: quando o agente propõe algo novo, o item aparece com um aviso; quando o
-agente aplica pelo chat, o item sai da fila. Rascunhos locais não se perdem.
+A página atualiza sozinha: quando o agente propõe algo novo, o item aparece; quando o agente
+aplica pelo chat, o item sai. O que você decidiu e ainda não salvou continua lá enquanto a página
+estiver aberta.
 
 Enquanto a página está aberta, o agente fica esperando no chat (`wait_for_review`) e a página
-mostra "O agente está esperando você aplicar". Depois de **Aplicar decididas**, a página diz
-**"Volte para o chat da criação de ontologia"**: o agente já recebeu o resumo ("8 aceitas,
-2 rejeitadas, aplicadas por você") e seguiu para o próximo passo, sem você escrever nada. Se
-preferir decidir no chat, escreva lá: o agente para de esperar, lê os pendentes, resume e pede
-**"aplica"** com seu nome.
+mostra "O agente está esperando você aplicar". Depois de **Salvar e aplicar**, a página diz para
+voltar ao chat: o agente já recebeu o resumo ("8 aceitas, 2 rejeitadas, aplicadas por você") e
+seguiu para o próximo passo, sem você escrever nada. Se preferir decidir no chat, escreva lá: o
+agente para de esperar, lê os pendentes, resume e pede **"aplica"** com seu nome.
 `apply_reviewed` grava em `content.yml` e `schema.ttl`, espelha as reservadas em
 `validation/questions.yml` e registra tudo em `changelog.yml`. Se menos de cinco CQs foram aceitas,
 ele oferece uma segunda rodada. Termine de salvar na página antes de dizer "aplica".

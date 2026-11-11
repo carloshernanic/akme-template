@@ -12,6 +12,7 @@ def test_index_has_shell_and_loads_modules():
         assert needle in html, needle
     assert "<style>" not in html, "o CSS vive em akme.css"
     assert html.index('src="etapa1.js"') < html.index('src="review.js"'), "a etapa 1 carrega antes da revisao"
+    assert html.index('src="outras.js"') < html.index('src="review.js"'), "outras propostas carrega antes da revisao"
 
 
 def test_review_js_talks_to_every_endpoint():
@@ -37,6 +38,54 @@ def test_etapa1_tela_de_perguntas():
     for needle in ("+ Criar pergunta", "Nova pergunta", "Fora dos casos escolhidos", "Já aplicadas",
                    'data-e1="cq-dec"', 'data-e1="cq-prio"', 'data-e1="cq-why"', "Outro motivo", '"add_competency_question"'):
         assert needle in js, needle
+
+
+def test_etapa1_tela_de_lacunas_e_salvar():
+    js = (DOCS / "etapa1.js").read_text(encoding="utf-8")
+    for needle in ("Pedir o dado ao cliente", "Reformular a pergunta", "nenhuma das duas? outras opções", "São coisas diferentes",
+                   "Conferir e salvar", "Salvar e aplicar", "Seu nome", '"/api/apply"', 'stage: "requirements"',
+                   '"/api/review"', '"/api/propose"', '"add_gap"', '"add_divergence"'):
+        assert needle in js, needle
+    assert "Em construção" not in js
+
+
+def test_etapa1_mostra_so_telas_com_itens_e_respeita_o_modo_automatico():
+    js = (DOCS / "etapa1.js").read_text(encoding="utf-8")
+    for needle in ("function visibleSteps(", "function remaining(", "onCount", "Modo automático", 'dataset.decisionMode === "auto"'):
+        assert needle in js, needle
+    review = (DOCS / "review.js").read_text(encoding="utf-8")
+    assert "onCount: updateE1Count" in review and "e1Has()" in review
+    css = (DOCS / "akme.css").read_text(encoding="utf-8")
+    assert "body.chat-open .e1-foot" in css, "o rodape da etapa 1 abre espaco para a conversa"
+
+
+def test_etapa1_tela_do_glossario():
+    js = (DOCS / "etapa1.js").read_text(encoding="utf-8")
+    for needle in ('"add_glossary"', "Glossário", "Confira cada sigla.", 'data-e1="gl-dec"', 'data-e1="gl-all"', "Não é usada"):
+        assert needle in js, needle
+    review = (DOCS / "review.js").read_text(encoding="utf-8")
+    assert "Conferir e salvar" in review, "a faixa do agente esperando fala do botao da etapa 1"
+
+
+def test_base_comum_em_portugues_e_sem_ids_crus():
+    graph = (DOCS / "graph.js").read_text(encoding="utf-8")
+    for velho in ('"relacoes"', "Competency questions", "<h3>Relacoes</h3>", "Sem validate", '"pitfalls"', "Glossario<"):
+        assert velho not in graph, velho
+    for novo in ("Propósito e perguntas", "mapeamentos", "Armadilhas de modelagem", "Glossário"):
+        assert novo in graph, novo
+    review = (DOCS / "review.js").read_text(encoding="utf-8")
+    assert "function humanMissing" in review and "st.missing || []).map(humanMissing)" in review
+    css = (DOCS / "akme.css").read_text(encoding="utf-8")
+    assert ".rv-section > h3, .panel-section h3, .e1-sub {" in css
+    assert ".rv-empty, .e1-empty, .chat-empty {" in css
+
+
+def test_aba_ontologia_no_padrao():
+    graph = (DOCS / "graph.js").read_text(encoding="utf-8")
+    assert '"Árvore lateral"' not in graph and "Nenhuma classe escolhida" in graph
+    assert "guardada para o teste" in graph and 'class="onto-cq"' in graph and "levelOf(" in graph
+    css = (DOCS / "akme.css").read_text(encoding="utf-8")
+    assert "grid-template-columns: repeat(6, minmax(0, 1fr))" in css
 
 
 def test_graph_js_exposes_init_and_update():
@@ -66,3 +115,18 @@ def test_export_copies_the_page_into_docs(project):
     assert export(project)["page_updated"] == []
     (project.docs_dir / "akme.css").write_text("alterado", encoding="utf-8")
     assert export(project)["page_updated"] == ["akme.css"]
+
+
+def test_outras_propostas_no_padrao_novo():
+    js = (DOCS / "outras.js").read_text(encoding="utf-8")
+    for needle in ("window.AkmeOutras", "Conferir e salvar", "Salvar e aplicar", "Aceitar tudo", "Já aplicadas", "ver detalhes", "rever",
+                   '"/api/review"', '"/api/propose"', '"/api/apply"', '"update_gap"', '"update_divergence"', '"remove_competency_question"',
+                   "Modo automático"):
+        assert needle in js, needle
+    review = (DOCS / "review.js").read_text(encoding="utf-8")
+    assert "window.AkmeOutras" in review and 'id="ou-root"' in review, "review.js monta outras.js e cai na caixa antiga sem ele"
+
+
+def test_export_copia_outras_js():
+    from akme.tools.export import PAGE_FILES
+    assert "outras.js" in PAGE_FILES
