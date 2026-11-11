@@ -115,6 +115,8 @@
 
   function ingest(items) {
     for (const it of items) {
+      // cada sessao nova do agente comeca uma conversa limpa; o que veio antes fica so no log
+      if (it.role === "event" && it.kind === "session_start") { S.items = []; S.verdicts = {}; S.unread = 0; continue; }
       if (it.role === "verdict") S.verdicts[it.request_id] = it;
       if (!S.open && (it.role === "agent" || it.role === "permission")) S.unread++;
       S.items.push(it);
