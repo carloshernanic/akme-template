@@ -68,7 +68,7 @@
     const log = $("#chat-log");
     const visible = S.items.filter((i) => i.role !== "verdict" && i.role !== "event");
     log.innerHTML = visible.length ? visible.map(renderItem).join("")
-      : `<div class="chat-empty"><p>Converse com o agente aqui, sem voltar ao terminal.</p><p class="tertiary">O Claude Code precisa estar aberto com o canal ligado:</p><pre><code>${esc(START_CMD)}</code></pre></div>`;
+      : `<div class="chat-empty"><b>Converse com o agente aqui, sem voltar ao terminal.</b><p>O Claude Code precisa estar aberto com o canal ligado:</p><pre><code>${esc(START_CMD)}</code></pre></div>`;
     log.scrollTop = log.scrollHeight;
     renderStatus();
     const badge = $("#chat-unread");

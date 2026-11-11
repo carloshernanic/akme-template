@@ -42,7 +42,7 @@ def test_skill_guards_apply_reviewed_and_lists_requirement_checks():
 def test_skill_sends_the_human_to_the_page_not_the_file():
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assert "open_review" in skill and "`stage`" in skill
-    assert "Aplicar decididas" in skill
+    assert "Salvar e aplicar" in skill and "Aplicar decididas" not in skill
     assert "aponte o humano para `docs/index.html`" not in skill
     assert "Etapa X de 6 concluida" in skill
 
@@ -60,3 +60,11 @@ def test_skill_asks_decision_mode_first_and_describes_auto_mode():
     assert "## Modo de decisao" in skill and "choose_decision_mode" in skill
     assert 'reviewer: "IA"' in skill and 'approved_by: "IA"' in skill
     assert "--no-dry-run" in skill and "request_from_client" in skill
+
+
+def test_skill_asks_use_case_on_the_page_first():
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    assert "de 2 a 3 casos de uso" in skill
+    assert "Primeira rodada: so os casos de uso" in skill and "Segunda rodada" in skill
+    assert "Nao pergunte o caso de uso no chat" in skill
+    assert "1. Pergunte o caso de uso" not in skill

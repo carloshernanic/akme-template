@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo da revisão</title>
+<style>
+  :root { --bg:#10121B; --s1:#141721; --s2:#1b1f2b; --ln:rgba(250,250,251,.10); --ln2:rgba(250,250,251,.20);
+    --tx:rgba(250,250,251,.88); --mu:rgba(250,250,251,.58); --ac:#00A9F4; --ok:#4ade80; --er:#f87171; --wa:#fbbf24; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font:14px/20px Inter, system-ui, sans-serif; }
+  .mono { font-family:"Roboto Mono", ui-monospace, monospace; font-size:12px; color:var(--mu); }
+  .mu { color:var(--mu); font-size:12px; line-height:16px; }
+  .lab { color:var(--mu); font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
+  .req { color:var(--wa); text-transform:none; letter-spacing:0; margin-left:6px; }
+  .app { display:flex; min-height:100vh; }
+  aside { width:220px; border-right:1px solid var(--ln); background:var(--s1); padding:16px 0; flex-shrink:0; }
+  aside .brand { padding:0 16px 16px; font-weight:700; }
+  aside .grp { padding:12px 16px 4px; }
+  aside a { display:flex; padding:6px 16px; color:var(--tx); text-decoration:none; cursor:pointer; }
+  aside a span:first-child { flex:1; } aside a.on { background:var(--s2); box-shadow:inset 2px 0 0 var(--ac); }
+  main { flex:1; min-width:0; padding:24px 28px 90px; max-width:1100px; }
+  .steps { display:flex; border:1px solid var(--ln); margin-bottom:24px; }
+  .steps button { flex:1; background:none; border:0; border-right:1px solid var(--ln); color:var(--mu); padding:10px 12px; text-align:left; font:inherit; cursor:pointer; }
+  .steps button:last-child { border:0; }
+  .steps .n { display:inline-flex; width:22px; height:22px; border-radius:99px; align-items:center; justify-content:center; font-size:12px; border:1px solid var(--ln2); margin-right:8px; }
+  .steps .cur { background:var(--s2); color:var(--tx); box-shadow:inset 0 -2px 0 var(--ac); }
+  .steps .cur .n { background:var(--tx); color:var(--bg); border-color:var(--tx); }
+  .steps .done .n { background:var(--ok); color:var(--bg); border-color:var(--ok); }
+  h1 { font-size:24px; line-height:32px; font-weight:600; margin:0 0 4px; }
+  .sub { color:var(--mu); margin:0 0 20px; }
+  .card { border:1px solid var(--ln); background:var(--s1); padding:16px; margin-bottom:12px; }
+  .cqcard { display:grid; grid-template-columns:1fr 220px; gap:20px; }
+  .cqcard .side { border-left:1px solid var(--ln); padding-left:16px; }
+  .q { font-size:16px; font-weight:600; margin:4px 0 10px; }
+  .chip { display:inline-flex; align-items:center; height:22px; padding:0 8px; border:1px solid var(--ln2); border-radius:99px; font-size:12px; color:var(--mu); margin:0 4px 4px 0; }
+  .ev { border-left:2px solid var(--ac); background:var(--s2); padding:6px 10px; font-size:12px; color:var(--mu); margin-top:8px; }
+  .seg { display:flex; border:1px solid var(--ln2); margin-bottom:12px; }
+  .seg button { flex:1; background:none; border:0; border-right:1px solid var(--ln2); color:var(--mu); padding:5px 6px; font:inherit; font-size:13px; cursor:pointer; }
+  .seg button:last-child { border:0; } .seg button.on { background:var(--tx); color:var(--bg); font-weight:600; }
+  .seg.miss { border-color:var(--wa); }
+  textarea, input[type=text] { width:100%; background:transparent; border:1px solid var(--ln2); color:var(--tx); font:inherit; padding:6px 10px; resize:vertical; }
+  textarea.miss, input.miss { border-color:var(--wa); }
+  textarea:focus, input:focus { outline:2px solid var(--ac); outline-offset:-1px; }
+  .btn { background:none; border:1px solid var(--ln2); color:var(--tx); font:inherit; padding:6px 14px; cursor:pointer; }
+  .btn.pri { background:var(--tx); color:var(--bg); border-color:var(--tx); font-weight:600; }
+  .btn:disabled { opacity:.35; cursor:not-allowed; }
+  .new { border:1px dashed var(--ln2); padding:12px 16px; color:var(--mu); cursor:pointer; margin-bottom:24px; }
+  .new:hover { color:var(--tx); }
+  .ucgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:12px; margin-bottom:12px; }
+  .uc { border:1px solid var(--ln); background:var(--s1); padding:14px; cursor:pointer; position:relative; }
+  .uc:hover { border-color:var(--ln2); }
+  .uc.sel { border-color:var(--ac); box-shadow:inset 0 0 0 1px var(--ac); }
+  .uc .ck { position:absolute; top:12px; right:12px; width:18px; height:18px; border:1px solid var(--ln2); display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .uc.sel .ck { background:var(--ac); border-color:var(--ac); color:var(--bg); }
+  .uc .t { font-weight:600; margin-bottom:4px; padding-right:26px; }
+  .foot { position:fixed; left:220px; right:0; bottom:0; background:rgba(20,23,33,.96); border-top:1px solid var(--ln); padding:12px 28px; display:flex; align-items:center; gap:12px; }
+  .foot .msg { flex:1; color:var(--mu); font-size:13px; }
+  .foot .msg b { color:var(--wa); font-weight:600; }
+  .ok { color:var(--ok); }
+  .applied { display:flex; align-items:center; gap:10px; border:1px solid var(--ln); padding:10px 14px; margin-bottom:8px; }
+  .hidden { display:none; }
+  .toast { position:fixed; right:24px; bottom:80px; background:var(--s2); border:1px solid var(--ln2); padding:10px 14px; box-shadow:0 4px 8px rgba(0,0,0,.5); }
+  .note { border:1px solid var(--ln); padding:8px 12px; margin-bottom:16px; font-size:12px; color:var(--mu); }
+  @media (max-width: 760px) { aside { display:none; } .foot { left:0; } .cqcard { grid-template-columns:1fr; } .cqcard .side { border:0; padding:0; } main { padding:16px 16px 110px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">Akme <span class="mu">ontologia</span></div>
+    <div class="grp lab">Revisão</div>
+    <a data-go="0"><span>Caso de uso</span><span class="mu" id="sb0"></span></a>
+    <a data-go="1"><span>Perguntas</span><span class="mu" id="sb1"></span></a>
+    <a data-go="2"><span>Lacunas e divergências</span><span class="mu" id="sb2"></span></a>
+    <div class="grp lab" style="margin-top:12px">Contexto</div>
+    <a><span>Fontes lidas</span><span class="mu">3</span></a>
+  </aside>
+  <main>
+    <div class="note">Protótipo para navegar: nada é salvo. Clique à vontade.</div>
+    <nav class="steps" id="steps"></nav>
+    <section id="v0"></section>
+    <section id="v1" class="hidden"></section>
+    <section id="v2" class="hidden"></section>
+  </main>
+</div>
+<div class="foot"><span class="msg" id="msg"></span><button class="btn" id="back">← Voltar</button><button class="btn pri" id="next"></button></div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+const S = {
+  step: 0,
+  ucs: [
+    { id:"UC-01", name:"Carteira e faturamento", desc:"Acompanhar faturamento por região e clientes que pararam de comprar.", who:"analista comercial", src:"briefing.docx, p. 2", sel:true },
+    { id:"UC-02", name:"Mix de produtos", desc:"Entender quais categorias puxam o ticket médio.", who:"gerente de categoria", src:"reuniao-kickoff.md", sel:false },
+    { id:"UC-03", name:"Crédito e inadimplência", desc:"Ver clientes com pedidos faturados e não pagos.", who:"financeiro", src:"glossario.md, linha 40", sel:false },
+  ],
+  own: null,
+  cqs: [
+    { id:"CQ-001", q:"Qual o faturamento por UF no último trimestre?", type:"Quantidade e agregação", concepts:["Pedido","Cliente","Faturamento"], ev:["pedidos.csv · vl_total","vl_total por pedido, com status FATURADO"], uc:"UC-01", dec:null, prio:"Alta", use:null, reason:"", answer:"" },
+    { id:"CQ-002", q:"Quais clientes ativos não compraram nos últimos 90 dias?", type:"Tempo e estado", concepts:["Cliente","Pedido"], ev:["glossario.md · linha 17","cliente ativo é quem tem pedido faturado nos últimos 180 dias"], uc:"UC-01", dec:null, prio:null, use:null, reason:"", answer:"" },
+  ],
+  applied: [{ id:"CQ-003", q:"Qual o ticket médio por categoria de produto?", prio:"Baixa", use:"Guardar para o teste" }],
+  gap: { id:"L-01", q:"Quais pedidos foram entregues com atraso?", why:"Os dados não têm data de entrega.", dec:null, reason:"" },
+  div: { id:"D-01", term:"cliente ativo", a:["financeiro","glossario.md · linha 17","pedido faturado nos últimos 180 dias"], b:["ERP","clientes.csv · fl_ativo","campo fl_ativo do cadastro"], dec:null, reason:"" },
+};
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $ = (id) => document.getElementById(id);
+
+// --- o que falta em cada etapa
+function missUC() {
+  const chosen = S.ucs.filter(u => u.sel).length + (S.own && S.own.name.trim() && S.own.desc.trim() ? 1 : 0);
+  const m = [];
+  if (S.own && (!S.own.name.trim() || !S.own.desc.trim())) m.push("completar o caso de uso escrito por você");
+  if (!chosen) m.push("escolher pelo menos um caso de uso");
+  return m;
+}
+function missCQ(c) {
+  const m = [];
+  if (!c.dec) m.push("decisão");
+  if (c.dec === "rej" && !c.reason.trim()) m.push("motivo");
+  if (c.dec === "ok") { if (!c.prio) m.push("prioridade"); if (!c.use) m.push("uso"); if (c.use === "teste" && !c.answer.trim()) m.push("resposta esperada"); }
+  return m;
+}
+function missGD(x) { const m = []; if (!x.dec) m.push("decisão"); if (x.dec && x.dec !== "open" && !x.reason.trim()) m.push("motivo"); return m; }
+const pendingCQ = () => S.cqs.filter(c => missCQ(c).length).length;
+const pendingGD = () => (missGD(S.gap).length ? 1 : 0) + (missGD(S.div).length ? 1 : 0);
+const stepDone = [() => !missUC().length, () => !pendingCQ(), () => !pendingGD()];
+
+function seg(name, opts, val, miss) {
+  return `<div class="seg${miss ? " miss" : ""}">${opts.map(([v,l]) => `<button data-seg="${name}" data-v="${v}" class="${v===val?"on":""}">${l}</button>`).join("")}</div>`;
+}
+function lab(t, req) { return `<div class="lab">${t}${req ? `<span class="req">${req}</span>` : ""}</div>`; }
+
+// --- tela 1
+function renderUC() {
+  const own = S.own;
+  $("v0").innerHTML = `
+    <h1>Caso de uso</h1>
+    <p class="sub">Para que serve esta ontologia? Marque as propostas que valem, ou escreva a sua.</p>
+    <div class="ucgrid">${S.ucs.map((u,i) => `
+      <div class="uc${u.sel?" sel":""}" data-uc="${i}">
+        <div class="ck">${u.sel?"✓":""}</div>
+        <div class="t">${esc(u.name)}</div>
+        <div style="margin-bottom:8px">${esc(u.desc)}</div>
+        <span class="chip">${esc(u.who)}</span>
+        <div class="mono" style="margin-top:6px">IA · ${esc(u.src)}</div>
+      </div>`).join("")}
+    </div>
+    ${own ? `<div class="card" style="border-color:var(--ac)">
+        <div class="mono" style="margin-bottom:8px">Escrito por você</div>
+        ${lab("Nome", "obrigatório")}<input type="text" data-own="name" class="${own.name.trim()?"":"miss"}" placeholder="Ex.: Giro de estoque" value="${esc(own.name)}">
+        <div style="height:10px"></div>
+        ${lab("O que precisa responder", "obrigatório · uma frase")}<input type="text" data-own="desc" class="${own.desc.trim()?"":"miss"}" placeholder="Ex.: saber quais produtos ficam parados mais de 60 dias" value="${esc(own.desc)}">
+        <div style="margin-top:10px"><button class="btn" data-act="own-off">Remover</button></div>
+      </div>`
+      : `<div class="new" data-act="own-on">+ Escrever o meu caso de uso <span class="mu">(nome e uma frase)</span></div>`}
+  `;
+}
+
+// --- tela 2: layout de 30/out, com menos texto
+function renderCQ() {
+  const pend = S.cqs.map((c) => {
+    const m = missCQ(c);
+    return `<article class="card cqcard" data-cq="${c.id}">
+      <div>
+        <div class="mono">${c.id} · proposta pela IA · ${c.uc}</div>
+        <div class="q">${esc(c.q)}</div>
+        <span class="chip">${esc(c.type)}</span>${c.concepts.map(x => `<span class="chip">${esc(x)}</span>`).join("")}
+        <div class="ev"><span class="mono" style="color:var(--ac)">${esc(c.ev[0])}</span> · “${esc(c.ev[1])}”</div>
+      </div>
+      <div class="side">
+        ${lab("Decisão", "obrigatório")}${seg("dec:"+c.id, [["ok","Aceitar"],["rej","Rejeitar"]], c.dec, !c.dec)}
+        ${c.dec === "rej" ? `${lab("Motivo", "obrigatório")}<textarea rows="2" data-f="reason:${c.id}" class="${c.reason.trim()?"":"miss"}" placeholder="Por que não serve?">${esc(c.reason)}</textarea>` : ""}
+        ${c.dec === "ok" ? `${lab("Prioridade", "obrigatório")}${seg("prio:"+c.id, [["Alta","Alta"],["Média","Média"],["Baixa","Baixa"]], c.prio, !c.prio)}
+          ${lab("Uso", "obrigatório")}${seg("use:"+c.id, [["construcao","Construção"],["teste","Teste"]], c.use, !c.use)}
+          ${c.use === "teste" ? `${lab("Resposta esperada", "obrigatório")}<textarea rows="2" data-f="answer:${c.id}" class="${c.answer.trim()?"":"miss"}" placeholder="O que a ontologia deve responder">${esc(c.answer)}</textarea>` : ""}` : ""}
+        <div class="mu" style="margin-top:4px">${m.length ? "Falta: " + m.join(", ") : '<span class="ok">✓ pronto</span>'}</div>
+      </div>
+    </article>`;
+  }).join("");
+  $("v1").innerHTML = `
+    <h1>Perguntas de competência</h1>
+    <p class="sub">O que a ontologia precisa saber responder.</p>
+    <div class="lab">Pendentes · ${S.cqs.length}</div>
+    ${pend}
+    <div class="new" data-act="new-cq">+ Nova pergunta</div>
+    <div class="lab">Aplicadas · ${S.applied.length}</div>
+    ${S.applied.map(a => `<div class="applied"><span class="mono">${a.id}</span><span style="flex:1">${esc(a.q)}</span><span class="chip">${a.prio}</span><span class="chip">${a.use}</span><button class="btn" style="padding:3px 10px; font-size:12px">Propor alteração</button></div>`).join("")}
+  `;
+}
+
+// --- tela 3
+function renderGD() {
+  const g = S.gap, d = S.div, mg = missGD(g), md = missGD(d);
+  $("v2").innerHTML = `
+    <h1>Lacunas e divergências</h1>
+    <p class="sub">O que os dados não respondem e onde as fontes discordam.</p>
+    <article class="card cqcard">
+      <div>
+        <div class="mono">${g.id} · lacuna</div>
+        <div class="q">${esc(g.q)}</div>
+        <div class="mu">${esc(g.why)}</div>
+      </div>
+      <div class="side">
+        ${lab("O que fazer", "obrigatório")}${seg("gdec", [["req","Pedir ao cliente"],["ref","Reformular"],["drop","Descartar"],["open","Em aberto"]], g.dec, !g.dec)}
+        ${lab("Motivo", g.dec === "open" ? "opcional" : "obrigatório")}<textarea rows="2" data-f="greason" class="${mg.includes("motivo")?"miss":""}">${esc(g.reason)}</textarea>
+        <div class="mu" style="margin-top:6px">${mg.length ? "Falta: " + mg.join(", ") : '<span class="ok">✓ pronto</span>'}</div>
+      </div>
+    </article>
+    <article class="card cqcard">
+      <div>
+        <div class="mono">${d.id} · divergência</div>
+        <div class="q">“${esc(d.term)}”</div>
+        <div class="ev"><b>A</b> · ${esc(d.a[0])} · <span class="mono">${esc(d.a[1])}</span><br>${esc(d.a[2])}</div>
+        <div class="ev" style="border-color:var(--wa)"><b>B</b> · ${esc(d.b[0])} · <span class="mono">${esc(d.b[1])}</span><br>${esc(d.b[2])}</div>
+      </div>
+      <div class="side">
+        ${lab("Qual vale", "obrigatório")}${seg("ddec", [["a","A"],["b","B"],["dist","Distintos"],["open","Em aberto"]], d.dec, !d.dec)}
+        ${lab("Motivo", d.dec === "open" ? "opcional" : "obrigatório")}<textarea rows="2" data-f="dreason" class="${md.includes("motivo")?"miss":""}">${esc(d.reason)}</textarea>
+        <div class="mu" style="margin-top:6px">${md.length ? "Falta: " + md.join(", ") : '<span class="ok">✓ pronto</span>'}</div>
+      </div>
+    </article>
+  `;
+}
+
+function renderChrome() {
+  const names = ["Caso de uso", "Perguntas", "Lacunas e divergências"];
+  const info = [
+    () => { const n = S.ucs.filter(u=>u.sel).length + (S.own ? 1 : 0); return n + (n === 1 ? " escolhido" : " escolhidos"); },
+    () => (S.cqs.length - pendingCQ()) + " de " + S.cqs.length + " decididas",
+    () => (2 - pendingGD()) + " de 2 decididas",
+  ];
+  $("steps").innerHTML = names.map((n,i) => `<button data-go="${i}" class="${i===S.step?"cur":""} ${stepDone[i]() && i!==S.step?"done":""}"><span class="n">${stepDone[i]() && i!==S.step ? "✓" : i+1}</span>${n} <span class="mu">· ${info[i]()}</span></button>`).join("");
+  [0,1,2].forEach(i => { $("v"+i).classList.toggle("hidden", i !== S.step); $("sb"+i).textContent = stepDone[i]() ? "✓" : (i===0 ? "" : i===1 ? pendingCQ() : pendingGD()); });
+  document.querySelectorAll("aside a[data-go]").forEach(a => a.classList.toggle("on", +a.dataset.go === S.step));
+  let miss = S.step === 0 ? missUC() : S.step === 1 ? S.cqs.flatMap(c => missCQ(c).map(x => x + " em " + c.id)) : [...missGD(S.gap).map(x => x + " na lacuna"), ...missGD(S.div).map(x => x + " na divergência")];
+  $("msg").innerHTML = miss.length ? `<b>Falta:</b> ${esc(miss.slice(0,3).join(" · "))}${miss.length > 3 ? " …" : ""}` : '<span class="ok">✓ Tudo preenchido nesta etapa</span>';
+  $("back").style.visibility = S.step ? "visible" : "hidden";
+  $("next").textContent = S.step === 0 ? "Confirmar e ir para perguntas →" : S.step === 1 ? "Ir para lacunas e divergências →" : "Salvar decisões";
+  $("next").disabled = !stepDone[S.step]();
+}
+function render() { renderUC(); renderCQ(); renderGD(); renderChrome(); }
+
+function toast(t) { const el = $("toast"); el.innerHTML = t; el.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.add("hidden"), 2600); }
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-go],[data-uc],[data-seg],[data-act]");
+  if (!t) return;
+  if (t.dataset.go !== undefined) { S.step = +t.dataset.go; window.scrollTo(0,0); return render(); }
+  if (t.dataset.uc !== undefined) { const u = S.ucs[+t.dataset.uc]; u.sel = !u.sel; return render(); }
+  if (t.dataset.act === "own-on") { S.own = { name:"", desc:"" }; render(); document.querySelector('[data-own="name"]').focus(); return; }
+  if (t.dataset.act === "own-off") { S.own = null; return render(); }
+  if (t.dataset.act === "new-cq") { const n = S.cqs.length + S.applied.length + 1; S.cqs.push({ id:"CQ-00"+n, q:"(nova pergunta escrita por você)", type:"escolha o tipo", concepts:[], ev:["conversa com o revisor",""], uc:"UC-01", dec:null, prio:null, use:null, reason:"", answer:"" }); return render(); }
+  if (t.dataset.seg) {
+    const [k, id] = t.dataset.seg.split(":"), v = t.dataset.v;
+    if (k === "gdec") S.gap.dec = v; else if (k === "ddec") S.div.dec = v;
+    else { const c = S.cqs.find(x => x.id === id); if (k === "dec") c.dec = v; if (k === "prio") c.prio = v; if (k === "use") c.use = v; }
+    return render();
+  }
+});
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.dataset.own) S.own[t.dataset.own] = t.value;
+  else if (t.dataset.f) {
+    const [k, id] = t.dataset.f.split(":");
+    if (k === "greason") S.gap.reason = t.value; else if (k === "dreason") S.div.reason = t.value;
+    else S.cqs.find(x => x.id === id)[k] = t.value;
+  } else return;
+  t.classList.toggle("miss", !t.value.trim() && !(t.dataset.f === "greason" && S.gap.dec === "open") && !(t.dataset.f === "dreason" && S.div.dec === "open"));
+  renderChrome();
+});
+$("back").onclick = () => { S.step = Math.max(0, S.step - 1); window.scrollTo(0,0); render(); };
+$("next").onclick = () => { if (S.step < 2) { S.step++; window.scrollTo(0,0); render(); } else toast('<span class="ok">✓</span> Decisões salvas (protótipo: nada foi gravado)'); };
+render();
+</script>
+</body>
+</html>

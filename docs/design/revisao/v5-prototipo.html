@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo da revisão v5</title>
+<style>
+  :root { --bg:#10121B; --s1:#141721; --s2:#1b1f2b; --ln:rgba(250,250,251,.10); --ln2:rgba(250,250,251,.42);
+    --tx:rgba(250,250,251,.88); --mu:rgba(250,250,251,.62); --ac:#00A9F4; --ok:#4ade80; --er:#f87171; --wa:#fbbf24; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font:14px/20px Inter, system-ui, sans-serif; }
+  button { font:inherit; color:inherit; }
+  .mono { font-family:"Roboto Mono", ui-monospace, monospace; font-size:12px; color:var(--mu); }
+  .mu { color:var(--mu); font-size:12px; line-height:16px; }
+  .lab { display:block; color:var(--mu); font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
+  .req { color:var(--wa); text-transform:none; letter-spacing:0; margin-left:6px; }
+  .help { display:block; text-transform:none; letter-spacing:0; font-size:12px; color:var(--mu); margin-top:2px; }
+  .app { display:flex; min-height:100vh; }
+  aside { width:220px; border-right:1px solid var(--ln); background:var(--s1); padding:16px 0; flex-shrink:0; }
+  aside .brand { padding:0 16px 16px; font-weight:700; }
+  aside .grp { padding:12px 16px 4px; }
+  aside button { display:flex; width:100%; padding:6px 16px; background:none; border:0; text-align:left; cursor:pointer; }
+  aside button span:first-child { flex:1; } aside button.on { background:var(--s2); box-shadow:inset 2px 0 0 var(--ac); }
+  main { flex:1; min-width:0; padding:24px 28px 100px; max-width:960px; margin:0 auto; }
+  .steps { display:flex; border:1px solid var(--ln); margin-bottom:24px; }
+  .steps button { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:none; border:0; border-right:1px solid var(--ln); color:var(--mu); padding:10px 12px; text-align:left; cursor:pointer; }
+  .steps button:last-child { border:0; }
+  .steps .n { display:inline-flex; width:22px; height:22px; border-radius:99px; align-items:center; justify-content:center; font-size:12px; border:1px solid var(--ln2); margin-right:8px; }
+  .steps .cur { background:var(--s2); color:var(--tx); box-shadow:inset 0 -2px 0 var(--ac); }
+  .steps .cur .n { background:var(--tx); color:var(--bg); border-color:var(--tx); }
+  .steps .done .n { background:var(--ok); color:var(--bg); border-color:var(--ok); }
+  h1 { font-size:24px; line-height:32px; font-weight:600; margin:0 0 4px; }
+  h2 { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--mu); font-weight:500; margin:24px 0 8px; }
+  .sub { color:var(--mu); margin:0 0 20px; max-width:68ch; }
+  .card { border:1px solid var(--ln); background:var(--s1); padding:16px; margin-bottom:12px; scroll-margin-top:20px; }
+  .card.flash { box-shadow:0 0 0 2px var(--ac); }
+  .cqcard { display:grid; grid-template-columns:1fr 250px; gap:20px; }
+  .cqcard .side { border-left:1px solid var(--ln); padding-left:16px; }
+  .q { font-size:16px; font-weight:600; margin:4px 0 10px; }
+  .chip { display:inline-flex; align-items:center; height:22px; padding:0 8px; border:1px solid var(--ln2); border-radius:99px; font-size:12px; color:var(--mu); margin:0 4px 4px 0; }
+  .ev { border-left:2px solid var(--ac); background:var(--s2); padding:6px 10px; font-size:12px; color:var(--mu); margin-top:8px; }
+  .dep { border:1px solid var(--wa); color:var(--wa); padding:6px 10px; font-size:12px; margin-top:10px; }
+  .cqv { border-left:3px solid var(--ln2); padding:0; }
+  .cqv.st-ok { border-left-color:var(--ok); } .cqv.st-rej { border-left-color:var(--er); } .cqv.st-me { border-left-color:var(--ac); }
+  .cqv .body { padding:16px; }
+  .eval { background:var(--s2); border-top:1px solid var(--ln); padding:14px 16px; }
+  .crit { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; color:var(--mu); margin-bottom:12px; }
+  .crit b { color:var(--tx); font-weight:500; }
+  .crit .y { color:var(--ok); } .crit .n { color:var(--wa); }
+  .big { display:flex; gap:10px; }
+  .big button { flex:1; max-width:220px; padding:10px 14px; font-size:15px; font-weight:600; background:none; cursor:pointer; border:1px solid var(--ln2); }
+  .big .bok { color:var(--ok); border-color:rgba(74,222,128,.6); } .big .brej { color:var(--er); border-color:rgba(248,113,113,.6); }
+  .big .bok[aria-pressed="true"] { background:var(--ok); color:var(--bg); border-color:var(--ok); }
+  .big .brej[aria-pressed="true"] { background:var(--er); color:var(--bg); border-color:var(--er); }
+  .done { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:var(--s1); border:1px solid var(--ln); border-left:3px solid var(--ok); padding:8px 14px; margin-bottom:6px; color:var(--mu); cursor:pointer; }
+  .done.rej { border-left-color:var(--er); } .done:hover { color:var(--tx); }
+  .done .dq { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sig { font-size:12px; margin-top:4px; } .sig .y { color:var(--ok); } .sig .n { color:var(--wa); }
+  .lnk { background:none; border:0; padding:0; color:var(--ac); font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+  .det { margin-top:10px; padding-top:10px; border-top:1px dashed var(--ln); }
+  .mine { font-size:11px; color:var(--ac); border:1px solid var(--ac); padding:0 6px; margin-left:8px; vertical-align:2px; }
+  .stbadge { font-size:11px; font-weight:600; padding:1px 8px; margin-left:6px; }
+  .stbadge.ok { background:var(--ok); color:var(--bg); } .stbadge.rej { background:var(--er); color:var(--bg); } .stbadge.pend { border:1px solid var(--wa); color:var(--wa); }
+  .after { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:4px 20px; margin-top:14px; }
+  .reasons { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .reasons button { background:none; border:1px solid var(--ln2); border-radius:99px; padding:3px 12px; font-size:12px; color:var(--mu); cursor:pointer; }
+  .reasons button[aria-pressed="true"] { background:var(--er); border-color:var(--er); color:var(--bg); font-weight:600; }
+  .reasons.miss { outline:1px solid var(--wa); outline-offset:4px; }
+  .create { border:1px solid var(--ac); background:var(--s1); padding:16px; margin-bottom:8px; }
+  .create .row { display:grid; grid-template-columns:1fr 220px auto; gap:10px; align-items:end; }
+  @media (max-width:760px) { .create .row { grid-template-columns:1fr; } .big button { max-width:none; } }
+  .dep button { background:none; border:0; color:var(--ac); text-decoration:underline; cursor:pointer; padding:0; font-size:12px; }
+  .seg { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; border:1px solid var(--ln2); margin-bottom:4px; }
+  .seg.wrap { grid-auto-flow:row; grid-template-columns:1fr 1fr; }
+  .seg button { background:none; border:0; border-right:1px solid var(--ln2); color:var(--mu); padding:6px; font-size:13px; cursor:pointer; }
+  .seg.wrap button { border-bottom:1px solid var(--ln2); } .seg.wrap button:nth-child(2n) { border-right:0; }
+  .seg button:last-child { border-right:0; } .seg button[aria-pressed="true"] { background:var(--tx); color:var(--bg); font-weight:600; }
+  .seg.miss { border-color:var(--wa); }
+  .hint { font-size:12px; color:var(--mu); margin:0 0 12px; }
+  .hint b { color:var(--ac); font-weight:500; }
+  .fld { margin-bottom:12px; }
+  textarea, input[type=text], select { width:100%; background:var(--bg); border:1px solid var(--ln2); color:var(--tx); font:inherit; padding:6px 10px; resize:vertical; }
+  textarea.miss, input.miss, select.miss { border-color:var(--wa); }
+  textarea:focus, input:focus, select:focus, button:focus-visible { outline:2px solid var(--ac); outline-offset:1px; }
+  .btn { background:none; border:1px solid var(--ln2); padding:6px 14px; cursor:pointer; }
+  .btn.pri { background:var(--tx); color:var(--bg); border-color:var(--tx); font-weight:600; }
+  .btn.sm { padding:3px 10px; font-size:12px; }
+  .btn[aria-disabled="true"] { opacity:.45; }
+  .add { display:inline-flex; gap:6px; align-items:center; background:none; border:1px dashed var(--ln2); color:var(--mu); padding:8px 14px; cursor:pointer; margin:4px 0 8px; }
+  .add:hover { color:var(--tx); }
+  .ucgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:12px; margin-bottom:12px; }
+  .uc { border:1px solid var(--ln); background:var(--s1); padding:14px; cursor:pointer; position:relative; text-align:left; display:block; width:100%; }
+  .uc:hover { border-color:var(--ln2); }
+  .uc[aria-pressed="true"] { border-color:var(--ac); box-shadow:inset 0 0 0 1px var(--ac); }
+  .uc .ck { position:absolute; top:12px; right:12px; width:18px; height:18px; border:1px solid var(--ln2); display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .uc[aria-pressed="true"] .ck { background:var(--ac); border-color:var(--ac); color:var(--bg); }
+  .uc .t { font-weight:600; margin-bottom:4px; padding-right:26px; }
+  .foot { position:fixed; left:0; right:0; bottom:0; background:rgba(20,23,33,.97); border-top:1px solid var(--ln); padding:10px 28px; display:flex; align-items:center; gap:12px; }
+  .foot .msg { flex:1; color:var(--mu); font-size:13px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .foot .msg b { color:var(--wa); font-weight:600; }
+  .ok { color:var(--ok); }
+  .falta { margin-top:6px; font-size:12px; color:var(--wa); }
+  .applied { display:flex; align-items:center; gap:10px; border:1px solid var(--ln); padding:10px 14px; margin-bottom:8px; flex-wrap:wrap; }
+  .hidden { display:none !important; }
+  .out { opacity:.55; }
+  .toast { position:fixed; right:24px; bottom:84px; max-width:calc(100vw - 48px); background:var(--s2); border:1px solid var(--ln2); padding:10px 14px; box-shadow:0 4px 8px rgba(0,0,0,.5); z-index:5; }
+  .note { border:1px solid var(--ln); padding:8px 12px; margin-bottom:16px; font-size:12px; color:var(--mu); }
+  .who { font-size:11px; padding:1px 6px; border:1px solid var(--ln2); margin-left:6px; }
+  .who.me { border-color:var(--ac); color:var(--ac); }
+  dialog { background:var(--s1); color:var(--tx); border:1px solid var(--ln2); padding:24px; width:min(560px, 92vw); }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+  dialog ul { margin:8px 0 16px; padding-left:18px; } dialog li { margin:3px 0; }
+  .tip { background:none; border:1px solid var(--ln2); border-radius:99px; width:16px; height:16px; font-size:10px; line-height:14px; padding:0; color:var(--mu); cursor:help; margin-left:4px; vertical-align:1px; }
+  @media (max-width: 760px) {
+    aside { display:none; } .foot { left:0; padding:8px 16px; } .foot .back { display:none; }
+    .cqcard { grid-template-columns:1fr; } .cqcard .side { border:0; padding:0; }
+    main { padding:16px 16px 80px; }
+    .steps button .mu, .steps button .lbl { display:none; } .steps button { text-align:center; }
+    .steps button.cur .lbl { display:inline; }
+    .steps button { white-space:normal; } .done { flex-wrap:wrap; } .done .dq { white-space:normal; flex-basis:calc(100% - 30px); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <main>
+    <nav class="steps" id="steps" aria-label="Progresso"></nav>
+    <section id="v0"></section>
+    <section id="v1" class="hidden"></section>
+    <section id="v2" class="hidden"></section>
+  </main>
+</div>
+<div class="foot"><span class="msg" id="msg" aria-live="polite"></span><button class="btn back" id="back">← Voltar</button><button class="btn pri" id="next"></button></div>
+<div class="toast hidden" id="toast" role="status"></div>
+
+<dialog id="dlg" aria-labelledby="dlg-t">
+  <h1 id="dlg-t" style="font-size:20px">Conferir e salvar</h1>
+  <div id="dlg-body"></div>
+  <div class="fld"><label class="lab" for="approver">Seu nome<span class="req">obrigatório</span><span class="help">Fica registrado como quem aprovou, com data e hora.</span></label>
+    <input type="text" id="approver" autocomplete="name" placeholder="Ex.: Juliana Souza"></div>
+  <div style="display:flex; gap:8px; justify-content:flex-end"><button class="btn" id="dlg-cancel">Voltar e ajustar</button><button class="btn pri" id="dlg-ok">Salvar decisões</button></div>
+</dialog>
+
+<script>
+const TYPES = ["Classificação e hierarquia","Relação entre conceitos","Atributos","Quantidade e agregação","Tempo e estado","Regras e restrições"];
+const GLOSS = {
+  cq: "Uma pergunta que a ontologia precisa saber responder. Serve para guiar a construção e para testar no fim.",
+  gd: "Lacuna: uma pergunta que os dados atuais não respondem. Divergência: duas fontes definem o mesmo termo de jeitos diferentes.",
+};
+const S = {
+  step: 0,
+  ucs: [
+    { id:"UC-01", name:"Carteira e faturamento", desc:"Acompanhar faturamento por região e clientes que pararam de comprar.", who:"analista comercial", src:"briefing.docx, p. 2", sel:false, ai:true },
+    { id:"UC-02", name:"Mix de produtos", desc:"Entender quais categorias puxam o ticket médio.", who:"gerente de categoria", src:"reuniao-kickoff.md", sel:false, ai:true },
+    { id:"UC-03", name:"Crédito e inadimplência", desc:"Ver clientes com pedidos faturados e não pagos.", who:"financeiro", src:"glossario.md, linha 40", sel:false, ai:true },
+  ],
+  own: null,
+  cqs: [
+    { id:"CQ-001", q:"Qual o faturamento por UF no último trimestre?", type:"Quantidade e agregação", concepts:"Pedido, Cliente, Faturamento", ev:["pedidos.csv · vl_total","vl_total por pedido, com status FATURADO"], uc:"UC-01", aiPrio:"Alta", dep:null, check:{ dados:"sim, pedidos.csv tem UF e vl_total" } },
+    { id:"CQ-002", q:"Quais clientes ativos não compraram nos últimos 90 dias?", type:"Tempo e estado", concepts:"Cliente, Pedido", ev:["glossario.md · linha 17","cliente ativo é quem tem pedido faturado nos últimos 180 dias"], uc:"UC-01", aiPrio:"Média", dep:"D-01", check:{ dados:"depende da definição de cliente ativo" } },
+    { id:"CQ-004", q:"Qual o ticket médio por categoria no mês?", type:"Quantidade e agregação", concepts:"Produto, ItemPedido", ev:["itens.csv · vl_item","valor do item, por categoria do produto"], uc:"UC-02", aiPrio:"Baixa", dep:null, check:{ dados:"sim, itens.csv tem categoria" } },
+  ].map(c => Object.assign(c, { by:"ia", dec:null, why:null, prio:null, use:null, reason:"", answer:"" })),
+  draft: { q:"", uc:"" },
+  nextId: 5,
+  applied: [{ id:"CQ-003", q:"Quais clientes têm mais de um endereço de entrega?", prio:"Baixa", use:"Teste", by:"Ana Lima", when:"28/10" }],
+  gap: { id:"L-01", q:"Quais pedidos foram entregues com atraso?", why:"Os dados não têm data de entrega.", from:"pedido do caso de uso UC-01", dec:null, reason:"" },
+  div: { id:"D-01", term:"cliente ativo", a:["financeiro","glossario.md · linha 17","pedido faturado nos últimos 180 dias"], b:["ERP","clientes.csv · fl_ativo","campo fl_ativo do cadastro"], aiSug:"A (financeiro): o glossário é a definição oficial do cliente", affects:["CQ-002"], dec:null, reason:"" },
+};
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $ = (id) => document.getElementById(id);
+
+// ---------- regras
+const ownOk = () => S.own && S.own.name.trim() && S.own.desc.trim();
+const activeUCs = () => [...S.ucs.filter(u => u.sel), ...(ownOk() ? [{ id:"UC-04", name:S.own.name.trim() }] : [])];
+const ucName = (id) => (S.ucs.find(u => u.id === id) || (id === "UC-04" && ownOk() ? { name:S.own.name.trim() } : null) || {}).name;
+const inScope = (c) => activeUCs().some(u => u.id === c.uc);
+function missUC() {
+  const m = [];
+  if (S.own && !ownOk()) m.push("completar o caso de uso escrito por você");
+  if (!activeUCs().length) m.push("escolher pelo menos um caso de uso");
+  return m;
+}
+function missCQ(c) {
+  const m = [];
+  if (c.by === "me") { if (!c.q.trim()) m.push("texto da pergunta"); if (!c.type) m.push("tipo"); if (!c.uc) m.push("caso de uso"); }
+  else if (!c.dec) m.push("aceitar ou rejeitar");
+  if (c.dec === "rej" && !c.why && !c.reason.trim()) m.push("motivo");
+  if (c.dec === "rej" && c.why === "outro" && !c.reason.trim()) m.push("motivo");
+  if (c.dec === "ok") { if (!c.prio) m.push("prioridade"); }
+  return m;
+}
+const missGD = (x) => { const m = []; if (!x.dec) m.push("decisão"); if (!x.reason.trim()) m.push("motivo"); return m; };
+const scopedCQs = () => S.cqs.filter(inScope);
+const missStep = [
+  () => missUC(),
+  () => scopedCQs().flatMap(c => missCQ(c).map(x => x + " em " + c.id)),
+  () => [...missGD(S.gap).map(x => x + " na lacuna"), ...missGD(S.div).map(x => x + " na divergência")],
+];
+const done = (i) => !missStep[i]().length && (i !== 1 || activeUCs().length > 0);
+
+// ---------- pecas
+function seg(name, opts, val, miss, wrap) {
+  return `<div class="seg${miss ? " miss" : ""}${wrap ? " wrap" : ""}" role="group">${opts.map(([v,l]) => `<button type="button" data-seg="${name}" data-v="${v}" aria-pressed="${v===val}">${l}</button>`).join("")}</div>`;
+}
+const tip = (k) => `<button type="button" class="tip" title="${esc(GLOSS[k])}" aria-label="${esc(GLOSS[k])}" data-tip="${k}">?</button>`;
+const lab = (t, req, help, forId) => `<label class="lab"${forId ? ` for="${forId}"` : ""}>${t}${req ? `<span class="req">${req}</span>` : ""}${help ? `<span class="help">${help}</span>` : ""}</label>`;
+const falta = (key) => `<div class="falta" data-falta="${key}"></div>`;
+
+// ---------- tela 1
+function renderUC() {
+  const own = S.own;
+  $("v0").innerHTML = `
+    <h1>Caso de uso</h1>
+    <p class="sub">Para que serve esta ontologia? A IA leu os documentos e sugeriu três. Marque os que valem para este projeto, ou escreva o seu. As perguntas da próxima etapa seguem o que você escolher.</p>
+    <div class="ucgrid">${S.ucs.map((u,i) => `
+      <button type="button" class="uc" data-uc="${i}" aria-pressed="${u.sel}">
+        <span class="ck" aria-hidden="true">${u.sel?"✓":""}</span>
+        <div class="t">${esc(u.name)}</div>
+        <div style="margin-bottom:8px">${esc(u.desc)}</div>
+        <span class="chip">${esc(u.who)}</span>
+        <div class="mono" style="margin-top:6px">sugerido pela IA · ${esc(u.src)}</div>
+      </button>`).join("")}
+    </div>
+    ${own ? `<div class="card" style="border-color:var(--ac)">
+        <div class="mono" style="margin-bottom:8px">escrito por você</div>
+        <div class="fld">${lab("Nome", "obrigatório", "", "own-name")}<input type="text" id="own-name" data-own="name" class="${own.name.trim()?"":"miss"}" placeholder="Ex.: Giro de estoque" value="${esc(own.name)}"></div>
+        <div class="fld">${lab("O que precisa responder", "obrigatório · uma frase", "", "own-desc")}<input type="text" id="own-desc" data-own="desc" class="${own.desc.trim()?"":"miss"}" placeholder="Ex.: saber quais produtos ficam parados mais de 60 dias" value="${esc(own.desc)}"></div>
+        <button type="button" class="btn sm" data-act="own-off">Remover</button>
+      </div>`
+      : `<button type="button" class="add" data-act="own-on">+ Escrever o meu caso de uso <span class="mu">(nome e uma frase)</span></button>`}
+  `;
+}
+
+// ---------- tela 2
+const WHY = [["clara","Pouco clara"],["escopo","Fora do caso de uso"],["dados","Os dados não respondem"],["repetida","Repetida"],["outro","Outro motivo"]];
+const isDone = (c) => (c.by === "me" || c.dec) && !missCQ(c).length;
+function signal(c) {
+  if (c.dep) return `<span class="n">● depende de “${esc(S.div.term)}”</span> <button type="button" class="lnk" data-act="goto" data-target="card-${c.dep}">ver ${c.dep}</button>`;
+  const d = (c.check || {}).dados || "";
+  return d.startsWith("sim") ? '<span class="y">● os dados respondem</span>' : `<span class="n">● ${esc(d || "sem verificação da IA")}</span>`;
+}
+function details(c) {
+  return `<div class="det">
+    <div class="mono" style="margin-bottom:6px">${c.id}</div>
+    <span class="chip">${esc(c.type)}</span>${c.concepts.split(",").map(x => `<span class="chip">${esc(x.trim())}</span>`).join("")}
+    <div class="ev"><span class="mono" style="color:var(--ac)">${esc(c.ev[0])}</span> · “${esc(c.ev[1])}”</div>
+    ${c.dep ? `<div class="dep">Esta pergunta usa “${esc(S.div.term)}”, que as fontes definem de jeitos diferentes. <button type="button" data-act="goto" data-target="card-${c.dep}">Ver a divergência ${c.dep}</button></div>` : ""}
+  </div>`;
+}
+const prioField = (c) => `<div style="margin-top:12px">${lab("Prioridade", "obrigatório")}${seg("prio:"+c.id, [["Alta","Alta"],["Média","Média"],["Baixa","Baixa"]], c.prio, !c.prio)}${c.aiPrio && c.by !== "me" ? `<p class="hint">A IA sugere <b>${c.aiPrio}</b></p>` : ""}</div>`;
+function cqCard(c) {
+  const mine = c.by === "me";
+  if (isDone(c) && !c.open) {
+    const rej = c.dec === "rej";
+    const why = rej ? (WHY.find(w => w[0] === c.why) || ["", "rejeitada"])[1] : "";
+    return `<button type="button" class="done${rej ? " rej" : ""}" id="card-${c.id}" data-act="open" data-id="${c.id}" aria-label="${rej ? "Rejeitada" : "Aceita"}: ${esc(c.q)}. Clique para rever.">
+      <span style="color:var(--${rej ? "er" : "ok"})">${rej ? "✕" : "✓"}</span><span class="dq">${esc(c.q)}</span>${mine ? '<span class="mine">sua</span>' : ""}
+      <span class="chip" style="margin:0">${rej ? esc(why) : c.prio}</span><span class="lnk">rever</span></button>`;
+  }
+  const close = isDone(c) ? `<button type="button" class="lnk" data-act="close" data-id="${c.id}">recolher</button>` : "";
+  if (mine) return `<article class="card cqv st-me" id="card-${c.id}"><div class="body">
+      <div class="lab" style="margin-bottom:8px">Sua pergunta</div>
+      <div class="fld">${lab("Pergunta", "obrigatório", "", "q-"+c.id)}<textarea id="q-${c.id}" rows="2" data-f="q:${c.id}" class="${c.q.trim()?"":"miss"}">${esc(c.q)}</textarea></div>
+      <div class="after" style="margin-top:0">
+        <div class="fld">${lab("Tipo", "obrigatório", "", "t-"+c.id)}<select id="t-${c.id}" data-f="type:${c.id}" class="${c.type?"":"miss"}"><option value="">escolha</option>${TYPES.map(t => `<option${t===c.type?" selected":""}>${t}</option>`).join("")}</select></div>
+        <div class="fld">${lab("Conceitos", "", "opcional", "k-"+c.id)}<input type="text" id="k-${c.id}" data-f="concepts:${c.id}" value="${esc(c.concepts)}" placeholder="Ex.: Produto, Pedido"></div>
+      </div>
+      ${prioField(c)}
+      <div class="row" style="margin-top:6px">${falta(c.id)}<span class="fill"></span>${close}<button type="button" class="btn sm" data-act="del-cq" data-id="${c.id}">Remover</button></div>
+    </div></article>`;
+  return `<article class="card cqv st-${c.dec || ""}" id="card-${c.id}"><div class="body">
+      <div class="qq q" style="margin:0">${esc(c.q)}</div>
+      <div class="sig">${signal(c)} · <button type="button" class="lnk" data-act="det" data-id="${c.id}" aria-expanded="${!!c.det}">${c.det ? "esconder detalhes" : "ver detalhes"}</button></div>
+      ${c.det ? details(c) : ""}
+      <div class="big${c.dec ? "" : " miss"}" role="group" aria-label="Decisão" style="margin-top:14px">
+        <button type="button" class="bok" data-seg="dec:${c.id}" data-v="ok" aria-pressed="${c.dec==="ok"}">✓ Aceitar</button>
+        <button type="button" class="brej" data-seg="dec:${c.id}" data-v="rej" aria-pressed="${c.dec==="rej"}">✕ Rejeitar</button>
+      </div>
+      ${c.dec === "ok" ? prioField(c) : ""}
+      ${c.dec === "rej" ? `<div style="margin-top:12px">${lab("Por que rejeitar", "obrigatório")}
+        <div class="reasons${c.why ? "" : " miss"}" role="group">${WHY.map(([v,l]) => `<button type="button" data-why="${c.id}" data-v="${v}" aria-pressed="${c.why===v}">${l}</button>`).join("")}</div>
+        ${c.why === "outro" ? `<textarea id="r-${c.id}" rows="2" data-f="reason:${c.id}" class="${c.reason.trim() ? "" : "miss"}" placeholder="Conte o motivo">${esc(c.reason)}</textarea>` : ""}</div>` : ""}
+      <div class="row">${c.dec ? falta(c.id) : ""}<span class="fill"></span>${close}</div>
+    </div></article>`;
+}
+function renderCQ() {
+  const act = activeUCs();
+  const groups = act.map(u => ({ u, list: S.cqs.filter(c => c.uc === u.id) }));
+  const noUc = S.cqs.filter(c => c.by === "me" && !c.uc);
+  const out = S.cqs.filter(c => c.uc && !inScope(c));
+  const toEval = scopedCQs().filter(c => c.by !== "me" && !c.dec).length;
+  $("v1").innerHTML = `
+    <h1>Perguntas de competência ${tip("cq")}</h1>
+    <p class="sub">O que a ontologia precisa saber responder. Escreva as suas e avalie as que a IA sugeriu.</p>
+    ${!act.length ? `<div class="card">Escolha um caso de uso na etapa 1 para ver e criar perguntas. <button type="button" class="btn sm" data-go="0">Ir para casos de uso</button></div>` : `
+    <section class="create" aria-labelledby="create-t">
+      <div class="lab" id="create-t" style="color:var(--ac)">Criar pergunta</div>
+      <div class="row">
+        <div><label class="lab" for="nq">Pergunta</label><input type="text" id="nq" placeholder="Ex.: Quais produtos ficaram sem venda no último mês?" value="${esc(S.draft.q)}"></div>
+        <div><label class="lab" for="nuc">Caso de uso</label><select id="nuc">${act.length > 1 ? '<option value="">escolha</option>' : ""}${act.map(u => `<option value="${u.id}"${u.id===S.draft.uc?" selected":""}>${esc(u.name)}</option>`).join("")}</select></div>
+        <button type="button" class="btn pri" data-act="create">+ Adicionar</button>
+      </div>
+    </section>
+    <p class="mu" style="margin:0 0 4px">${toEval ? `${toEval} ${toEval === 1 ? "sugestão da IA" : "sugestões da IA"} para avaliar` : '<span class="ok">✓ Todas as sugestões da IA avaliadas</span>'}</p>`}
+    ${groups.map(g => `<h2>${esc(g.u.name)} · ${g.list.length} ${g.list.length === 1 ? "pergunta" : "perguntas"}</h2>${g.list.length ? g.list.map(cqCard).join("") : '<p class="mu">Nenhuma pergunta ainda. Crie uma acima.</p>'}`).join("")}
+    ${out.length ? `<h2>Fora dos casos escolhidos · ${out.length}</h2><p class="mu" style="margin:0 0 8px">Não entram nesta revisão. Marque o caso de uso na etapa 1 para avaliar.</p>${out.map(c => `<div class="applied out"><span style="flex:1">${esc(c.q)}</span><span class="chip">${esc(ucName(c.uc))}</span></div>`).join("")}` : ""}
+    <h2>Já aplicadas · ${S.applied.length}</h2>
+    ${S.applied.map(a => `<div class="applied"><span style="flex:1; min-width:200px">${esc(a.q)}</span><span class="chip">${a.prio}</span><span class="mu">aprovada por ${esc(a.by)} em ${a.when}</span></div>`).join("")}
+  `;
+}
+
+// ---------- tela 3
+function renderGD() {
+  const g = S.gap, d = S.div;
+  $("v2").innerHTML = `
+    <h1>Lacunas e divergências ${tip("gd")}</h1>
+    <p class="sub">Por último: o que os dados não respondem e onde as fontes discordam.</p>
+    <h2>Lacuna</h2>
+    <article class="card cqcard" id="card-${g.id}">
+      <div>
+        <div class="mono">${g.id} · ${esc(g.from)}</div>
+        <div class="q">${esc(g.q)}</div>
+        <div class="mu">${esc(g.why)}</div>
+      </div>
+      <div class="side">
+        ${lab("O que fazer", "obrigatório")}${seg("gdec", [["req","Pedir o dado ao cliente"],["ref","Reformular a pergunta"],["drop","Descartar"],["open","Deixar em aberto"]], g.dec, !g.dec, true)}
+        <p class="hint">${({req:"Entra na lista de dados a pedir ao cliente.",ref:"Volta para a etapa de perguntas com outro texto.",drop:"Sai da revisão; fica no histórico.",open:"Volta na próxima rodada de revisão."})[g.dec] || "&nbsp;"}</p>
+        <div class="fld">${lab("Motivo", "obrigatório", "", "g-r")}<textarea id="g-r" rows="2" data-f="greason" class="${g.reason.trim()?"":"miss"}">${esc(g.reason)}</textarea></div>
+        ${falta("gap")}
+      </div>
+    </article>
+    <h2>Divergência</h2>
+    <article class="card cqcard" id="card-${d.id}">
+      <div>
+        <div class="mono">${d.id} · afeta ${d.affects.map(id => `<button type="button" class="mono" style="background:none;border:0;color:var(--ac);text-decoration:underline;cursor:pointer;padding:0" data-act="goto" data-target="card-${id}">${id}</button>`).join(", ")}</div>
+        <div class="q">“${esc(d.term)}”</div>
+        <div class="ev"><b>A</b> · ${esc(d.a[0])} · <span class="mono">${esc(d.a[1])}</span><br>${esc(d.a[2])}</div>
+        <div class="ev" style="border-color:var(--wa)"><b>B</b> · ${esc(d.b[0])} · <span class="mono">${esc(d.b[1])}</span><br>${esc(d.b[2])}</div>
+      </div>
+      <div class="side">
+        ${lab("Qual vale", "obrigatório")}${seg("ddec", [["a","Vale A"],["b","Vale B"],["dist","São coisas diferentes"],["exp","Perguntar ao especialista"],["open","Deixar em aberto"]], d.dec, !d.dec, true)}
+        <p class="hint">A IA sugere <b>${esc(d.aiSug)}</b></p>
+        <div class="fld">${lab("Motivo", "obrigatório", "", "d-r")}<textarea id="d-r" rows="2" data-f="dreason" class="${d.reason.trim()?"":"miss"}">${esc(d.reason)}</textarea></div>
+        ${falta("div")}
+      </div>
+    </article>
+  `;
+}
+
+// ---------- moldura
+function renderChrome() {
+  const names = ["Caso de uso", "Perguntas", "Lacunas e divergências"];
+  const info = [
+    () => { const n = activeUCs().length; return n ? n + (n === 1 ? " escolhido" : " escolhidos") : "nenhum escolhido"; },
+    () => { const l = scopedCQs(); return (l.length - l.filter(c => missCQ(c).length).length) + " de " + l.length + " decididas"; },
+    () => ([S.gap, S.div].filter(x => !missGD(x).length).length) + " de 2 decididas",
+  ];
+  $("steps").innerHTML = names.map((n,i) => { const ok = done(i) && i !== S.step; return `<button type="button" data-go="${i}" class="${i===S.step?"cur":""} ${ok?"done":""}"${i===S.step?' aria-current="step"':""}><span class="n">${ok ? "✓" : i+1}</span><span class="lbl">${n}</span> <span class="mu">· ${info[i]()}</span></button>`; }).join("");
+  [0,1,2].forEach(i => $("v"+i).classList.toggle("hidden", i !== S.step));
+  // falta por card, atualizado ao digitar
+  document.querySelectorAll("[data-falta]").forEach(el => {
+    const k = el.dataset.falta, m = k === "gap" ? missGD(S.gap) : k === "div" ? missGD(S.div) : missCQ(S.cqs.find(c => c.id === k));
+    el.innerHTML = m.length ? "Falta: " + m.join(", ") : '<span class="ok">✓ pronto</span>';
+  });
+  const here = missStep[S.step]();
+  const others = [0,1,2].filter(i => i !== S.step && !done(i));
+  let msg;
+  if (here.length) msg = `<b>Falta:</b> ${esc(here[0])}${here.length > 1 ? ` e mais ${here.length - 1}` : ""}`;
+  else if (S.step === 2 && others.length) msg = `<b>Falta terminar:</b> ${others.map(i => names[i]).join(" e ")}`;
+  else msg = '<span class="ok">✓ Etapa completa</span>';
+  $("msg").innerHTML = msg;
+  $("back").style.visibility = S.step ? "visible" : "hidden";
+  $("next").textContent = S.step === 0 ? "Ir para perguntas →" : S.step === 1 ? "Ir para lacunas →" : "Conferir e salvar";
+  const can = S.step < 2 ? done(S.step) : [0,1,2].every(done);
+  $("next").setAttribute("aria-disabled", String(!can));
+}
+function render() { renderUC(); renderCQ(); renderGD(); renderChrome(); }
+function go(i) { S.step = i; window.scrollTo(0,0); render(); }
+function toast(t) { const el = $("toast"); el.innerHTML = t; el.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.add("hidden"), 3500); }
+function refocus(sel) { const el = document.querySelector(sel); if (el) el.focus(); }
+
+// ---------- eventos
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-go],[data-uc],[data-seg],[data-act],[data-tip],[data-why]");
+  if (!t) return;
+  if (t.dataset.why) { const c = S.cqs.find(x => x.id === t.dataset.why); c.why = t.dataset.v; if (c.why !== "outro") { c.reason = ""; c.open = false; } render(); if (c.why !== "outro") return refocus("#card-" + c.id); return refocus(`[data-why="${c.id}"][data-v="${c.why}"]`); }
+  if (t.dataset.tip) { toast(esc(GLOSS[t.dataset.tip])); return; }
+  if (t.dataset.go !== undefined) return go(+t.dataset.go);
+  if (t.dataset.uc !== undefined) { const u = S.ucs[+t.dataset.uc]; u.sel = !u.sel; render(); return refocus(`[data-uc="${t.dataset.uc}"]`); }
+  const a = t.dataset.act;
+  if (a === "own-on") { S.own = { name:"", desc:"" }; render(); return refocus("#own-name"); }
+  if (a === "own-off") { S.own = null; S.cqs.forEach(c => { if (c.uc === "UC-04") c.uc = ""; }); return render(); }
+  if (a === "create") {
+    const q = $("nq").value.trim(), uc = $("nuc").value;
+    if (!uc) { $("nuc").classList.add("miss"); $("nuc").focus(); toast('<b style="color:var(--wa)">Escolha o caso de uso</b>'); return; }
+    if (!q) { $("nq").classList.add("miss"); $("nq").focus(); toast('<b style="color:var(--wa)">Escreva a pergunta</b> antes de adicionar'); return; }
+    const id = "CQ-" + String(S.nextId++).padStart(3, "0");
+    S.cqs.push({ id, by:"me", q, type:"", concepts:"", uc, ev:[], dep:null, dec:"ok", open:true, why:null, prio:null, use:null, reason:"", answer:"" });
+    S.draft = { q:"", uc };
+    render(); const el = $("card-" + id); if (el) { el.scrollIntoView({ block:"center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1500); }
+    return refocus("#t-" + id);
+  }
+  if (a === "open" || a === "close") { const c = S.cqs.find(x => x.id === t.dataset.id); c.open = a === "open"; render(); return refocus("#card-" + c.id + (a === "open" ? " button, #card-" + c.id + " textarea" : "")); }
+  if (a === "det") { const c = S.cqs.find(x => x.id === t.dataset.id); c.det = !c.det; render(); return refocus(`[data-act="det"][data-id="${c.id}"]`); }
+  if (a === "del-cq") { S.cqs = S.cqs.filter(c => c.id !== t.dataset.id); return render(); }
+  if (a === "goto") {
+    const id = t.dataset.target, step = id.startsWith("card-CQ") ? 1 : 2;
+    if (step !== S.step) { S.step = step; render(); }
+    const el = $(id); if (el) { el.scrollIntoView({ behavior:"smooth", block:"start" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1500); }
+    return;
+  }
+  if (t.dataset.seg) {
+    const [k, id] = t.dataset.seg.split(":"), v = t.dataset.v;
+    if (k === "gdec") S.gap.dec = v; else if (k === "ddec") S.div.dec = v;
+    else {
+      const c = S.cqs.find(x => x.id === id);
+      if (k === "dec" && c.dec !== v) { c.open = true; c.dec = v; c.prio = null; c.use = null; c.answer = ""; c.reason = ""; c.why = null; }
+      if (k === "prio") { c.prio = v; c.open = false; render(); return refocus("#card-" + c.id); }
+      if (k === "use") { c.use = v; if (v !== "teste") c.answer = ""; }
+    }
+    render(); return refocus(`[data-seg="${t.dataset.seg}"][data-v="${v}"]`);
+  }
+});
+function onField(e) {
+  const t = e.target;
+  if (t.id === "nq") { if (e.type !== "input") return; S.draft.q = t.value; t.classList.remove("miss"); return; }
+  if (t.id === "nuc") { S.draft.uc = t.value; return; }
+  if (t.dataset.own) { S.own[t.dataset.own] = t.value; }
+  else if (t.dataset.f) {
+    const [k, id] = t.dataset.f.split(":");
+    if (k === "greason") S.gap.reason = t.value; else if (k === "dreason") S.div.reason = t.value;
+    else S.cqs.find(x => x.id === id)[k] = t.value;
+    if (e.type === "change" && t.tagName === "SELECT") { const sel = "#" + t.id; render(); return refocus(sel); }
+  } else return;
+  if (t.tagName !== "SELECT") t.classList.toggle("miss", !t.value.trim() && !(t.dataset.f || "").startsWith("concepts"));
+  renderChrome();
+}
+document.addEventListener("input", onField);
+document.addEventListener("change", onField);
+document.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "nq") { e.preventDefault(); document.querySelector('[data-act="create"]').click(); } });
+$("back").onclick = () => go(Math.max(0, S.step - 1));
+$("next").onclick = () => {
+  if ($("next").getAttribute("aria-disabled") === "true") {
+    const i = S.step < 2 ? S.step : [0,1,2].find(x => !done(x));
+    const m = missStep[i]();
+    toast(`<b style="color:var(--wa)">Ainda falta</b> ${esc(m.length ? m.slice(0,4).join("; ") : "escolher um caso de uso")}${m.length > 4 ? "…" : ""}`);
+    if (i !== S.step) go(i);
+    return;
+  }
+  if (S.step < 2) return go(S.step + 1);
+  openSummary();
+};
+function openSummary() {
+  const l = scopedCQs();
+  const acc = l.filter(c => c.dec === "ok" && c.by !== "me"), rej = l.filter(c => c.dec === "rej");
+  const G = { req:"pedir o dado ao cliente", ref:"reformular a pergunta", drop:"descartar", open:"deixar em aberto" };
+  const D = { a:"vale A ("+S.div.a[0]+")", b:"vale B ("+S.div.b[0]+")", dist:"são coisas diferentes", exp:"perguntar ao especialista", open:"deixar em aberto" };
+  $("dlg-body").innerHTML = `<p class="mu">Isto vai para revisão do agente com o seu nome:</p><ul>
+    <li><b>Casos de uso:</b> ${activeUCs().map(u => esc(u.name)).join(", ")}</li>
+    <li><b>${acc.length} ${acc.length === 1 ? "pergunta aceita" : "perguntas aceitas"}</b></li>
+    <li><b>${rej.length} rejeitadas</b>${rej.length ? ": " + rej.map(c => c.id + " (" + (WHY.find(w => w[0] === c.why) || ["","sem motivo"])[1].toLowerCase() + ")").join(", ") : ""}</li>
+    ${S.cqs.some(c => c.by === "me") ? `<li><b>${S.cqs.filter(c => c.by === "me").length} escritas por você</b></li>` : ""}
+    <li><b>Lacuna ${S.gap.id}:</b> ${G[S.gap.dec]}</li>
+    <li><b>Divergência ${S.div.id}:</b> ${D[S.div.dec]}</li></ul>`;
+  $("dlg").showModal(); $("approver").focus();
+}
+$("dlg-cancel").onclick = () => $("dlg").close();
+$("dlg-ok").onclick = () => {
+  const n = $("approver").value.trim();
+  if (!n) { $("approver").classList.add("miss"); $("approver").focus(); return; }
+  $("dlg").close();
+  toast(`<span class="ok">✓</span> Decisões salvas por ${esc(n)} às ${new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })} (protótipo: nada foi gravado)`);
+};
+render();
+</script>
+</body>
+</html>

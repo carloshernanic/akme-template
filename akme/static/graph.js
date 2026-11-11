@@ -13,7 +13,7 @@ let DATA = null, selected = null, graph = null, focus = null, showAll = false;
 const expanded = new Set(), openTree = new Set();
 const POS = new Map();
 let lastT = null, spawnFrom = null;
-const LAYOUTS = [["force", "Força"], ["radial", "Radial"], ["pyramid", "Pirâmide"], ["tree", "Árvore lateral"]];
+const LAYOUTS = [["force", "Força"], ["radial", "Radial"], ["pyramid", "Pirâmide"], ["tree", "Árvore"]];
 let layout = "force";
 try { const saved = localStorage.getItem("akme-layout"); if (LAYOUTS.some(([k]) => k === saved)) layout = saved; } catch (e) {}
 const MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 480;
@@ -30,13 +30,13 @@ function renderStats() {
   const pit = v ? v.pitfalls.length : null;
   const cards = [
     { label: "classes", value: DATA.classes.length },
-    { label: "relacoes", value: DATA.relations.length },
+    { label: "relações", value: DATA.relations.length },
     { label: "termos", value: DATA.terms.length },
-    { label: "mappings", value: DATA.mappings.length },
-    { label: "cobertura de colunas", value: cov ? Math.round(cov.ratio * 100) + "%" : "n/a" },
-    { label: "pitfalls", value: pit === null ? "n/a" : pit },
+    { label: "mapeamentos", value: DATA.mappings.length },
+    { label: "cobertura de colunas", value: cov ? Math.round(cov.ratio * 100) + "%" : "—" },
+    { label: "armadilhas", value: pit === null ? "—" : pit },
   ];
-  $("#stats").innerHTML = cards.map((c) => `<div class="card stat"><div class="value">${esc(c.value)}</div><div class="label p">${esc(c.label)}</div></div>`).join("");
+  $("#stats").innerHTML = cards.map((c) => `<div class="stat"><div class="value">${esc(c.value)}</div><div class="label">${esc(c.label)}</div></div>`).join("");
 }
 
 const CARET = '<svg viewBox="0 0 12 12" fill="currentColor"><path d="M4 2l5 4-5 4z"/></svg>';
@@ -90,7 +90,7 @@ function renderNav(filter = "") {
   const roots = DATA.classes.filter((c) => ROOTS.includes(c.name) || !c.subclass_of.length);
   const gl = DATA.glossary.filter((g) => !q || [g.acronym, g.meaning].some((x) => String(x).toLowerCase().includes(q)));
   $("#nav").innerHTML = `<div class="group-label">Classes</div><ul>${roots.filter(visible).map((c) => item(c, 0)).join("")}</ul>
-    ${gl.length ? `<div class="group-label" style="margin-top:12px">Glossario</div><ul>${gl.map((g) => `<li class="nav-item" style="cursor:default"><span class="mono">${esc(g.acronym)}</span><span class="secondary label">${esc(g.meaning)}</span></li>`).join("")}</ul>` : ""}`;
+    ${gl.length ? `<div class="group-label" style="margin-top:12px">Glossário</div><ul>${gl.map((g) => `<li class="nav-item" style="cursor:default"><span class="mono">${esc(g.acronym)}</span><span class="secondary label">${esc(g.meaning)}</span></li>`).join("")}</ul>` : ""}`;
   $("#nav").querySelectorAll("button[data-class]").forEach((b) => b.addEventListener("click", () => select(b.dataset.class)));
   $("#nav").querySelectorAll("button[data-toggle]").forEach((b) => b.addEventListener("click", () => {
     const n = b.dataset.toggle;
@@ -103,8 +103,7 @@ $("#search").addEventListener("input", (e) => renderNav(e.target.value));
 function renderPanel() {
   const el = $("#panel");
   if (!selected) {
-    el.innerHTML = `<div class="panel-head"><span class="kind">detalhes</span><h2 class="h3">Nada selecionado</h2><p class="p secondary">Escolha uma classe no grafo ou na lista para ver termos, mappings, restricoes e glossario ligados a ela.</p></div>
-      <div class="panel-section"><h3>Competency questions</h3>${cqList()}</div>`;
+    el.innerHTML = `<div class="panel-head"><div class="rv-empty"><b>Nenhuma classe escolhida</b><span>Escolha uma classe no grafo ou na lista para ver termos, mapeamentos, restrições e glossário ligados a ela.</span></div></div>`;
     return;
   }
   const c = DATA.classes.find((x) => x.name === selected);
@@ -118,24 +117,24 @@ function renderPanel() {
     <div class="panel-head">
       <span class="kind">${esc(c.subclass_of.length ? "subclasse de " + c.subclass_of.join(", ") : "classe raiz")}</span>
       <h2 class="h3" style="font-weight:600">${esc(c.label || c.name)}</h2>
-      <p class="p secondary">${esc(c.comment || "sem descricao")}</p>
+      <p class="p secondary">${esc(c.comment || "sem descrição")}</p>
       <code class="label tertiary">${esc(c.iri)}</code>
     </div>
-    <div class="panel-section"><h3>Termos e mappings</h3>
+    <div class="panel-section"><h3>Termos e mapeamentos</h3>
       ${terms.length ? terms.map((t) => `<div><div class="row"><span style="font-weight:600">${esc(t.name)}</span>${t.synonyms && t.synonyms.length ? `<span class="label tertiary">${esc(t.synonyms.join(", "))}</span>` : ""}</div>
         <div class="p secondary">${esc(t.definition)}</div>
-        <div class="badges" style="margin-top:4px">${mappingsOf(t.name).map((m) => `<span class="badge ${m.role === "metric" ? "" : "badge-alt"} mono" title="${esc(m.note || m.expression || "")}">${esc(m.source)}.${esc(m.column)}</span>`).join("") || '<span class="badge badge-outline">sem mapping</span>'}${t.unit ? `<span class="badge badge-outline">${esc(t.unit)}</span><span class="badge badge-outline">grao: ${esc(t.grain || "")}</span><span class="badge badge-outline">${esc(t.additivity || "")}</span>` : ""}</div></div>`).join("") : '<p class="p secondary">Nenhum termo ligado a esta classe.</p>'}
+        <div class="badges" style="margin-top:4px">${mappingsOf(t.name).map((m) => `<span class="badge ${m.role === "metric" ? "" : "badge-alt"} mono" title="${esc(m.note || m.expression || "")}">${esc(m.source)}.${esc(m.column)}</span>`).join("") || '<span class="badge badge-outline">sem mapeamento</span>'}${t.unit ? `<span class="badge badge-outline">${esc(t.unit)}</span><span class="badge badge-outline">grão: ${esc(t.grain || "")}</span><span class="badge badge-outline">${esc(t.additivity || "")}</span>` : ""}</div></div>`).join("") : '<p class="p secondary">Nenhum termo ligado a esta classe.</p>'}
     </div>
     <div class="panel-section"><h3>Hierarquia</h3>
       <div class="row"><span class="k">superclasse</span><span>${parentsOf(c.name).map(classLink).join(", ") || '<span class="tertiary">nenhuma</span>'}</span></div>
       <div class="row"><span class="k">subclasses</span><span>${childrenOf(c.name).map(classLink).join(", ") || '<span class="tertiary">nenhuma</span>'}</span></div>
     </div>
-    <div class="panel-section"><h3>Relacoes</h3>
-      ${rels.length ? rels.map((r) => `<div class="rel-item"><span class="mono">${esc(r.name)}</span><span class="secondary">${r.domain.map(classLink).join(", ")} para ${r.range.map(classLink).join(", ")}</span>${relContract(r)}</div>`).join("") : '<p class="p secondary">Nenhuma relacao.</p>'}
+    <div class="panel-section"><h3>Relações</h3>
+      ${rels.length ? rels.map((r) => `<div class="rel-item"><span class="mono">${esc(r.name)}</span><span class="secondary">${r.domain.map(classLink).join(", ")} para ${r.range.map(classLink).join(", ")}</span>${relContract(r)}</div>`).join("") : '<p class="p secondary">Nenhuma relação.</p>'}
     </div>
-    ${cons.length ? `<div class="panel-section"><h3>Restricoes</h3>${cons.map((k) => `<div class="row"><span class="badge ${k.severity === "error" ? "badge-error" : "badge-warning"}">${esc(k.id || k.severity || "regra")}</span><span>${esc(k.rule)}</span></div>`).join("")}</div>` : ""}
-    ${gl.length ? `<div class="panel-section"><h3>Glossario</h3>${gl.map((g) => `<div class="row"><span class="k mono">${esc(g.acronym)}</span><span>${esc(g.meaning)}${g.convention ? ` <span class="tertiary">(${esc(g.convention)})</span>` : ""}</span></div>`).join("")}</div>` : ""}
-    ${prec.length ? `<div class="panel-section"><h3>Precedencia</h3>${prec.map((p) => `<div class="p"><b>${esc(p.topic)}</b>: ${esc(p.winner)} prevalece sobre ${esc(p.over)}.<span class="secondary"> ${esc(p.reason || "")}</span></div>`).join("")}</div>` : ""}`;
+    ${cons.length ? `<div class="panel-section"><h3>Restrições</h3>${cons.map((k) => `<div class="row"><span class="badge ${k.severity === "error" ? "badge-error" : "badge-warning"}">${esc(k.id || k.severity || "regra")}</span><span>${esc(k.rule)}</span></div>`).join("")}</div>` : ""}
+    ${gl.length ? `<div class="panel-section"><h3>Glossário</h3>${gl.map((g) => `<div class="row"><span class="k mono">${esc(g.acronym)}</span><span>${esc(g.meaning)}${g.convention ? ` <span class="tertiary">(${esc(g.convention)})</span>` : ""}</span></div>`).join("")}</div>` : ""}
+    ${prec.length ? `<div class="panel-section"><h3>Precedência</h3>${prec.map((p) => `<div class="p"><b>${esc(p.topic)}</b>: ${esc(p.winner)} prevalece sobre ${esc(p.over)}.<span class="secondary"> ${esc(p.reason || "")}</span></div>`).join("")}</div>` : ""}`;
 }
 
 function relContract(r) {
@@ -155,10 +154,15 @@ function classLink(name) {
 }
 $("#panel").addEventListener("click", (e) => { const b = e.target.closest("[data-goto]"); if (b) select(b.dataset.goto); });
 
+// status da pergunta por extenso, com a cor do ponto
+const CQ_STATUS = { approved: ["aprovada", "success"], reserved: ["guardada para o teste", "information"], proposed: ["proposta", "warning"], rejected: ["rejeitada", "error"] };
 function cqList() {
   const cqs = DATA.requirements.competency_questions || [];
-  if (!cqs.length) return '<p class="p secondary">Nenhuma competency question registrada.</p>';
-  return cqs.map((q) => `<div class="row"><span class="badge ${q.status === "approved" ? "badge-success" : "badge-alt"}">${esc(q.id)}</span><span class="p">${esc(q.question)}</span></div>`).join("");
+  if (!cqs.length) return '<div class="rv-empty"><b>Nenhuma pergunta ainda</b><span>As perguntas aparecem aqui depois da etapa 1.</span></div>';
+  return `<div class="onto-cqs">${cqs.map((q) => {
+    const [txt, dot] = CQ_STATUS[q.status] || [q.status || "", "information"];
+    return `<div class="onto-cq"><span class="q">${esc(q.question)}</span><span class="meta"><span class="mono">${esc(q.id)}</span> · <span class="status-dot ${dot}"></span>${esc(txt)}</span></div>`;
+  }).join("")}</div>`;
 }
 
 function select(name) {
@@ -319,7 +323,7 @@ function renderGraph(opts = {}) {
   svg.selectAll("*:not(title)").remove();
   const wrap = $(".graph-wrap");
   const W = wrap.clientWidth, H = wrap.clientHeight;
-  if (!DATA.classes.length) { $("#graph-empty").hidden = false; $("#graph-empty").textContent = "Sem classes. Rode akme export."; $("#crumbs").innerHTML = ""; return; }
+  if (!DATA.classes.length) { $("#graph-empty").hidden = false; $("#graph-empty").textContent = "Ainda não há classes. Elas aparecem quando a etapa 2 for aplicada."; $("#crumbs").innerHTML = ""; return; }
   $("#graph-empty").hidden = true;
   if (!focus || !cls(focus)) focus = defaultFocus();
   renderCrumbs();
@@ -433,36 +437,39 @@ function renderGraph(opts = {}) {
   graph.highlight(selected);
 }
 
+// nivel do validate e das armadilhas, por extenso
+const LEVEL = { error: "erro", warning: "aviso", info: "nota", critical: "crítico", important: "importante", minor: "menor" };
+const levelOf = (l) => LEVEL[l] || l;
 function renderSummary() {
   const v = DATA.validation;
   const left = [];
   if (!v) {
-    left.push(`<div class="callout callout-nota">${ICONS.info}<div><div class="t">Sem validate</div><div class="b">Rode akme validate e depois akme export para ver cobertura e pitfalls aqui.</div></div></div>`);
+    left.push(`<div class="callout callout-nota">${ICONS.info}<div><div class="t">Ainda sem validação</div><div class="b">A cobertura e as armadilhas aparecem aqui depois do validate da etapa 4.</div></div></div>`);
   } else {
     const cov = v.coverage && v.coverage.available ? v.coverage : null;
-    left.push(`<div class="row"><span class="status-dot ${v.ok ? "success" : "error"}"></span><span>${v.ok ? "Validate ok" : "Validate com erros"}</span><span class="label tertiary" style="margin-left:auto">${esc((v.generated_at || "").replace("T", " ").slice(0, 16))}</span></div>`);
+    left.push(`<div class="row"><span class="status-dot ${v.ok ? "success" : "error"}"></span><span>${v.ok ? "Validação ok" : "Validação com erros"}</span><span class="label tertiary" style="margin-left:auto">${esc((v.generated_at || "").replace("T", " ").slice(0, 16))}</span></div>`);
     if (cov) {
       left.push(`<div><div class="row"><span>Cobertura</span><span class="secondary" style="margin-left:auto">${cov.mapped} de ${cov.columns} colunas</span></div><div class="bar ${cov.ratio >= 0.8 ? "ok" : ""}"><i style="width:${Math.round(cov.ratio * 100)}%"></i></div></div>`);
-      left.push(`<table><thead><tr><th>fonte</th><th>mapeadas</th><th>sem mapping</th></tr></thead><tbody>${Object.entries(cov.by_source).map(([s, x]) => `<tr><td class="mono">${esc(s)}</td><td>${x.mapped}/${x.columns}</td><td class="secondary mono label">${esc(x.unmapped.join(", ")) || "todas mapeadas"}</td></tr>`).join("")}</tbody></table>`);
+      left.push(`<table><thead><tr><th>fonte</th><th>mapeadas</th><th>sem mapeamento</th></tr></thead><tbody>${Object.entries(cov.by_source).map(([s, x]) => `<tr><td class="mono">${esc(s)}</td><td>${x.mapped}/${x.columns}</td><td class="secondary label">${x.unmapped.length ? `<details class="onto-cols"><summary>${x.unmapped.length} ${x.unmapped.length === 1 ? "coluna" : "colunas"}</summary><span class="mono">${esc(x.unmapped.join(", "))}</span></details>` : "todas mapeadas"}</td></tr>`).join("")}</tbody></table>`);
     } else {
-      left.push(`<div class="callout callout-atencao">${ICONS.warn}<div><div class="t">Profile ausente</div><div class="b">Rode akme profile para medir a cobertura dos mappings.</div></div></div>`);
+      left.push(`<div class="callout callout-atencao">${ICONS.warn}<div><div class="t">Fontes ainda não perfiladas</div><div class="b">A cobertura dos mapeamentos aparece depois do profile das fontes.</div></div></div>`);
     }
-    if (v.findings.length) left.push(`<table><thead><tr><th>nivel</th><th>check</th><th>mensagem</th></tr></thead><tbody>${v.findings.map((f) => `<tr><td><span class="status-dot ${f.level === "error" ? "error" : "warning"}"></span>${esc(f.level)}</td><td class="mono label">${esc(f.check)}</td><td class="secondary">${esc(f.message)}</td></tr>`).join("")}</tbody></table>`);
+    if (v.findings.length) left.push(`<table><thead><tr><th>nível</th><th>verificação</th><th>mensagem</th></tr></thead><tbody>${v.findings.map((f) => `<tr><td><span class="status-dot ${f.level === "error" ? "error" : "warning"}"></span><span class="nowrap">${esc(levelOf(f.level))}</span></td><td class="mono label">${esc(f.check)}</td><td class="secondary">${esc(f.message)}</td></tr>`).join("")}</tbody></table>`);
   }
   const pit = v ? v.pitfalls : [];
   const right = pit.length
-    ? `<table><thead><tr><th>codigo</th><th>nivel</th><th>elemento</th><th>descricao</th></tr></thead><tbody>${pit.map((p) => `<tr><td class="mono">${esc(p.code)}</td><td><span class="status-dot ${p.level === "critical" || p.level === "important" ? "error" : "warning"}"></span>${esc(p.level)}</td><td class="mono label">${esc(p.subject)}</td><td class="secondary">${esc(p.message)} <span class="tertiary">(${esc(p.source)})</span></td></tr>`).join("")}</tbody></table>`
-    : `<div class="callout callout-nota">${ICONS.info}<div><div class="t">Nenhum pitfall</div><div class="b">Os checks nativos (P04, P08, P11, P13, P22, P41) nao encontraram problemas${v && v.oops && v.oops.available === false ? ". O OOPS! remoto estava indisponivel" : ""}.</div></div></div>`;
+    ? `<table><thead><tr><th>código</th><th>nível</th><th>elemento</th><th>descrição</th></tr></thead><tbody>${pit.map((p) => `<tr><td class="mono">${esc(p.code)}</td><td><span class="status-dot ${p.level === "critical" || p.level === "important" ? "error" : "warning"}"></span><span class="nowrap">${esc(levelOf(p.level))}</span></td><td class="mono label">${esc(p.subject)}</td><td class="secondary">${esc(p.message)} <span class="tertiary">(${esc(p.source)})</span></td></tr>`).join("")}</tbody></table>`
+    : `<div class="callout callout-nota">${ICONS.info}<div><div class="t">Nenhuma armadilha</div><div class="b">Os checks nativos (P04, P08, P11, P13, P22, P41) não encontraram problemas${v && v.oops && v.oops.available === false ? ". O OOPS! remoto estava indisponível" : ""}.</div></div></div>`;
   const req = DATA.requirements;
   $("#summary").innerHTML = `
-    <div class="card"><span class="kind">ultimo validate</span><h2 class="h2">Cobertura e findings</h2>${left.join("")}</div>
-    <div class="card"><span class="kind">pitfalls</span><h2 class="h2">Armadilhas de modelagem</h2>${right}</div>
-    <div class="card"><span class="kind">requisitos</span><h2 class="h2">Proposito e perguntas</h2>
-      <p class="p-lg">${esc(req.purpose || "Proposito ainda nao registrado.")}</p>
+    <div class="card wide"><span class="kind">requisitos</span><h2 class="h2">Propósito e perguntas</h2>
+      <p class="p-lg">${esc(req.purpose || "Propósito ainda não registrado.")}</p>
       ${req.scope ? `<p class="p secondary">${esc(req.scope)}</p>` : ""}
       ${req.users && req.users.length ? `<div class="badges">${req.users.map((u) => `<span class="badge badge-outline">${esc(u)}</span>`).join("")}</div>` : ""}
       ${cqList()}
-    </div>`;
+    </div>
+    <div class="card"><span class="kind">última validação</span><h2 class="h2">Cobertura e achados</h2>${left.join("")}</div>
+    <div class="card"><span class="kind">armadilhas</span><h2 class="h2">Armadilhas de modelagem</h2>${right}</div>`;
 }
 
 

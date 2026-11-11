@@ -138,11 +138,11 @@ def checklist(project: Project, number: int) -> list[dict[str, Any]]:
         return [
             _step("Modo de decisão escolhido" + (f": {'automático' if mode['mode'] == 'auto' else 'humano'}" if mode["chosen"] else ""),
                   mode["chosen"], "choose_decision_mode"),
+            _step("Fontes perfiladas e documentos lidos", project.profile_path.exists(),
+                  "profile, read_document, find_in_sources"),
             _step("Caso de uso registrado (ou motivo de não ter)",
                   bool(r["use_cases"] or str(r.get("no_use_case") or "").strip() or of_type("add_use_case")),
                   "get_requirements, propose_edit add_use_case"),
-            _step("Fontes perfiladas e documentos lidos", project.profile_path.exists(),
-                  "profile, read_document, find_in_sources"),
             _step("Propósito, escopo e usuários propostos",
                   bool(str(r.get("purpose") or "").strip() and str(r.get("scope") or "").strip()) or bool(of_type("add_requirement")),
                   "propose_edit add_requirement"),
