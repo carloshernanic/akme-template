@@ -128,6 +128,11 @@ async def run_stdio(server, project_factory) -> None:
     lowlevel = server._mcp_server
     options = lowlevel.create_initialization_options(experimental_capabilities=CHANNEL_CAPS)
     project = project_factory()
+    try:
+        # sessao nova do agente = conversa nova na pagina; o log antigo fica como historico
+        chat.append(project, "event", "nova sessao do agente", kind="session_start")
+    except OSError:
+        pass
     async with stdio_server() as (read_stream, write_stream):
         forward, inner = anyio.create_memory_object_stream(100)
         async with anyio.create_task_group() as tg:

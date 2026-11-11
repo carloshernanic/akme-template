@@ -132,6 +132,8 @@ def test_stdio_server_speaks_the_channel_protocol(project):
         assert init["result"]["capabilities"]["experimental"] == channel.CHANNEL_CAPS
         assert "reply" in init["result"]["instructions"]
         _send(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
+        starts = [i for i in chat.read_from(project, 0)[0] if i.get("kind") == "session_start"]
+        assert len(starts) == 1, "a sessao nova deve abrir uma conversa nova na pagina"
 
         # pagina -> agente
         chat.append(project, "human", "comece pela etapa 1", author="Ana")
