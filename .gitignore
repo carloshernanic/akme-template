@@ -9,6 +9,7 @@ build/
 .env.*
 akme.local.yml
 docs/profile.json
+docs/databricks_catalog.json
 docs/validation.json
 examples/local_demo/ontology/
 docs/publish/
@@ -30,6 +31,7 @@ docs/app.js
 docs/graph.js
 docs/review.js
 docs/etapa1.js
+docs/chat.js
 docs/fonts/
 docs/brand/
 
@@ -42,3 +44,11 @@ docs/brand/
 # rodada de revisao aberta pelo agente (estado efemero)
 ontology/pending/round.json
 ontology/pending/round.tmp
+# conversa da pagina com o agente (canal)
+ontology/pending/chat.jsonl
+ontology/pending/activity.json
+ontology/pending/activity.tmp
+
+# Configurações de mcp
+.agents
+.gemini

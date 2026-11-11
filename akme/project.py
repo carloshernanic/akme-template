@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv  
 
 CONFIG_FILE = "akme.yml"
 
@@ -12,6 +13,11 @@ CONFIG_FILE = "akme.yml"
 class Project:
     def __init__(self, root: Path | str = ".") -> None:
         self.root = Path(root).resolve()
+        
+        env_path = self.root / ".env"
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path, override=True)
+
         self.config: dict[str, Any] = self._load()
 
     def _load(self) -> dict[str, Any]:
@@ -64,6 +70,10 @@ class Project:
         return self.docs_dir / "profile.json"
 
     @property
+    def catalog_path(self) -> Path:
+        return self.docs_dir / "databricks_catalog.json"
+
+    @property
     def validation_path(self) -> Path:
         return self.docs_dir / "validation.json"
 
@@ -92,3 +102,4 @@ def write_yaml(path: Path, data: Any) -> None:
         yaml.safe_dump(data, allow_unicode=True, sort_keys=False, default_flow_style=False),
         encoding="utf-8",
     )
+    

@@ -124,7 +124,7 @@ def to_yarrrml(project: Project, data: dict[str, Any]) -> tuple[dict[str, Any], 
 
 
 PAGE_DIR = Path(__file__).resolve().parent.parent / "static"
-PAGE_FILES = ("index.html", "akme.css", "app.js", "graph.js", "etapa1.js", "review.js")
+PAGE_FILES = ("index.html", "akme.css", "app.js", "graph.js", "etapa1.js", "review.js", "chat.js")
 PAGE_DIRS = ("fonts", "brand")
 
 
