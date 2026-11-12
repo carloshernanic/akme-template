@@ -2,9 +2,35 @@
 
 Registro cronológico, com as saídas completas de cada prova. Trechos antigos podem estar superados: o estado atual está em [exportacao.md](exportacao.md).
 
-## 11/11/2026 a 12/11/2026: de volta ao Cypher, sem n10s
+## 12/11/2026: tutorial do projeto no Neo4j Browser (Task 11)
 
 Esta entrada é a mais recente. As seções depois dela são registros antigos, mantidos como estavam.
+
+**O que mudou:** todo `publish --target neo4j`, dry-run ou carga, gera `docs/publish/neo4j_guia.html`, um guia do Neo4j Browser sobre o projeto, com seis páginas só de navegação: o que tem aqui (classes com contagem), a ontologia (mapa com os nomes do TTL; setas virtuais com APOC), os dados (`db.schema.visualization` sem a camada de ontologia), explorar (um registro de cada classe e o que está ligado a ele), como navegar e perguntas em português pelo console da Aura, e `docs/publish/neo4j_consultas.csv`, as mesmas consultas para importar no Browser. O `akme review` serve o guia em `/neo4j/guia`, com CORS só para as origens do Neo4j Browser; no Browser, `:guide http://127.0.0.1:8765/neo4j/guia`. As arestas de dado mantêm o nome exato do TTL. A camada `Conceito` virou espelho do `schema.ttl`: toda relação, inversas incluídas, como seta `RELACAO_ONTOLOGIA` com o nome em `nome`. Todo nó ganhou a legenda `name`.
+
+**Decisão de Mateus (12/11, cerca de 18:35):** a primeira versão da Task 11 gravava as arestas de dado em UPPER_SNAKE (`PERTENCE_A`). Depois de ver o mapa, Mateus pediu o nome exato do TTL nos dados e um tipo único entre os `Conceito`. Os tipos continuam diferentes, então o mapa nativo continua sem setas falsas.
+
+**Por quê:** a crítica do João (o Browser mostra bolinhas soltas e exige Cypher) e a [pesquisa de visualização](../exportacao-neo4j/pesquisa-visualizacao.md): sem `name`, a legenda era `_carga`; com o mesmo tipo em `Conceito` e nos dados, o mapa nativo desenhava 18 setas falsas no Olist. Pedido de Mateus: "sempre que alguém rode, gere esse tutorial, sobre o projeto que for, mas cubra todas as perguntas de competência".
+
+**Atenção na primeira carga depois da mudança:** quem carregou com a versão UPPER_SNAKE tem arestas `PERTENCE_A` no banco. A carga grava as de nome do TTL e a sincronização apaga as antigas. A prévia mostra, por tipo de aresta, banco, origem e "pelo menos N serão removidas", e avisa que o tipo antigo não é mais gravado. Consultas escritas com o nome antigo param de achar arestas.
+
+**Onde está o detalhe:** [task-11-tutorial.md](../exportacao-neo4j/task-11-tutorial.md).
+
+## 12/11/2026: camada semântica legível no grafo (Task 10)
+
+Registro mantido como foi escrito.
+
+**O que mudou:** cada nó e aresta de dado ganhou `_descricao` (a definição da classe ou da relação, ou o rótulo da relação enquanto ela não tiver definição). A carga passou a gravar um esquema descritivo para o LLM em `docs/publish/neo4j_schema.md` e na propriedade `esquema` da marca `_AkmeProjeto`. Os termos do `content.yml` entraram como nós `Termo`, ligados por `TEM_TERMO`. A regra "não somar após juntar com" passou a citar labels. Antes do "confirmar?", a CLI mostra quantos nós a sincronização vai apagar, pelo menos.
+
+**Por quê:** a pesquisa de 12/11/2026 ([pesquisa-camada-semantica.md](../exportacao-neo4j/pesquisa-camada-semantica.md)) mostrou que as ferramentas de LLM não leem descrição nenhuma do grafo e que quem clica num nó no Browser não vê a definição. Decisão de Mateus: descrição em cada nó, para navegação, e o esquema gravado também no banco.
+
+**Correção do registro da entrada abaixo:** dos quatro motivos da troca do n10s, a pesquisa confirmou o do Aura. O teto de 100 mil linhas era do nosso código (`MAX_ROWS` no `n10s.py`), não do n10s. Relação virar nó era um problema do `onto.import`, que tinha meio-termo (n10s só para os dados). O pedido do colega não exigia sair do n10s. O que a troca perdeu de fato foi o único gerador de RDF fiel.
+
+**Onde está o detalhe:** [task-10-semantica.md](../exportacao-neo4j/task-10-semantica.md).
+
+## 11/11/2026 a 12/11/2026: de volta ao Cypher, sem n10s
+
+Registro mantido como foi escrito. Veja a correção dos motivos na entrada acima.
 
 **O que mudou:** o exportador com RDF e o plugin n10s (`akme/tools/n10s.py`, de 05/11/2026) foi apagado. A exportação passou a gravar dados e ontologia em Cypher puro, pelo driver, sem plugin (`akme/tools/neo4j_values.py`, `neo4j_plan.py`, `neo4j_onto.py` e `neo4j_load.py`). O artefato do dry-run passou de `docs/publish/neo4j.nt` para `docs/publish/neo4j.cypher`. A ontologia entra como nós `Conceito`, com as relações como setas, e cada carga sincroniza o banco com a origem.
 

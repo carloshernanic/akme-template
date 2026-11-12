@@ -14,3 +14,9 @@ nav:
   - "Task 6: carga, sincronização e conferência": task-6-carga.md
   - "Task 7: troca do exportador e remoção do n10s": task-7-troca.md
   - "Task 8: documentação, guia e verificador da demo": task-8-docs.md
+  - "Task 9: aceitação real (demo, Olist e Postgres)": task-9-aceitacao.md
+  - "Pesquisa: camada semântica no grafo": pesquisa-camada-semantica.md
+  - "Task 10: camada semântica legível no grafo": task-10-semantica.md
+  - "Task 11: tutorial do projeto no Neo4j Browser": task-11-tutorial.md
+  - "Pesquisa: como ver o grafo": pesquisa-visualizacao.md
+  - "Uso real do grafo": uso-do-grafo.md

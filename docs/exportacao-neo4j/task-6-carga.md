@@ -72,11 +72,11 @@ Um erro do adapter no meio da leitura (conexão perdida, por exemplo) segue a me
 
 **Proteção a mais (não estava no brief):** a carga conta as linhas que leu de cada fonte, na passada dos nós e em cada passada de arestas. Se algum número for diferente do plano, a origem mudou entre o plano e a carga, e o akme recusa antes de apagar: "a origem mudou durante a carga: clientes (8 no plano, 7 agora). ... nada foi apagado". Sem isso, uma fonte lida vazia por engano levaria todos os nós daquele label, e uma origem que encolhesse entre a passada dos nós e a das arestas levaria arestas ainda válidas.
 
-**Duas cargas no mesmo segundo** recebem a mesma `_carga` (a marca tem precisão de segundos). Isso é inofensivo: a segunda não apaga o que a primeira gravou, então no pior caso sobra dado a mais até a carga seguinte.
+**Duas cargas no mesmo segundo** recebem a mesma `_carga` (a marca tem precisão de segundos). Isso é inofensivo: a segunda não apaga o que a primeira gravou, então no pior caso sobra dado a mais até a carga seguinte. Na revisão final, a marca passou a ter milissegundos e a carga ganhou uma trava contra carga concorrente (ver [a página da exportação](index.md#correcoes-da-revisao-final)).
 
 **O que `removed` conta:** `removed.nodes` é o número de nós apagados. `removed.relationships` é o total de arestas apagadas, somando as dos nós apagados (pelo `DETACH DELETE`) e as arestas antigas entre nós que ficaram. Os números vêm dos contadores do resumo do driver (`summary.counters`), que funcionam com `IN TRANSACTIONS` no Neo4j 2026.10 (conferido no banco real).
 
-`CALL { } IN TRANSACTIONS` exige uma transação implícita. Por isso a carga usa `session.run`, nunca `execute_write`.
+`CALL { } IN TRANSACTIONS` exige uma transação implícita. Por isso a carga usa `session.run`, nunca `execute_write`. (Nota da revisão final: desde então, só a sincronização usa `session.run`; blocos, ontologia e restrições passaram a `execute_write`, que repete em erro transitório.)
 
 ## Proteção do destino
 
