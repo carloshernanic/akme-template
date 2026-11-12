@@ -36,7 +36,7 @@ docs/chat.js
 docs/fonts/
 docs/brand/
 
-# plugin do Neo4j local (n10s), baixado do GitHub
+# pasta do plugin da exportacao antiga do Neo4j; nao e mais usada, mas pode existir em maquinas antigas
 .neo4j/
 
 # macOS

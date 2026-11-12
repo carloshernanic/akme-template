@@ -43,5 +43,5 @@ Template para construir, validar e publicar uma ontologia e uma camada semântic
 - `docs/index.html`, `docs/*.js`, `docs/*.css`, `docs/fonts/` e `docs/brand/` são cópias geradas pelo `akme export`; edite em `akme/static/`
 - Nunca commite arquivos de `data/` nem `akme.yml` (configuração local)
 - `publish` roda em dry-run por padrão; executar no alvo é irreversível
-- Exportação para o Neo4j: o akme gera RDF e o plugin n10s carrega; chave e tipos de cada tabela são decididos na etapa 5 (`add_source`) e a carga é só pelo humano, na CLI. Passo a passo em `reports/docs_exp_neo4j/README.md`
+- Exportação para o Neo4j: o akme grava em Cypher puro, sem plugin (dry-run em `docs/publish/neo4j.cypher`), e cada carga sincroniza o banco com a origem; chave e tipos de cada tabela são decididos na etapa 5 (`add_source`) e a carga é só pelo humano, na CLI. Passo a passo em `reports/docs_exp_neo4j/README.md`
 - Depois de mudar tools MCP, reinicie o servidor `akme` no harness para elas aparecerem

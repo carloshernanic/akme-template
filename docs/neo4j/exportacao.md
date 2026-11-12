@@ -1,60 +1,72 @@
 # Exportação para o Neo4j
 
-**Situação em 05/11/2026:** a exportação passou a usar o plugin **n10s** (neosemantics). A demo e o `teste_acme` carregam, conferem e repetem sem duplicar pelo caminho novo, no banco `akme-neo4j`. Guia de uso passo a passo: [reports/docs_exp_neo4j/README.md](../../reports/docs_exp_neo4j/README.md).
+**Situação em 12/11/2026:** a exportação grava dados e ontologia em **Cypher puro**, pelo driver oficial, sem plugin no servidor. Testado no Neo4j 2026.10.1 Community; sem plugin, não depende da edição (Aura e Enterprise não testados). A demo carrega, confere, sincroniza e repete sem duplicar num Neo4j 2026.10.1 descartável. Guia de uso passo a passo: [reports/docs_exp_neo4j/README.md](../../reports/docs_exp_neo4j/README.md).
 
-- Teste e decisão do n10s: [teste-n10s.md](teste-n10s.md)
-- Registro do exportador anterior, em Cypher: [historico.md](historico.md)
+- Por que mudou e o que mudou em cada tarefa: páginas MkDocs em [docs/exportacao-neo4j/](../exportacao-neo4j/index.md) (`uv run --extra docs mkdocs serve`); carga e sincronização em [task-6-carga.md](../exportacao-neo4j/task-6-carga.md), troca na CLI em [task-7-troca.md](../exportacao-neo4j/task-7-troca.md)
+- Registro cronológico: [historico.md](historico.md)
+
+**Antes (n10s):** de 05/11/2026 a 11/11/2026, o akme gerava RDF (`docs/publish/neo4j.nt`) e o plugin n10s carregava. A troca e o motivo estão na entrada de 11/11/2026 do [historico.md](historico.md); o teste que levou ao n10s está em [teste-n10s.md](teste-n10s.md). O código antigo fica no histórico do git.
 
 ## Como funciona
 
 ```
-dados do adapter + ontologia + chave e tipos aprovados na etapa 5 (content.yml)
+content.yml (contratos, termos, mappings, etapa 5) + schema.ttl + adapter
         ↓
-akme gera RDF (N-Triples) e a lista de problemas e avisos   ← dry-run
+1. plano (dry-run, sem banco): lê cada fonte em blocos; confere chave, tipos e joins;
+   conta nós e arestas esperados; lista problemas e avisos; grava docs/publish/neo4j.cypher
         ↓
-humano lê o resumo e confirma na CLI
+humano lê o resumo (com o que o banco tem hoje, por label) e confirma na CLI
         ↓
-n10s: unicidade por IRI → configuração → ontologia → dados, em lotes
+2. carga: confere o destino; cria restrições e índices; marca o projeto;
+   grava nós em lotes de 5.000; grava arestas (o banco resolve o join pelo índice);
+   grava a camada Conceito; tudo com a _carga desta rodada
         ↓
-akme conta no banco e compara com a previsão
+3. sincronização: apaga nós e arestas do projeto com _carga antiga
+        ↓
+4. conferência: conta no banco por label e por padrão (:Dominio)-[:relacao]->(:Alcance)
 ```
 
-- **O akme gera o RDF** (`akme/tools/n10s.py`). Cada linha vira um recurso com IRI pela chave (`…#Pedido/1001`), cada coluna vira uma propriedade tipada, e cada relação com join vira uma tripla por par ligado. O join é resolvido no Python, a partir dos contratos.
-- **O n10s carrega:**
-  - a ontologia (`n10s.onto.import.inline`), que vira nós `Class` com `name`, `label`, `comment` e a hierarquia `SCO`;
-  - os dados (`n10s.rdf.import.inline`), que viram nós com a classe como label, por exemplo `Pedido`, mais o label `Resource` e a propriedade `uri`.
-- **Nomes limpos:** o grafo usa `handleVocabUris: IGNORE`, então as consultas usam nomes do domínio.
-- **Dados como parâmetro:** os dados vão como parâmetro da consulta, nunca dentro do texto do Cypher.
-- **Métricas:** entram como comentário no arquivo, sem tradução para Cypher.
+O código está em `akme/tools/`:
+
+| Módulo | Papel |
+|---|---|
+| `neo4j_values.py` | Converte cada célula para o tipo aprovado e calcula a identidade `_id` do nó |
+| `neo4j_plan.py` | Plano da carga (dry-run): lê em blocos, confere e conta, sem guardar as linhas |
+| `neo4j_onto.py` | Camada `Conceito`: comandos da ontologia, com parâmetros |
+| `neo4j_load.py` | Proteção do destino, carga, sincronização, conferência, artefato e textos da CLI |
+
+**O modelo no grafo:**
+
+- **Nó de dado:** o label é a classe (ex.: `Pedido`). Uma propriedade por coluna preenchida, com o nome original e o tipo da etapa 5, mais `_id` (valores da chave, como `1001/CIM-50`), `_projeto` e `_carga`.
+- **Aresta de dado:** o tipo é o nome da relação (ex.: `pertenceA`), do domínio para o alcance. Só a propriedade `_carga`.
+- **Camada `Conceito`:** um nó `:Conceito` por classe do `schema.ttl`, com `nome`, `rotulo`, `definicao` e `iri` (métricas acrescentam expressão, unidade, grão e aditividade). `(:Conceito)-[:SUBCLASSE_DE]->(:Conceito)` e uma seta por contrato de relação, com o mesmo nome da relação de dados e as propriedades `rotulo`, `definicao`, `multiplicidade`, `inversa` e `publicada`. As duas camadas não se ligam.
+- **Esquema:** uma restrição de unicidade de `_id` por label (`akme_uniq_<Label>`), uma composta para o `Conceito` (`akme_conceito_uniq_projeto_nome`) e um índice por coluna-alvo de join (`akme_idx_<Label>__<coluna>_<hash>`). Sem a restrição, cada `MERGE` varreria o label inteiro.
+- **Marca:** `(:_AkmeProjeto {projeto})`, gravada na primeira carga.
+- **Dados como parâmetro:** os valores vão sempre em `$rows`, `$projeto` e `$carga`. No texto das consultas só entram identificadores, entre crases.
 
 ## Como usar
 
-**Uma vez por máquina:** subir o Neo4j com o plugin.
+**Uma vez por máquina:** subir o Neo4j, sem plugin.
 
 ```bash
-mkdir -p .neo4j/plugins
-curl -L -o .neo4j/plugins/neosemantics-2025.06.1.jar \
-  https://github.com/neo4j-labs/neosemantics/releases/download/2025.06.1/neosemantics-2025.06.1.jar
-# sha256 esperado: 4c461087e08405c7cb472ecfefc043e9e8ed93628ed74988e4fda1f1bac54b3e
-NEO4J_AUTH="neo4j/<senha do .env>" docker run -d --name akme-neo4j \
+set -a; . ./.env; set +a                         # AKME_NEO4J_URI, USER e PASSWORD
+NEO4J_AUTH="neo4j/$AKME_NEO4J_PASSWORD" docker run -d --name akme-neo4j \
   --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
-  --env NEO4J_AUTH --env NEO4J_dbms_security_procedures_unrestricted='n10s.*' \
-  --volume=akme-neo4j-data:/data --volume="$PWD/.neo4j/plugins":/plugins:ro neo4j:2026.10.1
+  --env NEO4J_AUTH --volume=akme-neo4j-data:/data neo4j:2026.10.1
 uv sync --inexact --extra dev --extra neo4j
 ```
 
 **A cada exportação:**
 
 ```bash
-uv run akme publish --target neo4j               # dry-run: gera docs/publish/neo4j.nt
-set -a; . ./.env; set +a                         # AKME_NEO4J_URI, USER e PASSWORD
-uv run akme publish --target neo4j --no-dry-run  # resumo, confirmação, carga e conferência
+uv run akme publish --target neo4j               # dry-run: gera docs/publish/neo4j.cypher
+uv run akme publish --target neo4j --no-dry-run  # resumo, estado do banco, confirmação, carga, sincronização e conferência
 ```
 
-No fim da carga, a CLI diz onde ver o grafo:
+Antes de confirmar, a CLI mostra o destino (sem credenciais), os nós e arestas previstos, por label `banco <n> -> origem <m>` e o aviso de que a carga apaga deste projeto o que não vier da origem. No fim da carga, ela diz onde ver o grafo:
 - o endereço do Neo4j Browser: `http://localhost:7474` no Docker local; no Aura, `https://console.neo4j.io`;
 - o usuário;
-- consultas prontas com as classes e relações do projeto carregado.
+- consultas prontas com as classes e relações do projeto, mais `MATCH (n)-[r]->(m) WHERE NOT n:Conceito RETURN n, r, m LIMIT 300` (os dados) e `MATCH p = (:Conceito)-->(:Conceito) RETURN p` (a ontologia).
 
 **Chave e tipos de cada tabela**, que a ontologia não traz, são decididos na etapa 5, só quando o alvo é o Neo4j:
 
@@ -62,7 +74,7 @@ No fim da carga, a CLI diz onde ver o grafo:
    - a chave vem dos contratos de relação ou de uma chave candidata do profile;
    - os tipos vêm do profile; inteiro com nome de identificador fica texto;
    - tabela sem classe vira exclusão.
-2. O agente ajusta o que exige julgamento, como chave composta ou dinheiro como `float`, e propõe um `add_source` por tabela. Cada proposta é conferida contra o dado: chave repetida ou valor que não converte é recusado na hora.
+2. O agente ajusta o que exige julgamento, como chave composta ou dinheiro como `float`, e propõe um `add_source` por tabela. Cada proposta é conferida contra a fonte inteira, lida em blocos: chave repetida ou valor que não converte é recusado na hora.
 3. O humano decide na página de revisão, grupo "Exportação Neo4j", com "Aceitar tudo". Chave e tipos podem ser editados no cartão, e a edição é conferida de novo.
 4. As decisões ficam na seção `sources` do `content.yml`, versionada com a ontologia:
 
@@ -71,10 +83,6 @@ sources:
 - {source: itens_pedido, key: [id_pedido, sku], types: {qt_itens: integer, vl_item: float}}
 - {source: fireclaim, exclude: não aparece em nenhuma relação nem mapping da ontologia}
 ```
-
-O exportador recusa:
-- tabela sem decisão aprovada, e diz quando há proposta pendente;
-- o bloco antigo `neo4j` no `akme.yml`.
 
 A tool MCP só roda em dry-run. Quem executa a carga é o humano, na CLI.
 
@@ -85,7 +93,7 @@ MATCH (:Pedido {id_pedido: '1001'})-[:contem]->(i:ItemPedido)-[:referencia]->(p:
 RETURN p.sku, i.qt_itens
 ```
 
-Para contar só dados, sem os nós da ontologia, filtre `NOT n:Class AND NOT n:Relationship`.
+Para contar só dados, sem a camada da ontologia, filtre `NOT n:Conceito`.
 
 ## O que o exportador faz com cada caso
 
@@ -93,116 +101,59 @@ Para contar só dados, sem os nós da ontologia, filtre `NOT n:Class AND NOT n:R
 |---|---|
 | Fonte sem classe, com mais de uma classe ou classe em mais de uma fonte | Recusa |
 | Fonte sem chave; chave vazia ou repetida | Recusa |
-| Mais de 100 mil linhas | Recusa |
 | Valor que não converte sem perda, como `03/07/2026` em `date` | Recusa |
 | Tipo, fonte ou coluna inexistente na configuração; chave ou join com tipo diferente de `string` | Recusa |
+| Classe com nome reservado (`Conceito`, `_AkmeProjeto`) ou coluna `_id`, `_projeto` ou `_carga` | Recusa |
 | Coluna de join ausente, ou relação em que nenhuma linha encontra alvo | Recusa |
-| Servidor sem n10s, ou grafo configurado com outro modo de nomes | Recusa, sem gravar |
-| Banco com a marca de outro projeto, com dados sem marca ou com nós que não vieram do akme nem do n10s | Recusa antes da confirmação, e de novo antes de gravar |
-| n10s carrega menos triplas do que recebeu, ou responde diferente de `OK` | Erro, dizendo quantos lotes já foram gravados |
+| Banco vazio, ou só com este projeto | Aceita; com este projeto, atualiza e sincroniza |
+| Banco com outro projeto, com mais de um projeto, com nós sem marca ou com nós que não vieram do akme | Recusa antes da confirmação, e de novo antes de gravar |
+| Banco carregado pela exportação antiga (nós `Resource` ou `_GraphConfig` sem `_projeto`, ou a restrição antiga) | Recusa, com o comando de limpeza no guia; não há migração |
+| Falha num lote, na ontologia ou na leitura da origem | Erro dizendo o lote e quantos já foram gravados; nada é apagado; repetir é seguro |
+| Origem com outro número de linhas que o plano, durante a carga | Recusa antes de apagar |
 | Parte das linhas de uma relação sem alvo | Avisa; essas linhas ficam sem aresta |
 | Medida sem tipo numérico declarado | Avisa; carrega como texto |
-| Coluna com caractere especial, como espaço | Avisa; o nome da propriedade fica codificado, como `Loss%20Ratio` |
 | Banco diverge da previsão depois da carga | Erro; os dados continuam gravados |
 
-As recusas de dados acontecem no dry-run, antes de conectar ao banco. As de servidor acontecem antes do primeiro lote.
+As recusas de dados acontecem no dry-run, antes de conectar ao banco. As de destino acontecem antes de qualquer gravação.
 
-**Proteção do destino:** a primeira carga num banco vazio grava o nó `(:_AkmeProjeto {projeto})`. Depois disso, o banco só aceita o mesmo projeto. A marca é necessária porque o namespace não distingue projetos: a demo e o `teste_acme` usam o mesmo `https://akme.example/ontology#`. No Neo4j Community há um banco só, então outro projeto exige outro contêiner, ou limpar este.
+**Proteção do destino:** a primeira carga num banco vazio grava o nó `(:_AkmeProjeto {projeto})`. Depois disso, o banco só aceita o mesmo projeto, porque a sincronização apaga o que é do projeto e não veio da origem. No Neo4j Community há um banco só, então outro projeto exige outro contêiner, ou limpar este.
+
+**Sincronização:** apaga só nós com `_projeto` igual ao do projeto e `_carga` diferente da atual (com `DETACH DELETE`), e arestas com `_carga` antiga que saem de nós do projeto. Nunca apaga a marca do projeto nem nada de outro projeto, e só roda depois de todos os lotes, da releitura conferida e da ontologia. O resultado traz `removed` com os nós e as arestas apagados.
 
 ## Por que este caminho
 
 | Decisão | Motivo | Base |
 |---|---|---|
 | Neo4j como alvo | Pedido de Gabriel, da McKinsey | Conversa com o usuário |
-| n10s para carregar | Leva a ontologia para o grafo; padrão W3C; menos lógica de carga nossa | [teste-n10s.md](teste-n10s.md); decisão do usuário |
-| Gerar o RDF no akme, sem Morph-KGC | Funciona com qualquer adapter; o alvo `rdf` atual perde relações e tipos | Teste do n10s, entrada R1 |
-| Nomes limpos (`IGNORE`) | Consultas naturais para pessoas e LLM | Decisão do usuário |
-| Sem SHACL do n10s | Não funcionou com nomes limpos no teste | Teste do n10s, C8 |
-| Manter recusa e conferência do akme | O n10s não confere a origem nem recusa dados ruins | Teste do n10s; decisão do usuário |
+| Cypher puro, sem plugin | O plugin anterior gravava cada relação como nó; tinha teto de 100 mil linhas; não existe no Aura | Spec de 11/11/2026; decisão de Mateus |
+| Ontologia como `Conceito`, com setas de mesmo nome das relações de dados | Quem abre o Browser lê conceitos como nós e relações como setas, sem escrever Cypher | Pedido do colega; decisão de Mateus |
+| Leitura em blocos nos quatro adapters, sem teto de linhas | O `olist_order_items_dataset` tem 112.650 linhas | Teste do Olist; decisão de Mateus |
+| Restrição única por label antes do `MERGE` | Sem ela, cada `MERGE` varre o label inteiro | Teste descartável de 11/11/2026 |
+| Sincronizar a cada carga | O banco fica igual à origem, inclusive linhas apagadas e relações que saíram | Decisão de Mateus |
 | Chave e tipo decididos na etapa 5, com sugestão automática | Identidade estável, tipo que não depende dos dados, nada escrito à mão, decisão versionada | Testes automatizados; demo e `teste_acme` |
-| Dinheiro como `xsd:decimal`, gravado como `FLOAT` | O Neo4j não tem tipo decimal; não serve para uso contábil | Teste do n10s, C5; decisão do usuário |
-| Docker 2026.10.1 com n10s 2025.06.1 | Funcionou no teste, mas o par não é oficial | Teste do n10s, P2 |
+| Dinheiro como `float` | O Neo4j não tem tipo decimal; não serve para uso contábil | Decisão do usuário |
+| Carga só pelo humano, na CLI | A carga altera o banco do cliente | `tests/test_server_publish_guard.py` |
 
 ## Provas
 
-| O que foi provado | Resultado | Base |
-|---|---|---|
-| O RDF do exportador é o mesmo que passou no n10s | 300 triplas, grafos idênticos ao R2 | Comparação com `rdflib.compare` |
-| n10s com esse RDF, no Neo4j 2026.10.1 | Dados completos, 216 células iguais, tipos certos, repetição idêntica, ontologia e hierarquia no grafo | Banco descartável, [teste-n10s.md](teste-n10s.md) |
-| Recusas, avisos, lotes, parâmetros, plugin ausente e falha parcial | 88 testes de Neo4j e MCP passam | `tests/test_publish_neo4j.py`, com o servidor simulado |
-| Suíte completa | 186 passam, 1 pulado, 1 falha | A falha é o teste de Postgres, fora do Neo4j |
-| Erro de conexão | Mensagem curta, sem senha | CLI com porta sem serviço |
-| Plugin no banco da demo | 55 procedimentos `n10s` | Contêiner `akme-neo4j` recriado |
-| Carga da demo pelo n10s | `"executed": 1`, `verification.ok` verdadeiro | Executada pelo usuário, com `echo y` |
-| Grafo igual à origem | 31 de 31 verificações, 216 células, tipos, pares de cada relação, 5 `SCO` e definição de `Pedido` | `verificar_neo4j.py`, banco real |
-| Repetição da carga, com `onto.import` de novo | Impressão digital idêntica, 31 de 31 verificações, 58 nós no total | Executada pelo usuário |
-| Proteção do destino no banco real | Recusou 58 nós sem marca antes de perguntar; banco limpo foi aceito como `vazio`; a carga gravou a marca `local_demo`; `teste_acme` seria recusado | Executada pelo usuário em 06/11/2026 |
-| Grafo com a marca | 32 de 32 verificações; conteúdo dos 58 nós de dados e ontologia igual ao da carga 1 | `verificar_neo4j.py` e impressão digital sem o nó da marca |
-| Consulta de negócio | Pedido 1001: `ARE-M3`=5, `ARG-20`=10, `CIM-50`=100 | Banco real |
+a preencher na Task 9
 
-**Teste com outros dados (`examples/teste_acme`, seguros P&C), em 09/11/2026:**
-
-| O que foi provado | Resultado | Base |
-|---|---|---|
-| Dry-run com 29 fontes, 14 no escopo e 15 excluídas por configuração | 290 triplas, nenhum problema, nenhum aviso além das exclusões | `akme publish --target neo4j` |
-| Carga | 54 nós em 14 classes, 56 arestas em 14 relações, `verification.ok` | Executada pelo usuário |
-| Grafo contra os CSVs | 21 de 21 verificações: 344 células, pares de cada relação, tipos (`DATE`, `FLOAT`, `STRING`), classes da ontologia e marca do projeto | Verificador independente, só leitura |
-| Repetição da carga | Impressão digital idêntica, 89 nós e 99 arestas no total, 21 de 21 verificações | Executada pelo usuário |
-| Decisões da etapa 5 pela página de revisão | 29 aplicadas pelo usuário com "Aceitar tudo", sem nada escrito à mão; dry-run com as mesmas 290 triplas | Changelog do `teste_acme` |
-| RDF do fluxo contra o banco já carregado | 54 nós, 180 propriedades e 56 arestas idênticos, sem nenhuma diferença; 21 de 21 verificações lendo chave e tipos do `content.yml` | Comparação só de leitura |
-| Consulta de negócio | Sinistralidade de 2019 na apólice 31003000336: 6600 / 20000 = 0,33 | Cypher no banco real |
-
-Condições do teste:
-- A ontologia do `teste_acme` foi escrita direto nos arquivos, sem o fluxo de aprovação, só para exercitar o exportador.
-- Na primeira rodada, chaves e tipos foram escritos à mão no `akme.yml`.
-- Depois, `suggest_sources` reproduziu sem ajuda as 6 chaves e os tipos de data, e excluiu as 15 tabelas fora da ontologia. Só os dois valores em dinheiro precisaram de ajuste, de `integer` para `float`. Na demo, a sugestão acertou tudo menos a chave composta dos itens, que ela sinalizou.
-
-**Achado de modelagem:** tabelas de subtipo, como `Premium` sobre `Policy_Amount`, viram dois nós ligados por aresta. No RDF, o mais natural seria um recurso com duas classes. Funciona para consulta, mas é uma decisão a tomar.
-
-**Ainda não provado:**
-- Excel, SQL e Aura (onde o n10s não roda).
+Testes automatizados que já existem: `tests/test_neo4j_values.py`, `tests/test_neo4j_plan.py`, `tests/test_neo4j_onto.py`, `tests/test_neo4j_load.py` (sessão falsa), `tests/test_neo4j_cli.py` e `tests/test_neo4j_integration.py` (banco real, pulado sem `AKME_NEO4J_TEST_*`). Para a demo, `examples/local_demo/verificar_neo4j.py` confere o banco contra os CSVs e o gabarito.
 
 ## O que falta
 
-**Antes do teste com `teste_acme`:**
-
-1. Confirmação digitada, adiada pelo usuário.
-
-**Antes do commit:**
-
-2. Refletir mudanças da origem: o n10s também não apaga linhas ou valores que sumiram.
-3. Carregar o mesmo plano que foi revisado: hoje a carga lê a origem de novo depois da confirmação.
-4. Conferir valores em qualquer projeto, e não só na demo.
-
-**Depois:**
-
-5. `PERTENCE_A` no lugar de `pertenceA` (decisão D3).
-6. Ligar cada nó de dado ao seu nó `Class`, se a consulta por ontologia precisar.
-7. Leitura completa com ordem definida, e cargas acima de 100 mil linhas.
-8. Decidir o destino do alvo `rdf`, cujo YARRRML perde relações e tipos.
-
-**Riscos do n10s, aceitos na decisão:**
-- É projeto da Neo4j Labs, declarado não aprovado para produção.
-- Não roda no Aura.
-- Exige instalar o plugin no servidor do cliente.
-- Ainda não há versão oficial para o Neo4j 2026.x.
-
-**Antes de commitar, não incluir:** `.DS_Store`, `.neo4j/` (já ignorado) e as alterações geradas em `docs/ontology.json` e `docs/ontology.mmd`. Conferir também origem e licença de `examples/teste_acme`.
+- Aceitação real com o Olist inteiro e com Postgres (Task 9).
+- Esquema para o LLM, servidor MCP do Neo4j e perguntas de competência como teste.
+- Snowflake e Databricks com leitura em blocos testada só com cursor falso.
+- Decidir o destino do alvo `rdf`, cujo YARRRML perde relações e tipos.
 
 **Fora do Neo4j, só anotado:**
 - A tool MCP ainda executa `snowflake`, `databricks` e `rdf` sem confirmação.
 - `test_optional_adapters_fail_clearly` falha com o `psycopg` instalado.
 - `connect` ignora o `.r2rml` do `teste_acme`.
 
-**Nota sobre a verificação:** na primeira rodada depois da carga, `verificar_neo4j.py` acusou 1 falha. A contagem de arestas incluía as arestas da ontologia (`SCO`, `DOMAIN`, `RANGE`), enquanto as arestas de dados estavam certas (17/10/17). O erro era do roteiro adaptado. A contagem passou a considerar só nós de dados, e as arestas da ontologia ganharam uma verificação própria.
-
-Depois da limpeza e da carga com marca, as identidades internas mudaram, o que é esperado ao recriar os nós. O conteúdo dos nós, sem a marca, continua com a mesma impressão.
-
-Impressão digital depois da primeira carga, igual depois da repetição: `conteudo_nos` `17623bbd9ed2004a`, `conteudo_arestas` `1bd57c930f3e0417`, `identidades_nos` `209927d0714d67f6`, `identidades_arestas` `8a46b4a3e7a25e22`.
-
 ## Fontes
 
-1. Neo4j Labs, [neosemantics](https://neo4j.com/labs/neosemantics/), e [releases no GitHub](https://github.com/neo4j-labs/neosemantics/releases), consultados em 05/11/2026.
-2. Neo4j Operations Manual, [Docker: Introduction](https://neo4j.com/docs/operations-manual/current/docker/introduction/), lida em 05/11/2026.
-3. PyPI, [neo4j](https://pypi.org/project/neo4j/), versão 6.4.1.
-4. Pesquisa completa: `reports/Exportar ontologia para Neo4j.md`.
+1. Neo4j Operations Manual, [Docker: Introduction](https://neo4j.com/docs/operations-manual/current/docker/introduction/), lida em 05/11/2026.
+2. PyPI, [neo4j](https://pypi.org/project/neo4j/), versão 6.4.1.
+3. Pesquisa completa: `reports/Exportar ontologia para Neo4j.md`; usos do grafo: `docs/neo4j/usos-do-grafo.md`.

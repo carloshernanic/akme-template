@@ -2,6 +2,27 @@
 
 Registro cronológico, com as saídas completas de cada prova. Trechos antigos podem estar superados: o estado atual está em [exportacao.md](exportacao.md).
 
+## 11/11/2026 a 12/11/2026: de volta ao Cypher, sem n10s
+
+Esta entrada é a mais recente. As seções depois dela são registros antigos, mantidos como estavam.
+
+**O que mudou:** o exportador com RDF e o plugin n10s (`akme/tools/n10s.py`, de 05/11/2026) foi apagado. A exportação passou a gravar dados e ontologia em Cypher puro, pelo driver, sem plugin (`akme/tools/neo4j_values.py`, `neo4j_plan.py`, `neo4j_onto.py` e `neo4j_load.py`). O artefato do dry-run passou de `docs/publish/neo4j.nt` para `docs/publish/neo4j.cypher`. A ontologia entra como nós `Conceito`, com as relações como setas, e cada carga sincroniza o banco com a origem.
+
+**Por quê:**
+
+- **Relações viravam nós.** O `n10s.onto.import` grava cada relação como um nó `Relationship`, ligado às classes por `DOMAIN` e `RANGE`. Quem abria o grafo via relações como entidades.
+- **Teto de 100 mil linhas.** O exportador lia cada tabela inteira em memória e recusava tabelas maiores. O `olist_order_items_dataset`, com 112.650 linhas, não carregava.
+- **O n10s não existe no Aura.** Depender do plugin limitava onde o grafo pode rodar.
+- **Pedido do colega:** ver no Neo4j Browser a camada semântica do jeito que se lê, com conceitos como nós e relações como setas.
+
+**Decisão:** de Mateus, em 11/11/2026, depois de ver o teste descartável com a demo e o Olist em Cypher ("pode ser"). Bancos carregados pelo n10s são reconhecidos e recusados, sem migração; o guia traz o comando de limpeza.
+
+**Onde está o detalhe:**
+
+- Motivo e plano: [visão geral nas páginas MkDocs](../exportacao-neo4j/index.md) (`uv run --extra docs mkdocs serve`)
+- O que mudou em cada uma das 9 tarefas, com testes e revisão: as páginas `task-N` em [docs/exportacao-neo4j/](../exportacao-neo4j/index.md), por exemplo [task-6-carga.md](../exportacao-neo4j/task-6-carga.md) e [task-7-troca.md](../exportacao-neo4j/task-7-troca.md)
+- Estado atual: [exportacao.md](exportacao.md); guia de uso: [reports/docs_exp_neo4j/README.md](../../reports/docs_exp_neo4j/README.md)
+
 **Atenção:** tudo o que vem abaixo vale para o exportador anterior, que gerava Cypher (`akme/tools/cypher.py`). Em 05/11/2026 ele foi substituído pelo caminho com n10s.
 
 Registro de como o grafo da demo chega ao Neo4j: o que foi feito, por que escolhemos cada caminho, de onde veio a informação e qual é a prova de que funcionou.

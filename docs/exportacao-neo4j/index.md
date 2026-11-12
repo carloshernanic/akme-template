@@ -1,10 +1,10 @@
 # Exportação para o Neo4j em Cypher
 
-Esta página resume a mudança em andamento na branch `feat/exportacao-neo4j-cypher`. O design completo está em `docs/superpowers/specs/2026-11-11-exportacao-neo4j-cypher-design.md`.
+Esta página resume a mudança em andamento na branch `feat/exportacao-neo4j-cypher`. O desenho original foi discutido com Mateus em 11/11/2026; estas páginas registram o que foi decidido e feito em cada tarefa.
 
 ## Por que mudar
 
-Hoje o akme gera RDF e o plugin n10s carrega no Neo4j. Apareceram três problemas:
+Até a Task 7, o akme gerava RDF e o plugin n10s carregava no Neo4j. Apareceram três problemas:
 
 - **Relações viram nós.** O `n10s.onto.import` grava cada relação como um nó `Relationship`. Quem abre o grafo vê relações como entidades, e não como setas.
 - **Teto de 100 mil linhas.** O exportador lê cada tabela inteira em memória e recusa tabelas maiores. O `olist_order_items_dataset` tem 112.650 linhas e não carrega.
@@ -38,7 +38,7 @@ Tudo em Cypher puro, pelo driver oficial, sem plugin:
 | 5 | Validação do `add_source` lendo a fonte inteira | concluída (aguardando commit) |
 | 6 | Carga, sincronização e conferência | concluída (aguardando commit) |
 | 7 | Ligar o caminho novo e remover o n10s | concluída (aguardando commit) |
-| 8 | Documentação, guia e verificador da demo | a fazer |
+| 8 | Documentação, guia e verificador da demo | concluída (aguardando commit) |
 | 9 | Aceitação real (demo, Olist e Postgres) | a fazer |
 
-Veja a [Task 1](task-1-adapters.md), a [Task 2](task-2-valores.md), a [Task 3](task-3-plano.md), a [Task 4](task-4-ontologia.md), a [Task 5](task-5-add-source.md) a [Task 6](task-6-carga.md) e a [Task 7](task-7-troca.md) para o que já mudou.
+Veja a [Task 1](task-1-adapters.md), a [Task 2](task-2-valores.md), a [Task 3](task-3-plano.md), a [Task 4](task-4-ontologia.md), a [Task 5](task-5-add-source.md), a [Task 6](task-6-carga.md), a [Task 7](task-7-troca.md) e a [Task 8](task-8-docs.md) para o que já mudou.
