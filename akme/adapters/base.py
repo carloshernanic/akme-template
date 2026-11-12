@@ -17,6 +17,12 @@ def require(module: str, extra: str) -> None:
         ) from exc
 
 
+def check_batch(batch: int) -> None:
+    """Bloco de zero linhas faria a fonte parecer vazia (e a sincronizacao do Neo4j apagaria o label inteiro)."""
+    if batch <= 0:
+        raise ValueError(f"batch deve ser positivo, recebi {batch}")
+
+
 class Adapter(ABC):
     name = "base"
 
@@ -73,6 +79,7 @@ class SqlAdapter(Adapter):
         return [dict(zip(cols, r)) for r in rows]
 
     def _iter_query(self, sql: str, batch: int, cursor: Any = None) -> Iterator[list[dict[str, Any]]]:
+        check_batch(batch)
         cur = cursor if cursor is not None else self.conn.cursor()
         try:
             cur.execute(sql)

@@ -60,3 +60,24 @@ def test_name_doubles_backtick():
 def test_convert_float_rounds_long_decimals_to_float64():
     assert convert("float", "0.1234567890123456789") == 0.12345678901234568
     assert convert("float", "0e5") == 0.0
+
+
+@pytest.mark.parametrize("identifier", ["a\\u0060b", "Cliente\\U00000060", "a\nb", "a\x00b", "a\tb", "a\x7fb"])
+def test_name_refuses_unicode_escape_and_control_characters(identifier):
+    with pytest.raises(ValueError, match="identificador"):
+        name(identifier)
+
+
+def test_name_accepts_backslash_without_u_and_accents():
+    assert name("a\\b") == "`a\\b`"
+    assert name("Região do Cliente") == "`Região do Cliente`"
+
+
+def test_caption_uses_label_short_key_and_extra_value():
+    from akme.tools.neo4j_values import caption
+    assert caption("Pedido", ["1001"], "2026-07-03") == "Pedido 1001 2026-07-03"
+    assert caption("ItemPedido", ["e481f51cbdc54678b7cc49136f2d6af7", "1"], "29.99") == "ItemPedido e481f51c/1 29.99"
+    assert caption("Cliente", ["Sao Paulo/SP"], None) == "Cliente Sao Paul"
+    assert caption("Cliente", ["1"], "") == "Cliente 1"
+    assert caption("Avaliacao", ["x"], "texto   com\nquebra " + "a" * 60) == "Avaliacao x " + ("texto com quebra " + "a" * 60)[:40]
+    assert caption("Produto", ["1"], 0) == "Produto 1 0"

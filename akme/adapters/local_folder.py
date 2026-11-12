@@ -8,7 +8,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterator
 
-from .base import Adapter, AdapterError, require
+from .base import Adapter, AdapterError, check_batch, require
 
 TABLES = {".csv", ".xlsx"}
 DOCS = {".md", ".txt", ".pdf", ".docx", ".pptx"}
@@ -30,6 +30,9 @@ class LocalFolderAdapter(Adapter):
         self.recursive = recursive
         self._tables: dict[str, tuple[Path, Path, str | None]] | None = None
         self._docs: dict[str, Path] | None = None
+        # fonte -> (linhas com colunas a mais ou a menos, numero da primeira no arquivo), da leitura mais recente.
+        # A linha continua ajustada ao cabecalho; quem le (o plano do Neo4j) transforma a contagem em problema
+        self.ragged: dict[str, tuple[int, int]] = {}
 
     def _walk(self, suffixes: set[str]) -> list[tuple[Path, Path]]:
         found = []
@@ -75,19 +78,42 @@ class LocalFolderAdapter(Adapter):
         return {"file": file, "path": file.relative_to(root).as_posix(), "sheet": sheet}
 
     def _rows(self, source: str) -> tuple[list[str], Iterator[list[Any]]]:
-        """Devolve o cabecalho e um gerador de linhas ja ajustadas ao numero de colunas."""
+        """Devolve o cabecalho e um gerador de linhas ja ajustadas ao numero de colunas. Linha com colunas a mais ou
+        a menos e contada em self.ragged[source] (nada e descartado em silencio)."""
         _, file, sheet = self._source(source)
-        raw_rows = _xlsx_rows(file, sheet) if file.suffix.lower() == ".xlsx" else self._csv_rows(file)
-        columns = _header(next(raw_rows, []))
-        return columns, ((r + [None] * len(columns))[: len(columns)] for r in raw_rows)
+        xlsx = file.suffix.lower() == ".xlsx"
+        raw_rows = _xlsx_rows(file, sheet) if xlsx else self._csv_rows(file)
+        columns = _header(next(raw_rows, (0, []))[1])
+        self.ragged.pop(source, None)
 
-    def _csv_rows(self, file: Path) -> Iterator[list[Any]]:
+        def fitted() -> Iterator[list[Any]]:
+            n = len(columns)
+            for line, r in raw_rows:
+                # no XLSX a linha vem do tamanho da planilha: so conta valor alem do cabecalho
+                if (any(v is not None for v in r[n:]) if xlsx else len(r) != n):
+                    count, first = self.ragged.get(source, (0, line))
+                    self.ragged[source] = (count + 1, first)
+                yield (r + [None] * n)[:n]
+
+        return columns, fitted()
+
+    def _csv_rows(self, file: Path) -> Iterator[tuple[int, list[Any]]]:
+        """(numero da linha no arquivo onde o registro comeca, valores). Um registro com quebra de linha entre aspas
+        ocupa varias linhas; o numero e o da primeira."""
         with file.open(encoding=self.encoding, newline="") as fh:
             reader = csv.reader(fh, delimiter=self.delimiter)
             header = next(reader, [])
-            yield header
-            for row in reader:
-                yield [v if v != "" else None for v in row]
+            yield 1, header
+            while True:
+                start = reader.line_num + 1
+                row = next(reader, None)
+                if row is None:
+                    return
+                if not row:
+                    if len(header) > 1:
+                        continue  # linha em branco nao e registro (como csv e pandas): pula, sem contar como malformada
+                    row = [""]  # com uma coluna so, linha em branco e um registro de valor vazio: segue o caminho normal
+                yield start, [v if v != "" else None for v in row]
 
     def _table(self, source: str, n: int) -> tuple[list[str], list[list[Any]]]:
         columns, rows = self._rows(source)
@@ -102,6 +128,7 @@ class LocalFolderAdapter(Adapter):
         return [dict(zip(columns, r)) for r in rows]
 
     def iter_rows(self, source: str, batch: int = 5000) -> Iterator[list[dict[str, Any]]]:
+        check_batch(batch)
         columns, rows = self._rows(source)
         while chunk := list(itertools.islice(rows, batch)):
             yield [dict(zip(columns, r)) for r in chunk]
@@ -163,13 +190,14 @@ def _sheet_names(file: Path) -> list[str]:
         wb.close()
 
 
-def _xlsx_rows(file: Path, sheet: str | None) -> Iterator[list[Any]]:
+def _xlsx_rows(file: Path, sheet: str | None) -> Iterator[tuple[int, list[Any]]]:
+    """(numero da linha na planilha, valores); linhas vazias ficam de fora."""
     require("openpyxl", "office")
     import openpyxl
     wb = openpyxl.load_workbook(file, read_only=True, data_only=True)
     try:
         first = True
-        for raw in wb[sheet].iter_rows(values_only=True):
+        for line, raw in enumerate(wb[sheet].iter_rows(values_only=True), 1):
             values = [_cell(v) for v in raw]
             if all(v is None for v in values):
                 continue
@@ -177,7 +205,7 @@ def _xlsx_rows(file: Path, sheet: str | None) -> Iterator[list[Any]]:
                 first = False
                 while values and values[-1] is None:
                     values.pop()
-            yield values
+            yield line, values
     finally:
         wb.close()
 

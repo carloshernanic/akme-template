@@ -33,10 +33,14 @@ class FakeConn:
     def __init__(self, cursor):
         self.cur = cursor
         self.cursor_kwargs = None
+        self.rollbacks = 0
 
     def cursor(self, **kwargs):
         self.cursor_kwargs = kwargs
         return self.cur
+
+    def rollback(self):
+        self.rollbacks += 1
 
 
 def _fake_cursor():
@@ -110,7 +114,8 @@ def test_postgres_uses_named_cursor():
     ad._conn = FakeConn(cur)
     blocks = list(ad.iter_rows("t", batch=2))
     assert len(blocks) == 2
-    assert ad._conn.cursor_kwargs == {"name": "akme_iter"}
+    first = ad._conn.cursor_kwargs["name"]
+    assert first.startswith("akme_iter_") and ad._conn.rollbacks == 1, "transacao de leitura encerrada no fim"
     assert cur.sql == 'SELECT * FROM "public"."t"'
     assert "LIMIT" not in cur.sql
 
@@ -145,3 +150,30 @@ def test_postgres_real_iter_rows():
         ad.execute("DROP TABLE IF EXISTS akme_iter_teste")
         ad.conn.commit()
         ad.close()
+
+
+def test_sql_iter_refuses_non_positive_batch():
+    ad = PostgresAdapter("dsn")
+    ad._conn = FakeConn(_fake_cursor())
+    with pytest.raises(ValueError, match="batch"):
+        next(ad.iter_rows("t", 0))
+
+
+def test_postgres_cursor_name_is_unique_per_read():
+    ad = PostgresAdapter(dsn="x")
+    ad._conn = FakeConn(_fake_cursor())
+    list(ad.iter_rows("t", batch=2))
+    first = ad._conn.cursor_kwargs["name"]
+    ad._conn.cur = _fake_cursor()
+    list(ad.iter_rows("t", batch=2))
+    assert ad._conn.cursor_kwargs["name"] != first
+
+
+def test_postgres_read_closed_early_still_ends_the_transaction():
+    cur = _fake_cursor()
+    ad = PostgresAdapter(dsn="x")
+    ad._conn = FakeConn(cur)
+    blocks = ad.iter_rows("t", batch=2)
+    next(blocks)
+    blocks.close()
+    assert cur.closed and ad._conn.rollbacks == 1

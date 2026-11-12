@@ -88,3 +88,124 @@ def test_bad_edits_and_unexpected_errors_return_json(server, monkeypatch):
     monkeypatch.setattr(review_server, "review_edit", boom)
     code, body = _post(base + "/api/review", {"edit_id": e.id, "decision": "accept", "reviewer": "ana"})
     assert code == 500 and "quebrou" in body["error"]
+
+
+def test_neo4j_guide_route_serves_the_guide_with_cors(server):
+    base, project = server
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(base + "/neo4j/guia")
+    assert e.value.code == 404 and "publish --target neo4j" in json.loads(e.value.read())["error"]
+    path = project.docs_dir / "publish" / "neo4j_guia.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("<article class=\"guide\">ola</article>", encoding="utf-8")
+    req = urllib.request.Request(base + "/neo4j/guia", headers={"Origin": "http://localhost:7474"})
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
+        assert resp.headers["Access-Control-Allow-Origin"] == "http://localhost:7474", "reflete a origem, nunca *"
+        assert "Origin" in resp.headers["Vary"]
+        assert resp.headers["Content-Type"].startswith("text/html")
+        assert resp.read().decode() == "<article class=\"guide\">ola</article>"
+    # preflight (navegador que pede permissao para rede local) tambem responde com CORS
+    opt = urllib.request.Request(base + "/neo4j/guia", method="OPTIONS",
+                                 headers={"Origin": "https://console.neo4j.io", "Access-Control-Request-Method": "GET"})
+    with urllib.request.urlopen(opt) as resp:
+        assert resp.status == 204 and resp.headers["Access-Control-Allow-Origin"] == "https://console.neo4j.io"
+        assert resp.headers["Access-Control-Allow-Private-Network"] == "true"
+
+
+@pytest.mark.parametrize("origin", ["https://evil.example", "http://localhost:8765", "http://127.0.0.1:9999", "null"])
+def test_guide_cors_refuses_other_origins(server, origin):
+    base, project = server
+    path = project.docs_dir / "publish" / "neo4j_guia.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("guia", encoding="utf-8")
+    for method in ("GET", "OPTIONS"):
+        req = urllib.request.Request(base + "/neo4j/guia", method=method, headers={"Origin": origin})
+        with urllib.request.urlopen(req) as resp:
+            assert resp.headers.get("Access-Control-Allow-Origin") is None
+            assert resp.headers.get("Access-Control-Allow-Private-Network") is None
+
+
+def test_guide_cors_accepts_the_configured_browser_port(server, monkeypatch):
+    base, project = server
+    monkeypatch.setenv("AKME_NEO4J_BROWSER_URL", "http://localhost:17474")
+    path = project.docs_dir / "publish" / "neo4j_guia.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("guia", encoding="utf-8")
+    for origin in ("http://localhost:17474", "http://127.0.0.1:17474", "https://127.0.0.1:7474"):
+        req = urllib.request.Request(base + "/neo4j/guia", headers={"Origin": origin})
+        with urllib.request.urlopen(req) as resp:
+            assert resp.headers["Access-Control-Allow-Origin"] == origin
+
+
+def test_head_on_the_guide_route_answers_like_get(server):
+    base, project = server
+    path = project.docs_dir / "publish" / "neo4j_guia.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("guia", encoding="utf-8")
+    with urllib.request.urlopen(urllib.request.Request(base + "/neo4j/guia", method="HEAD")) as resp:
+        assert resp.status == 200 and resp.headers["Content-Length"] == "4" and resp.read() == b""
+
+
+def test_version_route_and_header(server):
+    from akme import __version__
+    base, _ = server
+    with urllib.request.urlopen(base + "/api/versao") as resp:
+        assert json.loads(resp.read()) == {"akme": __version__, "recursos": list(review_server.FEATURES)}
+        assert resp.headers["X-Akme-Versao"] == __version__
+    port = int(base.rsplit(":", 1)[1])
+    assert review_server.stale_message(port) is None
+
+
+def test_stale_server_is_detected_and_never_killed(server, monkeypatch):
+    """Servidor de codigo antigo: responde /api/status, mas nao tem /api/versao (ou nao lista os recursos)."""
+    import subprocess
+    base, project = server
+    port = int(base.rsplit(":", 1)[1])
+    monkeypatch.setattr(review_server, "server_info", lambda port, timeout=1.0: None)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(AssertionError("nao sobe outro")))
+    message = review_server.stale_message(port)
+    assert message and "desatualizado" in message and "uv run akme review" in message
+    with pytest.raises(RuntimeError, match="desatualizado"):
+        review_server.ensure_running(project, port)
+    monkeypatch.setattr(review_server, "server_info", lambda port, timeout=1.0: {"akme": "0.1.0", "recursos": []})
+    assert review_server.stale_message(port)
+    with urllib.request.urlopen(base + "/api/status") as resp:
+        assert resp.status == 200, "o servidor antigo continua no ar: o akme so avisa"
+
+
+def test_cli_review_says_the_server_is_stale(server, monkeypatch):
+    from typer.testing import CliRunner
+
+    from akme.cli import app
+    base, project = server
+    port = int(base.rsplit(":", 1)[1])
+    monkeypatch.chdir(project.root)
+    monkeypatch.setattr(review_server, "server_info", lambda port, timeout=1.0: None)
+    for args in (["review", "--no-open", "--port", str(port)], ["review", "--background", "--no-open", "--port", str(port)]):
+        result = CliRunner().invoke(app, args)
+        assert result.exit_code == 1 and "desatualizado" in result.output and "uv run akme review" in result.output
+
+
+def test_stale_server_shows_in_the_guide_lines(monkeypatch):
+    from akme.tools import neo4j_guide
+    monkeypatch.undo()  # sem o duble do conftest: usa o _stale_lines real
+    monkeypatch.setattr(review_server, "stale_message", lambda port: f"{review_server.STALE}; porta {port}")
+    assert any("desatualizado" in line for line in neo4j_guide.guide_lines())
+
+
+def test_cors_only_on_the_guide_route(server):
+    base, _ = server
+    with urllib.request.urlopen(urllib.request.Request(base + "/api/status", headers={"Origin": "http://x"})) as resp:
+        assert resp.headers.get("Access-Control-Allow-Origin") is None
+
+
+def test_guide_route_still_checks_the_host(server):
+    base, project = server
+    path = project.docs_dir / "publish" / "neo4j_guia.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x", encoding="utf-8")
+    req = urllib.request.Request(base + "/neo4j/guia", headers={"Host": "evil.example:80"})
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(req)
+    assert e.value.code == 403

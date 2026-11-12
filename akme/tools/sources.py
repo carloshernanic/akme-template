@@ -13,7 +13,7 @@ from ..adapters import load_adapter
 from ..models import SOURCE_TYPES
 from ..ontology import load_content
 from ..project import Project
-from .neo4j_plan import BATCH, Scan, contract_keys, join_columns, labels_for, scan_source
+from .neo4j_plan import BATCH, Scan, contract_keys, join_columns, labels_for, ragged_problem, scan_source
 from .profile import profile_source
 
 # nomes que indicam identificador: um inteiro com esse nome fica texto (zero a esquerda, nao se soma)
@@ -89,13 +89,23 @@ def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
     raw_key = payload.get("key")
     key = [raw_key] if isinstance(raw_key, str) else [str(k).strip() for k in (raw_key or []) if str(k).strip()]
     types = parse_types(payload.get("types"))
+    # o que o payload sozinho ja recusa vem antes de ler a fonte inteira
+    if exclude and (key or types):
+        raise SourceError("fonte excluida nao pode ter key nem types")
+    if not exclude and not key:
+        raise SourceError("add_source exige key ou exclude")
+    unknown = {c: k for c, k in types.items() if k not in SOURCE_TYPES}
+    if unknown:
+        raise SourceError(f"tipo desconhecido em {source}: {unknown}; use {', '.join(SOURCE_TYPES)}")
+    protected = set(key) | _join_columns(project, source)
+    wrong = [c for c, k in types.items() if c in protected and k != "string"]
+    if wrong:
+        raise SourceError(f"{source}.{', '.join(wrong)} e chave ou join e precisa ficar string")
     scan = _read_whole(project, source, key, types, check=not exclude)
     if exclude:
-        if key or types:
-            raise SourceError("fonte excluida nao pode ter key nem types")
         return {"source": source, "exclude": exclude}
-    if not key:
-        raise SourceError("add_source exige key ou exclude")
+    if scan.ragged:  # mesma recusa do plano: a carga nao aceitaria esta fonte
+        raise SourceError(ragged_problem(source, scan.ragged))
     if not scan.rows:
         raise SourceError(f"fonte {source} sem linhas: nao ha como conferir a chave")
     absent = [c for c in key + list(types) if c not in scan.columns]
@@ -106,13 +116,6 @@ def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
         raise SourceError(f"{source}: {empty} linha(s) com a chave {'+'.join(key)} vazia")
     if scan.repeated_ids:
         raise SourceError(f"{source}.{'+'.join(key)} repete {len(scan.repeated_ids)} valor(es), ex.: {scan.repeated[:3]}: duas linhas virariam o mesmo no")
-    unknown = {c: k for c, k in types.items() if k not in SOURCE_TYPES}
-    if unknown:
-        raise SourceError(f"tipo desconhecido em {source}: {unknown}; use {', '.join(SOURCE_TYPES)}")
-    protected = set(key) | _join_columns(project, source)
-    wrong = [c for c, k in types.items() if c in protected and k != "string"]
-    if wrong:
-        raise SourceError(f"{source}.{', '.join(wrong)} e chave ou join e precisa ficar string")
     checked: dict[str, Any] = {"rows": scan.rows, "types": {}}
     for col, kind in types.items():
         if scan.invalid[col]:

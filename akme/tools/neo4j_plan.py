@@ -13,13 +13,16 @@ from itertools import chain
 from typing import Any
 
 from ..adapters import load_adapter
+from ..adapters.base import check_batch
 from ..ontology import classes, is_metric_class, load_content, load_graph
 from ..project import Project
 from .export import build_export
-from .neo4j_values import TYPES, convert, filled, node_id
+from .neo4j_onto import ONTOLOGY_TYPE
+from .neo4j_values import TYPES, convert, filled, name, node_id
 
-RESERVED_LABELS = ("Conceito", "_AkmeProjeto")
-RESERVED_PROPS = ("_id", "_projeto", "_carga")
+RESERVED_LABELS = ("Conceito", "Termo", "_AkmeProjeto")
+META_TYPES = (ONTOLOGY_TYPE, "SUBCLASSE_DE", "TEM_TERMO")  # tipos de aresta da camada de ontologia
+RESERVED_PROPS = ("_id", "_projeto", "_carga", "_descricao")
 BATCH = 5000  # linhas por bloco de leitura
 EXAMPLES = 5  # exemplos de chave repetida citados no problema
 
@@ -32,6 +35,8 @@ class SourcePlan:
     types: dict[str, str]
     columns: list[str]
     rows: int
+    caption: str | None = None  # coluna que completa a legenda `name` (ver caption_column)
+    own_name: bool = False  # a fonte tem coluna `name`: ela vale como legenda; o akme so grava a sua onde ela esta vazia
 
 
 @dataclass(frozen=True)
@@ -146,6 +151,7 @@ class Scan:
     filled: Counter[str] = field(default_factory=Counter)  # valores preenchidos por coluna tipada
     first: dict[str, Any] = field(default_factory=dict)  # primeiro valor preenchido por coluna tipada
     values: dict[str, Counter[str]] = field(default_factory=dict)
+    ragged: tuple[int, int] | None = None  # (linhas com colunas a mais ou a menos, numero da primeira no arquivo)
 
 
 def scan_source(adapter: Any, source: str, declared: list[str], column_types: dict[str, str],
@@ -153,21 +159,16 @@ def scan_source(adapter: Any, source: str, declared: list[str], column_types: di
                 batch: int = BATCH) -> Scan:
     """Uma passada pela fonte inteira, em blocos. E o unico leitor das regras de chave e tipo: o plano da carga e o
     add_source (etapa 5) usam este, entao nao divergem. A chave so e conferida depois do primeiro bloco, que diz
-    quais colunas existem.
-
-    O gerador e esgotado ou fechado antes de voltar: no Postgres o cursor do lado do servidor tem nome fixo, e duas
-    leituras abertas ao mesmo tempo na mesma conexao colidiriam.
+    quais colunas existem. O gerador e esgotado ou fechado antes de voltar (cursor e arquivo nao ficam abertos).
     """
+    check_batch(batch)
     blocks = adapter.iter_rows(source, batch)
     try:
         first = next(blocks, None)
         if first:
             columns = list(first[0])
         else:
-            # fonte vazia: as colunas vem do esquema, para chave, tipo ou join errado nao passarem em silencio.
-            # A leitura em blocos ja terminou; fecha antes de consultar o esquema (nunca duas leituras abertas)
-            if hasattr(blocks, "close"):
-                blocks.close()
+            # fonte vazia: as colunas vem do esquema, para chave, tipo ou join errado nao passarem em silencio
             columns = [c["name"] for c in adapter.read_schema(source)["columns"]]
         absent = [c for c in declared if columns and c not in columns]
         key = [] if absent else list(declared)
@@ -207,11 +208,62 @@ def scan_source(adapter: Any, source: str, declared: list[str], column_types: di
                     if filled(row.get(col)):
                         counter[str(row[col])] += 1
         state.seen = set()  # so servia para achar repeticao; libera a memoria antes da proxima fonte
+        state.ragged = (getattr(adapter, "ragged", None) or {}).get(source)
         return state
     finally:
         close = getattr(blocks, "close", None)
         if close:
             close()
+
+
+def ragged_problem(source: str, ragged: tuple[int, int]) -> str:
+    """Texto da recusa de linha malformada, igual no plano e no add_source (etapa 5)."""
+    return f"{ragged[0]} linha(s) de {source} com colunas a mais ou a menos; primeira: linha {ragged[1]}"
+
+
+def identifier_problems(plan: Plan, contracts: list[dict[str, Any]]) -> list[str]:
+    """Nomes que entram no texto do Cypher (labels, relacoes, colunas do join) e que name() recusa."""
+    names = ([(f"classe {label}", label) for label in plan.nodes]
+             + [(f"relacao {c['relation']}", c["relation"]) for c in contracts if c.get("relation")]
+             + [(f"coluna do join {e.to_source}.{e.to_column}", e.to_column) for e in plan.edges])
+    problems = []
+    for shown, identifier in dict.fromkeys(names):
+        try:
+            name(identifier)
+        except ValueError as exc:
+            problems.append(f"{shown}: {exc}")
+    return problems
+
+
+def type_problems(contracts: list[dict[str, Any]]) -> list[str]:
+    """Relacao com o nome de um tipo da camada de ontologia (RELACAO_ONTOLOGIA, SUBCLASSE_DE, TEM_TERMO) juntaria
+    arestas de dado com as setas entre Conceito no mesmo tipo: vira problema."""
+    return [f"relacao {r} tem o nome de um tipo reservado da camada de ontologia do akme; renomeie a relacao"
+            for r in sorted({c["relation"] for c in contracts if c.get("relation")}) if r in META_TYPES]
+
+
+def caption_column(mappings: list[dict[str, Any]], source: str, key: list[str], joins: set[tuple[str, str]],
+                   columns: list[str]) -> str | None:
+    """Coluna que completa a legenda `name` de cada no: a primeira coluna mapeada da fonte, na ordem do content.yml,
+    que existe nos dados e nao e chave nem join (identificadores ja estao no inicio da legenda)."""
+    for m in mappings:
+        column = m.get("column")
+        if m.get("source") == source and column in columns and column not in key and (source, column) not in joins:
+            return column
+    return None
+
+
+def metric_warnings(data: dict[str, Any], graph: Any) -> list[str]:
+    """Classe de metrica com varios mappings de papel metric: no Conceito vale so o primeiro na ordem do content.yml."""
+    term_class = {t["name"]: t.get("class") for t in data["terms"]}
+    by_class: dict[str, list[dict[str, Any]]] = {}
+    for m in data["mappings"]:
+        cls = term_class.get(m.get("term"))
+        if cls and m.get("role") == "metric" and is_metric_class(graph, cls):
+            by_class.setdefault(cls, []).append(m)
+    return [f"classe {cls} tem {len(maps)} mappings de metrica; no Conceito vale o primeiro "
+            f"({maps[0]['term']} em {maps[0].get('source')}.{maps[0].get('column')})"
+            for cls, maps in sorted(by_class.items()) if len(maps) > 1]
 
 
 def _edges(plan: Plan, contracts: list[dict[str, Any]], labels: dict[str, str], read: dict[str, Scan]) -> None:
@@ -245,6 +297,7 @@ def _edges(plan: Plan, contracts: list[dict[str, Any]], labels: dict[str, str], 
 
 def build_plan(project: Project, batch: int = BATCH) -> Plan:
     """Le todas as fontes em blocos e devolve o plano da carga, com problemas (recusam) e avisos (aceitam)."""
+    check_batch(batch)
     data = build_export(project)
     contracts = data["relation_contracts"]
     excluded, declared, types, config_problems, pending = _config(project)
@@ -272,6 +325,12 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
             column_types = {c: kind for c, kind in types.get(source, {}).items() if kind in TYPES}
             state = scan_source(adapter, source, declared.get(source) or [], column_types, joins, batch)
             key, columns = state.key, state.columns
+            if state.ragged:
+                problems.append(ragged_problem(source, state.ragged))
+            if declared.get(source) and not state.rows:
+                # origem truncada por engano (extracao que falhou) apagaria o label inteiro na sincronizacao
+                problems.append(f"fonte {source} sem linhas: a carga apagaria do banco todos os nos de {label}; "
+                                "confira a extracao ou exclua a fonte na etapa 5")
             if state.absent:
                 problems.append(f"fonte {source}: chave declarada usa coluna inexistente: {', '.join(state.absent)}")
             problems += [f"{source}.{c} usa nome reservado do akme no Neo4j" for c in columns if c in RESERVED_PROPS]
@@ -290,11 +349,18 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
                          for col, n in state.invalid.items()]
             plan.nodes[label] = state.complete if key else state.rows
             plan.rows += state.rows
-            plan.sources.append(SourcePlan(source, label, list(key), column_types, columns, state.rows))
+            own_name = "name" in columns
+            if own_name:
+                plan.warnings.append(f"fonte {source} tem coluna name: ela vale como legenda dos nos de {label} no "
+                                     "Browser; o akme so grava a sua nas linhas com name vazio")
+            caption = caption_column(data["mappings"], source, list(key), joins, columns)
+            plan.sources.append(SourcePlan(source, label, list(key), column_types, columns, state.rows, caption, own_name))
             read[source] = state
     finally:
         adapter.close()
     plan.nodes = dict(sorted(plan.nodes.items()))
     edge_labels = {s.source: s.label for s in plan.sources if s.key}
     _edges(plan, contracts, edge_labels, read)
+    plan.problems += identifier_problems(plan, contracts) + type_problems(contracts)
+    plan.warnings += metric_warnings(data, load_graph(project.schema_path))
     return plan

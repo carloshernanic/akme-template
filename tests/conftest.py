@@ -10,6 +10,15 @@ from akme.project import Project, read_yaml, write_yaml
 from akme.tools import ontology_write
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def _no_review_server_probe(monkeypatch):
+    """A mensagem do guia na CLI pergunta ao `akme review` da porta 8765 se ele esta atualizado; nos testes, nenhum
+    teste depende de um servidor real nessa porta (o da maquina pode estar no ar)."""
+    from akme.tools import neo4j_guide
+
+    monkeypatch.setattr(neo4j_guide, "_stale_lines", lambda port: [])
 TEMPLATE_FILES = ("schema.ttl", "content.yml", "manifest.yml")
 
 

@@ -60,6 +60,33 @@ def node_id(values: Sequence[Any]) -> str:
     return "/".join(quote(str(v), safe="") for v in values)
 
 
+CAPTION_KEY = 8  # caracteres de cada valor da chave na legenda
+CAPTION_EXTRA = 40  # caracteres do valor que completa a legenda
+
+
+def caption(label: str, key_values: Sequence[Any], extra: Any = None) -> str:
+    """Legenda `name` de um no de dado, que o Neo4j Browser mostra na bolinha: o label, os primeiros 8 caracteres de
+    cada valor da chave (unidos por barra, sem percent-encoding) e, se preenchido, o valor da coluna de legenda do
+    plano (espacos colapsados, ate 40 caracteres). Deterministica: so depende da linha."""
+    text = f"{label} " + "/".join(str(v)[:CAPTION_KEY] for v in key_values)
+    if filled(extra):
+        text += " " + " ".join(str(extra).split())[:CAPTION_EXTRA]
+    return text.rstrip()
+
+
+# barra invertida + u: o Cypher troca escapes unicode antes do parser, inclusive dentro de crases (barra + u0060 e uma crase)
+_UNSAFE = re.compile(r"\\[uU]|[\x00-\x1f\x7f]")
+
+
 def name(identifier: str) -> str:
-    """Identificador Cypher entre crases, dobrando a crase. Dados vao sempre como parametro, nunca por aqui."""
+    """Identificador Cypher entre crases, dobrando a crase. Dados vao sempre como parametro, nunca por aqui.
+
+    Recusa (ValueError) identificador com escape unicode (barra invertida + u) ou caractere de controle: o escape
+    poderia virar uma crase e fechar o identificador; o plano transforma a recusa em problema."""
+    if _UNSAFE.search(identifier):
+        shown = re.sub(r"[\x00-\x1f\x7f]", "?", identifier)
+        raise ValueError(f"identificador recusado: '{shown}' tem barra invertida seguida de u ou caractere de controle; "
+                         "renomeie a classe, relacao ou coluna")
     return "`" + identifier.replace("`", "``") + "`"
+
+

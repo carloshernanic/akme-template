@@ -193,7 +193,7 @@ def publish(project: Project, target: str = "yaml", dry_run: bool = True, releas
     if target == "neo4j":
         from .neo4j_load import publish_neo4j
         result = publish_neo4j(project, model, dry_run, plan)
-        if release and not result["problems"]:
+        if release and not dry_run and not result["problems"]:  # so a carga que deu certo muda a versao
             bump_version(project, release)
         return result
     if target == "yaml":

@@ -334,3 +334,101 @@ def test_reserved_class_name_is_refused(seeded):
     g.add((base_ns(g)["Conceito"], RDF.type, OWL.Class))
     save_graph(g, seeded.schema_path)
     assert "classe Conceito usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+
+
+def test_reserved_descricao_column_is_refused(seeded):
+    path = seeded.root / "data" / "clientes.csv"
+    header, *rows = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join([header + ",_descricao", *[r + ",x" for r in rows]]) + "\n", encoding="utf-8")
+    assert "clientes._descricao usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+
+
+def test_reserved_termo_class_name_is_refused(seeded):
+    from rdflib import OWL, RDF
+    from akme.ontology import base_ns, load_graph, save_graph
+
+    g = load_graph(seeded.schema_path)
+    g.add((base_ns(g)["Termo"], RDF.type, OWL.Class))
+    save_graph(g, seeded.schema_path)
+    assert "classe Termo usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+
+
+# --- revisao final ---
+
+def test_csv_row_with_extra_columns_is_a_problem(seeded):
+    path = seeded.root / "data" / "clientes.csv"
+    path.write_text(path.read_text(encoding="utf-8") + "9,Bia, Jr,1,SP,2023-01-01,S\n", encoding="utf-8")
+    problems = build_plan(seeded).problems
+    assert "1 linha(s) de clientes com colunas a mais ou a menos; primeira: linha 10" in problems
+
+
+def test_source_with_key_and_no_rows_is_a_problem(seeded):
+    (seeded.root / "data" / "produtos.csv").write_text("sku,ds_produto,categoria,vl_unitario,un_medida\n", encoding="utf-8")
+    problems = build_plan(seeded).problems
+    assert any(p.startswith("fonte produtos sem linhas") and "Produto" in p for p in problems)
+
+
+def test_identifier_with_unicode_escape_is_a_problem(seeded):
+    project = _rename_join_column(seeded, "id_cliente", "id\\u0060x")
+    problems = build_plan(project).problems
+    assert any("id\\u0060x" in p and "identificador" in p for p in problems)
+
+
+def _rename_join_column(project, old, new):
+    for path in (project.content_path, project.root / "data" / "clientes.csv", project.root / "data" / "pedidos.csv"):
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+    return Project(project.root)
+
+
+def test_class_with_two_metric_mappings_warns_that_the_first_wins(seeded, monkeypatch):
+    _add_mapping(monkeypatch, {"term": "faturamento", "source": "pedidos", "column": "vl_total", "role": "metric",
+                               "expression": "SUM(vl_total)"})
+    warnings = build_plan(seeded).warnings
+    assert any("Faturamento" in w and "2 mappings de metrica" in w and "vale o primeiro" in w for w in warnings)
+
+
+@pytest.mark.parametrize("batch", [0, -5])
+def test_plan_refuses_non_positive_batch(seeded, batch):
+    with pytest.raises(ValueError, match="batch"):
+        build_plan(seeded, batch)
+
+
+# --- Task 11: nomes reservados e legenda ---
+
+def _add_contract(project, relation, base="pertenceA"):
+    content = read_yaml(project.content_path)
+    contract = next(c for c in content["relation_contracts"] if c["relation"] == base)
+    content["relation_contracts"].append({**contract, "relation": relation, "inverse_of": ""})
+    write_yaml(project.content_path, content)
+    return Project(project.root)
+
+
+@pytest.mark.parametrize("reserved", ["RELACAO_ONTOLOGIA", "SUBCLASSE_DE", "TEM_TERMO"])
+def test_relation_named_like_an_ontology_layer_type_is_a_problem(seeded, reserved):
+    p = build_plan(_add_contract(seeded, reserved))
+    assert any(reserved in x and "reservado" in x for x in p.problems)
+
+
+def test_names_that_only_differ_in_case_are_not_a_problem(seeded):
+    p = build_plan(_add_contract(seeded, "pertence_a"))
+    assert not any("pertence_a" in x for x in p.problems), "o tipo e o nome exato: pertenceA e pertence_a nao colidem"
+
+
+def test_caption_column_is_the_first_mapped_non_key_non_join_column(seeded):
+    sources = {s.source: s for s in build_plan(seeded).sources}
+    # content.yml: uf antes de cliente_ativo (clientes); data_pedido antes de status (pedidos)
+    assert sources["clientes"].caption == "uf"
+    assert sources["pedidos"].caption == "dt_pedido"
+    assert sources["produtos"].caption == "categoria"
+    assert sources["itens_pedido"].caption == "qt_itens"
+    assert not any(s.own_name for s in sources.values())
+
+
+def test_source_with_name_column_keeps_it_and_warns(seeded):
+    path = seeded.root / "data" / "produtos.csv"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    _rewrite_csv(seeded, "produtos.csv", "\n".join([lines[0] + ",name"] + [line + ",nome do cliente" for line in lines[1:]]) + "\n")
+    p = build_plan(seeded)
+    produtos = next(s for s in p.sources if s.source == "produtos")
+    assert produtos.own_name and not p.problems
+    assert any("produtos" in w and "name" in w and "legenda" in w for w in p.warnings)

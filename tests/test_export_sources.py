@@ -209,3 +209,28 @@ def test_check_source_does_not_import_n10s():
     import akme.tools.sources as s
 
     assert "n10s" not in Path(s.__file__).read_text(encoding="utf-8")
+
+
+def test_check_source_refuses_ragged_rows_like_the_plan(seeded):
+    _without_sources(seeded)
+    path = seeded.root / "data" / "clientes.csv"
+    path.write_text(path.read_text(encoding="utf-8") + "9,Bia, Jr,1,SP,2023-01-01,S\n", encoding="utf-8")
+    with pytest.raises(EditError, match="1 linha\\(s\\) de clientes com colunas a mais ou a menos; primeira: linha 10"):
+        _propose(seeded, {"source": "clientes", "key": ["id_cliente"]})
+
+
+@pytest.mark.parametrize("payload,message", [
+    ({"source": "pedidos", "key": ["id_pedido"], "types": {"vl_total": "money"}}, "tipo desconhecido"),
+    ({"source": "pedidos", "key": ["id_pedido"], "exclude": "x"}, "nao pode ter key"),
+    ({"source": "pedidos"}, "key ou exclude"),
+    ({"source": "pedidos", "key": ["id_pedido"], "types": {"id_cliente": "integer"}}, "chave ou join"),
+])
+def test_cheap_payload_errors_come_before_reading_the_source(seeded, monkeypatch, payload, message):
+    import akme.tools.sources as sources
+
+    def must_not_read(*a, **k):
+        raise AssertionError("leu a fonte inteira antes de conferir o payload")
+
+    monkeypatch.setattr(sources, "scan_source", must_not_read)
+    with pytest.raises(EditError, match=message):
+        _propose(seeded, payload)
