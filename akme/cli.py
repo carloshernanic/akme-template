@@ -14,7 +14,8 @@ from .tools import catalog as catalog_tool
 from .tools import connect as connect_tool
 from .tools import eval as eval_tool
 from .tools import export as export_tool
-from .tools import n10s as n10s_tool
+from .tools import neo4j_load as neo4j_tool
+from .tools import neo4j_plan as neo4j_plan_tool
 from .tools import ontology_write as write_tool
 from .tools import profile as profile_tool
 from .tools import publish as publish_tool
@@ -138,22 +139,26 @@ def _publish_neo4j(release: str | None) -> None:
     """Mostra destino e avisos antes de confirmar; a carga termina com erro se o banco divergir."""
     project = _project()
     try:
-        typer.echo(f"destino: {n10s_tool.destination()}")
-        preview = publish_tool.publish(project, "neo4j", True, None)
-        for line in n10s_tool.preview_lines(preview):
-            typer.echo(line)
+        typer.echo(f"destino: {neo4j_tool.destination()}")
+        plan = neo4j_plan_tool.build_plan(project)  # um plano so: previa, estado do banco e carga o reaproveitam
+        preview = publish_tool.publish(project, "neo4j", True, None, plan)
         if preview["problems"]:
+            for line in neo4j_tool.preview_lines(preview):
+                typer.echo(line)
             raise typer.Exit(1)
-        described, refusal = n10s_tool.check_destination(n10s_tool.destination_state(project), project.name)
+        state = neo4j_tool.destination_state(project, plan)
+        for line in neo4j_tool.preview_lines(preview, state):
+            typer.echo(line)
+        described, refusal = neo4j_tool.check_destination(state, project.name)
         typer.echo(f"banco: {described}")
         if refusal:
             typer.echo(f"erro: {refusal}. Nada foi gravado")
             raise typer.Exit(1)
         if not typer.confirm("Executar no alvo neo4j? Esta acao altera a plataforma do cliente."):
             raise typer.Abort()
-        result = publish_tool.publish(project, "neo4j", False, release)
+        result = publish_tool.publish(project, "neo4j", False, release, plan)
         _dump(result)
-        for line in n10s_tool.viewing_lines(project, result):
+        for line in neo4j_tool.viewing_lines(project, result):
             typer.echo(line)
     except (typer.Abort, typer.Exit):
         raise

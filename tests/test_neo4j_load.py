@@ -4,118 +4,12 @@ from __future__ import annotations
 import re
 
 import pytest
+from neo4j_fakes import CARGA, CONCEPTS, EXPECTED_EDGES, EXPECTED_NODES, PASSWORD, _FakeSession
 
 from akme.tools import neo4j_load
 from akme.tools.neo4j_plan import build_plan
 from akme.tools.publish import PublishError
 
-PASSWORD = "senha-que-nao-pode-aparecer"
-EXPECTED_NODES = {"Cliente": 8, "ItemPedido": 17, "Pedido": 10, "Produto": 8}
-EXPECTED_EDGES = {"contem": 17, "pertenceA": 10, "referencia": 17}
-CONCEPTS = 9
-CARGA = "2026-11-12T10:00:00+00:00"
-
-
-class _Counters:
-    def __init__(self, nodes=0, relationships=0):
-        self.nodes_deleted, self.relationships_deleted = nodes, relationships
-
-
-class _Summary:
-    def __init__(self, counters):
-        self.counters = counters
-
-
-class _Result:
-    def __init__(self, rows, counters=None):
-        self.rows, self.counters = rows, counters or _Counters()
-
-    def __iter__(self):
-        return iter(self.rows)
-
-    def single(self):
-        return self.rows[0] if self.rows else None
-
-    def consume(self):
-        return _Summary(self.counters)
-
-
-class _FakeSession:
-    """Simula o Neo4j: responde estado, contagens e awaitIndexes; registra cada consulta com os parametros."""
-
-    def __init__(self, state=None, legacy_constraint=False, fail_unwind=None, counts=None, error=None, deleted=(0, 0)):
-        self.state = {"projetos": [], "total": 0, "alheios": 0, "legado": False, **(state or {})}
-        self.legacy_constraint, self.fail_unwind, self.error, self.deleted = legacy_constraint, fail_unwind, error, deleted
-        self.counts = {**EXPECTED_NODES, **EXPECTED_EDGES, "Conceito": CONCEPTS, **(counts or {})}
-        self.calls: list[tuple[str, dict]] = []
-        self.unwinds = 0
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
-
-    def queries(self) -> list[str]:
-        return [q for q, _ in self.calls]
-
-    def index(self, fragment: str) -> int:
-        return next(i for i, q in enumerate(self.queries()) if fragment in q)
-
-    def run(self, query, parameters=None, **params):
-        import neo4j
-
-        params = {**(parameters or {}), **params}
-        self.calls.append((query, params))
-        if self.error:
-            raise self.error
-        if "COLLECT" in query:
-            return _Result([{k: v for k, v in self.state.items() if k in ("projetos", "total", "alheios", "legado")}])
-        if "SHOW CONSTRAINTS" in query:
-            return _Result([{"c": int(self.legacy_constraint)}])
-        if "UNWIND labels(n)" in query:
-            return _Result([{"label": k, "c": v} for k, v in self.state.get("no_banco", {}).items()])
-        if query.startswith("UNWIND $rows"):
-            self.unwinds += 1
-            if self.unwinds == self.fail_unwind:
-                raise neo4j.exceptions.ClientError("regra violada")
-            return _Result([])
-        if "DETACH DELETE" in query:
-            return _Result([], _Counters(self.deleted[0], self.deleted[1]))
-        if "DELETE r" in query:
-            return _Result([], _Counters(0, self.deleted[1]))
-        if "count(" in query:
-            m = re.search(r"\[r:`([^`]+)`\]", query) or re.search(r"\((?:n|c):`?([A-Za-z_]+)`?", query)
-            return _Result([{"c": self.counts[m.group(1)]}])
-        return _Result([])
-
-
-@pytest.fixture
-def fake(monkeypatch):
-    neo4j = pytest.importorskip("neo4j")
-    holder = {"session": _FakeSession()}
-
-    class Driver:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def session(self, **kwargs):
-            return holder["session"]
-
-    monkeypatch.setenv("AKME_NEO4J_URI", "bolt://host:7687")
-    monkeypatch.setenv("AKME_NEO4J_USER", "x")
-    monkeypatch.setenv("AKME_NEO4J_PASSWORD", PASSWORD)
-    monkeypatch.setattr(neo4j.GraphDatabase, "driver", lambda *a, **k: Driver())
-
-    def use(session):
-        holder["session"] = session
-        return session
-
-    holder["use"] = use
-    return holder
 
 
 def test_load_order_constraints_nodes_edges_ontology_then_sync(seeded, fake):
@@ -536,3 +430,59 @@ def test_ontology_failure_skips_sync(seeded, fake):
     with pytest.raises(PublishError, match="ontologia: comando 1 de 17 falhou.*7 lote\\(s\\) ja gravado\\(s\\); nada foi apagado"):
         neo4j_load.load(seeded, build_plan(seeded), CARGA)
     assert not any("DELETE" in q for q in session.queries())
+
+
+def _clientes_rows(session):
+    return {r["id"]: r["p"] for q, p in session.calls if "MERGE (n:`Cliente`" in q for r in p["rows"]}
+
+
+def _without_declared_types(project):
+    from akme.project import Project, read_yaml, write_yaml
+
+    content = read_yaml(project.content_path)
+    for entry in content.get("sources") or []:
+        entry["types"] = {}
+    write_yaml(project.content_path, content)
+    return Project(project.root)
+
+
+def test_undeclared_column_stays_original_text(seeded, fake):
+    project = _without_declared_types(seeded)
+    neo4j_load.load(project, build_plan(project), CARGA)
+    row = _clientes_rows(fake["session"])["1"]
+    assert row["dt_cadastro"] == "2023-01-15" and isinstance(row["dt_cadastro"], str)
+    assert row["cnpj"] == "12345678000101"
+
+
+def test_type_does_not_depend_on_the_data(seeded, fake):
+    project = _without_declared_types(seeded)
+    path = project.root / "data" / "clientes.csv"
+    path.write_text(path.read_text(encoding="utf-8").replace("12345678000101", "00123"), encoding="utf-8")
+    neo4j_load.load(project, build_plan(project), CARGA)
+    assert _clientes_rows(fake["session"])["1"]["cnpj"] == "00123"
+
+
+def test_node_identity_does_not_depend_on_row_order(seeded, fake):
+    neo4j_load.load(seeded, build_plan(seeded), CARGA)
+    before = _clientes_rows(fake["session"])
+    path = seeded.root / "data" / "clientes.csv"
+    head, *rows = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join([head, *reversed(rows)]) + "\n", encoding="utf-8")
+    again = fake["use"](_FakeSession())
+    neo4j_load.load(seeded, build_plan(seeded), CARGA)
+    assert _clientes_rows(again) == before
+
+
+def test_driver_connection_failure_becomes_a_clear_error(seeded, fake, monkeypatch):
+    neo4j = pytest.importorskip("neo4j")
+
+    def unreachable(*a, **k):
+        raise neo4j.exceptions.ServiceUnavailable(f"nao conectou com {PASSWORD}")
+
+    monkeypatch.setattr(neo4j.GraphDatabase, "driver", unreachable)
+    with pytest.raises(PublishError, match="falha no Neo4j") as exc:
+        neo4j_load.verify(build_plan(seeded), "demo", CONCEPTS)
+    assert PASSWORD not in str(exc.value)
+    with pytest.raises(PublishError, match="falha no Neo4j") as exc:
+        neo4j_load.load(seeded, build_plan(seeded), CARGA)
+    assert PASSWORD not in str(exc.value)

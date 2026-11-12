@@ -334,10 +334,3 @@ def test_reserved_class_name_is_refused(seeded):
     g.add((base_ns(g)["Conceito"], RDF.type, OWL.Class))
     save_graph(g, seeded.schema_path)
     assert "classe Conceito usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
-
-
-def test_shared_names_live_in_the_plan():
-    from akme.tools import n10s
-    assert n10s._labels is neo4j_plan.labels_for
-    assert n10s._keys is neo4j_plan.contract_keys
-    assert n10s._join_columns is neo4j_plan.join_columns

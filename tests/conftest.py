@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from neo4j_fakes import fake  # noqa: F401  (fixture compartilhada dos testes do Neo4j)
+
 from akme.project import Project, read_yaml, write_yaml
 from akme.tools import ontology_write
 

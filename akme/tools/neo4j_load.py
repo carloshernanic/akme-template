@@ -368,8 +368,9 @@ def _warnings(plan: Plan) -> list[str]:
             + [f"relacao nao publicada: {r}" for r in plan.relations_not_published] + plan.warnings)
 
 
-def publish_neo4j(project: Project, model: dict[str, Any], dry_run: bool) -> dict[str, Any]:
-    plan = build_plan(project, BATCH)
+def publish_neo4j(project: Project, model: dict[str, Any], dry_run: bool, plan: Plan | None = None) -> dict[str, Any]:
+    """Com `plan`, reaproveita o plano ja montado (a CLI monta um so); a carga confere a origem de novo ao gravar."""
+    plan = plan or build_plan(project, BATCH)
     batches = _predicted(plan)
     out = project.docs_dir / "publish" / "neo4j.cypher"
     out.parent.mkdir(parents=True, exist_ok=True)
