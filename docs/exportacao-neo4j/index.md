@@ -36,9 +36,9 @@ Tudo em Cypher puro, pelo driver oficial, sem plugin:
 | 3 | Plano da carga (dry-run) lendo em blocos | concluída (aguardando commit) |
 | 4 | Camada de ontologia (Conceito) | concluída (aguardando commit) |
 | 5 | Validação do `add_source` lendo a fonte inteira | concluída (aguardando commit) |
-| 6 | Carga, sincronização e conferência | a fazer |
+| 6 | Carga, sincronização e conferência | concluída (aguardando commit) |
 | 7 | Ligar o caminho novo e remover o n10s | a fazer |
 | 8 | Documentação, guia e verificador da demo | a fazer |
 | 9 | Aceitação real (demo, Olist e Postgres) | a fazer |
 
-Veja a [Task 1](task-1-adapters.md), a [Task 2](task-2-valores.md), a [Task 3](task-3-plano.md), a [Task 4](task-4-ontologia.md) e a [Task 5](task-5-add-source.md) para o que já mudou.
+Veja a [Task 1](task-1-adapters.md), a [Task 2](task-2-valores.md), a [Task 3](task-3-plano.md), a [Task 4](task-4-ontologia.md), a [Task 5](task-5-add-source.md) e a [Task 6](task-6-carga.md) para o que já mudou.
