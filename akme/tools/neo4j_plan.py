@@ -20,6 +20,7 @@ from .neo4j_values import TYPES, convert, filled, node_id
 
 RESERVED_LABELS = ("Conceito", "_AkmeProjeto")
 RESERVED_PROPS = ("_id", "_projeto", "_carga")
+BATCH = 5000  # linhas por bloco de leitura
 EXAMPLES = 5  # exemplos de chave repetida citados no problema
 
 
@@ -130,23 +131,29 @@ def _config(project: Project) -> tuple[list[str], dict[str, list[str]], dict[str
 
 
 @dataclass
-class _Read:
+class Scan:
     """O que uma leitura da fonte deixa na memoria: contagens, exemplos e um _id por linha, nunca as linhas."""
     columns: list[str]
     key: list[str]
     absent: list[str]
     rows: int = 0
-    complete: int = 0
+    complete: int = 0  # linhas com a chave toda preenchida
     seen: set[str] = field(default_factory=set)
-    repeated: list[str] = field(default_factory=list)
+    repeated_ids: set[str] = field(default_factory=set)  # so os _id que aparecem mais de uma vez
+    repeated: list[str] = field(default_factory=list)  # exemplos legiveis, no maximo EXAMPLES
     invalid: Counter[str] = field(default_factory=Counter)
-    examples: dict[str, Any] = field(default_factory=dict)
+    examples: dict[str, Any] = field(default_factory=dict)  # primeiro valor invalido por coluna
+    filled: Counter[str] = field(default_factory=Counter)  # valores preenchidos por coluna tipada
+    first: dict[str, Any] = field(default_factory=dict)  # primeiro valor preenchido por coluna tipada
     values: dict[str, Counter[str]] = field(default_factory=dict)
 
 
-def _read(adapter: Any, source: str, declared: list[str], column_types: dict[str, str], joins: set[tuple[str, str]],
-          batch: int) -> _Read:
-    """Uma passada pela fonte. A chave so e conferida depois do primeiro bloco, que diz quais colunas existem.
+def scan_source(adapter: Any, source: str, declared: list[str], column_types: dict[str, str],
+                joins: frozenset[tuple[str, str]] | set[tuple[str, str]] = frozenset(),
+                batch: int = BATCH) -> Scan:
+    """Uma passada pela fonte inteira, em blocos. E o unico leitor das regras de chave e tipo: o plano da carga e o
+    add_source (etapa 5) usam este, entao nao divergem. A chave so e conferida depois do primeiro bloco, que diz
+    quais colunas existem.
 
     O gerador e esgotado ou fechado antes de voltar: no Postgres o cursor do lado do servidor tem nome fixo, e duas
     leituras abertas ao mesmo tempo na mesma conexao colidiriam.
@@ -164,9 +171,9 @@ def _read(adapter: Any, source: str, declared: list[str], column_types: dict[str
             columns = [c["name"] for c in adapter.read_schema(source)["columns"]]
         absent = [c for c in declared if columns and c not in columns]
         key = [] if absent else list(declared)
-        state = _Read(columns=columns, key=key, absent=absent,
-                      values={c: Counter() for s, c in joins if s == source and c in columns})
-        typed = {c: kind for c, kind in column_types.items() if kind != "string"}
+        state = Scan(columns=columns, key=key, absent=absent,
+                     values={c: Counter() for s, c in joins if s == source and c in columns})
+        typed = {c: kind for c, kind in column_types.items() if kind in TYPES}
         for block in chain([first] if first else [], blocks):
             state.rows += len(block)
             if not key:
@@ -177,15 +184,20 @@ def _read(adapter: Any, source: str, declared: list[str], column_types: dict[str
                 state.complete += 1
                 identity = node_id([row[c] for c in key])
                 if identity in state.seen:
-                    example = " | ".join(str(row[c]) for c in key)
-                    if len(state.repeated) < EXAMPLES and example not in state.repeated:
-                        state.repeated.append(example)
+                    if identity not in state.repeated_ids:
+                        state.repeated_ids.add(identity)
+                        if len(state.repeated) < EXAMPLES:
+                            state.repeated.append(" | ".join(str(row[c]) for c in key))
                 else:
                     state.seen.add(identity)
                 for col, kind in typed.items():
                     value = row.get(col)
                     if not filled(value):
                         continue
+                    state.filled[col] += 1
+                    state.first.setdefault(col, value)
+                    if kind == "string":
+                        continue  # texto sempre converte
                     try:
                         convert(kind, value)
                     except ValueError:
@@ -202,7 +214,7 @@ def _read(adapter: Any, source: str, declared: list[str], column_types: dict[str
             close()
 
 
-def _edges(plan: Plan, contracts: list[dict[str, Any]], labels: dict[str, str], read: dict[str, _Read]) -> None:
+def _edges(plan: Plan, contracts: list[dict[str, Any]], labels: dict[str, str], read: dict[str, Scan]) -> None:
     """Arestas esperadas por contrato, das contagens por valor: soma de origem[v] * alvo[v]. Vale porque a chave e
     unica dos dois lados (chave repetida ja e problema), entao cada par ligado e distinto."""
     counts: dict[str, int] = {}
@@ -231,7 +243,7 @@ def _edges(plan: Plan, contracts: list[dict[str, Any]], labels: dict[str, str], 
     plan.relationships = dict(sorted(counts.items()))
 
 
-def build_plan(project: Project, batch: int = 5000) -> Plan:
+def build_plan(project: Project, batch: int = BATCH) -> Plan:
     """Le todas as fontes em blocos e devolve o plano da carga, com problemas (recusam) e avisos (aceitam)."""
     data = build_export(project)
     contracts = data["relation_contracts"]
@@ -239,7 +251,7 @@ def build_plan(project: Project, batch: int = 5000) -> Plan:
     joins = join_columns(contracts)
     plan = Plan(project=project.name, sources_skipped=sorted(excluded))
     reserved = [c["name"] for c in classes(load_graph(project.schema_path)) if c["name"] in RESERVED_LABELS]
-    read: dict[str, _Read] = {}
+    read: dict[str, Scan] = {}
     adapter = load_adapter(project.adapter_name, project.adapter_options())
     try:
         sources = adapter.list_sources()
@@ -258,7 +270,7 @@ def build_plan(project: Project, batch: int = 5000) -> Plan:
             elif not declared[source]:
                 problems.append(f"fonte {source} sem chave na decisao da etapa 5")
             column_types = {c: kind for c, kind in types.get(source, {}).items() if kind in TYPES}
-            state = _read(adapter, source, declared.get(source) or [], column_types, joins, batch)
+            state = scan_source(adapter, source, declared.get(source) or [], column_types, joins, batch)
             key, columns = state.key, state.columns
             if state.absent:
                 problems.append(f"fonte {source}: chave declarada usa coluna inexistente: {', '.join(state.absent)}")

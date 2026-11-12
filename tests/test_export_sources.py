@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import csv
+import time
+from pathlib import Path
 
 import pytest
 
@@ -174,3 +176,36 @@ def test_stage_five_checklist_tracks_neo4j_decisions(seeded):
     assert step()["done"] is None, "sem Neo4j no projeto, o passo nao cobra nada"
     _propose(seeded, {"source": "pedidos", "key": ["id_pedido"]})
     assert step()["done"] is False
+
+
+def test_check_source_reads_all_rows(seeded):
+    """Antes a conferencia lia so 100 mil linhas: chave repetida na linha 100.001 passava."""
+    _without_sources(seeded)
+    path = seeded.root / "data" / "itens_pedido.csv"
+    with path.open(encoding="utf-8", newline="") as f:
+        header = next(csv.reader(f))
+    assert header[:2] == ["id_pedido", "sku"]
+    extra = [""] * (len(header) - 2)
+    total = 120_000
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for i in range(total - 1):
+            writer.writerow([f"P{i}", "S1", *extra])
+        writer.writerow(["P0", "S1", *extra])  # repete a primeira, na ultima linha
+    start = time.perf_counter()
+    with pytest.raises(EditError, match="repete 1 valor"):
+        _propose(seeded, {"source": "itens_pedido", "key": ["id_pedido", "sku"]})
+    assert time.perf_counter() - start < 30
+
+
+def test_check_source_counts_every_row_and_has_no_truncated(seeded):
+    _without_sources(seeded)
+    checked = _propose(seeded, {"source": "pedidos", "key": ["id_pedido"]}).payload["checked"]
+    assert checked["rows"] == 10 and "truncated" not in checked
+
+
+def test_check_source_does_not_import_n10s():
+    import akme.tools.sources as s
+
+    assert "n10s" not in Path(s.__file__).read_text(encoding="utf-8")

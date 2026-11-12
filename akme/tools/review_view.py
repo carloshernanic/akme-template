@@ -176,9 +176,7 @@ def _source_checked(p: dict[str, Any]) -> dict[str, Any] | None:
     for col, t in (c.get("types") or {}).items():
         lines.append(f"{col}: {t.get('converted')} de {t.get('filled')} valores convertem para {TYPE_LABEL.get(t.get('kind'), t.get('kind'))}"
                      + (f", ex. {t.get('example')}" if t.get("example") else ""))
-    if c.get("truncated"):
-        lines.append("A fonte tem mais linhas do que o limite da carga")
-    return {"available": True, "lines": lines, "alerts": ["a fonte passa do limite de linhas da carga"] if c.get("truncated") else []}
+    return {"available": True, "lines": lines, "alerts": []}
 
 
 def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]:

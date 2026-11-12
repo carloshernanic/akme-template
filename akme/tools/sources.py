@@ -13,11 +13,15 @@ from ..adapters import load_adapter
 from ..models import SOURCE_TYPES
 from ..ontology import load_content
 from ..project import Project
+from .neo4j_plan import BATCH, Scan, contract_keys, join_columns, labels_for, scan_source
 from .profile import profile_source
 
 # nomes que indicam identificador: um inteiro com esse nome fica texto (zero a esquerda, nao se soma)
 _IDENTIFIER = {"id", "identifier", "ident", "number", "numero", "num", "nr", "no", "code", "codigo", "cod", "cd",
                "cnpj", "cpf", "cep", "nf", "sku", "key", "chave"}
+
+
+SAMPLE_ROWS = 100_000  # so o rascunho do suggest_sources usa amostra
 
 
 class SourceError(ValueError):
@@ -33,27 +37,21 @@ def looks_like_identifier(name: str) -> bool:
     return any(t in _IDENTIFIER for t in _tokens(name))
 
 
-def _filled(value: Any) -> bool:
-    return value not in (None, "")
-
-
 def _join_columns(project: Project, source: str) -> set[str]:
     contracts = load_content(project)["relation_contracts"]
-    return {c["join"][side]["column"] for c in contracts if c.get("join") for side in ("from", "to")
-            if c["join"][side]["source"] == source}
+    return {column for src, column in join_columns(contracts) if src == source}
 
 
-def _read(project: Project, source: str) -> tuple[list[str], list[dict[str, Any]], bool]:
-    from .n10s import MAX_ROWS
-
+def _sample(project: Project, source: str) -> tuple[list[str], list[dict[str, Any]]]:
+    """Amostra para o rascunho do suggest_sources. A conferencia do check_source le a fonte inteira."""
     adapter = load_adapter(project.adapter_name, project.adapter_options())
     try:
         if source not in adapter.list_sources():
             raise SourceError(f"fonte inexistente: {source}")
-        rows = adapter.read_sample(source, MAX_ROWS + 1)
+        rows = adapter.read_sample(source, SAMPLE_ROWS)
     finally:
         adapter.close()
-    return (list(rows[0]) if rows else []), rows[:MAX_ROWS], len(rows) > MAX_ROWS
+    return (list(rows[0]) if rows else []), rows
 
 
 def parse_types(value: Any) -> dict[str, str]:
@@ -71,34 +69,43 @@ def parse_types(value: Any) -> dict[str, str]:
     return out
 
 
-def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
-    """Confere chave e tipos contra o dado. Devolve o payload normalizado com o bloco `checked`."""
-    from .n10s import rdf_literal
+def _read_whole(project: Project, source: str, key: list[str], types: dict[str, str], *, check: bool = True) -> Scan:
+    """Confere que a fonte existe e, com check, le a fonte inteira pelo leitor unico do plano (scan_source)."""
+    adapter = load_adapter(project.adapter_name, project.adapter_options())
+    try:
+        if source not in adapter.list_sources():
+            raise SourceError(f"fonte inexistente: {source}")
+        if not check:
+            return Scan(columns=[], key=[], absent=[])
+        return scan_source(adapter, source, key, types, batch=BATCH)
+    finally:
+        adapter.close()
 
+
+def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
+    """Confere chave e tipos contra a fonte inteira, lida em blocos. Devolve o payload normalizado com o bloco `checked`."""
     source = payload["source"]
     exclude = str(payload.get("exclude") or "").strip()
     raw_key = payload.get("key")
     key = [raw_key] if isinstance(raw_key, str) else [str(k).strip() for k in (raw_key or []) if str(k).strip()]
     types = parse_types(payload.get("types"))
-    columns, rows, truncated = _read(project, source)
+    scan = _read_whole(project, source, key, types, check=not exclude)
     if exclude:
         if key or types:
             raise SourceError("fonte excluida nao pode ter key nem types")
         return {"source": source, "exclude": exclude}
     if not key:
         raise SourceError("add_source exige key ou exclude")
-    if not rows:
+    if not scan.rows:
         raise SourceError(f"fonte {source} sem linhas: nao ha como conferir a chave")
-    absent = [c for c in key + list(types) if c not in columns]
+    absent = [c for c in key + list(types) if c not in scan.columns]
     if absent:
         raise SourceError(f"coluna inexistente em {source}: {', '.join(absent)}")
-    empty = sum(1 for r in rows if not all(_filled(r.get(c)) for c in key))
+    empty = scan.rows - scan.complete
     if empty:
         raise SourceError(f"{source}: {empty} linha(s) com a chave {'+'.join(key)} vazia")
-    counts = Counter(tuple(str(r[c]) for c in key) for r in rows)
-    repeated = [" | ".join(v) for v, n in counts.items() if n > 1]
-    if repeated:
-        raise SourceError(f"{source}.{'+'.join(key)} repete {len(repeated)} valor(es), ex.: {repeated[:3]}: duas linhas virariam o mesmo no")
+    if scan.repeated_ids:
+        raise SourceError(f"{source}.{'+'.join(key)} repete {len(scan.repeated_ids)} valor(es), ex.: {scan.repeated[:3]}: duas linhas virariam o mesmo no")
     unknown = {c: k for c, k in types.items() if k not in SOURCE_TYPES}
     if unknown:
         raise SourceError(f"tipo desconhecido em {source}: {unknown}; use {', '.join(SOURCE_TYPES)}")
@@ -106,19 +113,12 @@ def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
     wrong = [c for c, k in types.items() if c in protected and k != "string"]
     if wrong:
         raise SourceError(f"{source}.{', '.join(wrong)} e chave ou join e precisa ficar string")
-    checked: dict[str, Any] = {"rows": len(rows), "truncated": truncated, "types": {}}
+    checked: dict[str, Any] = {"rows": scan.rows, "types": {}}
     for col, kind in types.items():
-        values = [r[col] for r in rows if _filled(r.get(col))]
-        bad = []
-        for v in values:
-            try:
-                rdf_literal(kind, v)
-            except ValueError:
-                bad.append(v)
-        if bad:
-            raise SourceError(f"{len(bad)} de {len(values)} valores de {source}.{col} nao convertem para {kind}, ex.: {bad[0]}")
-        checked["types"][col] = {"kind": kind, "converted": len(values), "filled": len(values),
-                                 "example": str(values[0]) if values else ""}
+        if scan.invalid[col]:
+            raise SourceError(f"{scan.invalid[col]} de {scan.filled[col]} valores de {source}.{col} nao convertem para {kind}, ex.: {scan.examples[col]}")
+        checked["types"][col] = {"kind": kind, "converted": scan.filled[col], "filled": scan.filled[col],
+                                 "example": str(scan.first[col]) if col in scan.first else ""}
     return {"source": source, "key": key, "types": types, "class": _class_of(project, source), "checked": checked}
 
 
@@ -136,11 +136,10 @@ def _class_of(project: Project, source: str) -> str:
 def suggest_sources(project: Project) -> list[dict[str, Any]]:
     """Rascunho de chave e tipos para cada fonte. O agente revisa antes de propor; o humano decide."""
     from .export import build_export
-    from .n10s import _keys, _labels
 
     data = build_export(project)
     contracts = data["relation_contracts"]
-    contract_key = _keys(contracts)
+    contract_key = contract_keys(contracts)
     key_relation = {}
     for c in contracts:
         join, mult = c.get("join"), c.get("multiplicity")
@@ -152,7 +151,7 @@ def suggest_sources(project: Project) -> list[dict[str, Any]]:
         sources = adapter.list_sources()
     finally:
         adapter.close()
-    labels, _ = _labels(data, project, sources, [])
+    labels, _ = labels_for(data, project, sources, [])
     out = []
     for source in sources:
         if source not in labels:
@@ -160,7 +159,7 @@ def suggest_sources(project: Project) -> list[dict[str, Any]]:
             out.append({"source": source, "class": None, "key": [], "key_from": "", "types": {}, "notes": [reason],
                         "payload": {"source": source, "exclude": reason}})
             continue
-        columns, rows, _ = _read(project, source)
+        columns, rows = _sample(project, source)
         prof = profile_source(source, columns, rows)
         joins = _join_columns(project, source)
         notes: list[str] = []

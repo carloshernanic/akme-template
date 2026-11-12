@@ -39,7 +39,7 @@ def test_present_covers_every_edit_type():
         EditType.add_constraint: {"term": "t", "rule": "r", "severity": "error"},
         EditType.add_precedence: {"topic": "x", "winner": "a", "over": "b", "reason": "r"},
         EditType.add_source: {"source": "pedidos", "key": ["id_pedido"], "types": {"dt_pedido": "date"}, "class": "Pedido",
-                              "checked": {"rows": 10, "truncated": False, "types": {"dt_pedido": {"kind": "date", "converted": 10, "filled": 10, "example": "2026-07-03"}}}},
+                              "checked": {"rows": 10, "types": {"dt_pedido": {"kind": "date", "converted": 10, "filled": 10, "example": "2026-07-03"}}}},
         EditType.add_glossary: {"acronym": "UF", "meaning": "estado"},
         EditType.add_requirement: {"field": "purpose", "value": "p"},
         EditType.add_use_case: {"id": "UC-01", "name": "n", "description": "d"},

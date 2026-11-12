@@ -10,3 +10,4 @@ nav:
   - "Task 2: conversão de valores e identidade do nó": task-2-valores.md
   - "Task 3: plano da carga (dry-run)": task-3-plano.md
   - "Task 4: camada de ontologia (Conceito)": task-4-ontologia.md
+  - "Task 5: validação do add_source": task-5-add-source.md

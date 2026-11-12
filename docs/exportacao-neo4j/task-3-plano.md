@@ -138,3 +138,5 @@ Pontos menores adiados:
 
 - a ordem dos exemplos de chave repetida e a ordem dos problemas dentro de uma fonte mudaram (cosmético);
 - `test_composite_key_identifies_items` ficou mais fraco que o original, porque o plano não gera o grafo. A identidade no grafo é testada nas Tasks 6 e 7.
+
+Nota: na Task 5 a leitura em blocos de cada fonte (`_read`) foi extraída para `scan_source` e `Scan`, em `neo4j_plan.py`, e o `add_source` passou a usar o mesmo leitor.
