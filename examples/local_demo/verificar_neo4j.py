@@ -1,7 +1,9 @@
 """Confere o grafo da demo no Neo4j contra os CSVs e o gabarito. Somente leitura.
 
 Vale so para a demo, carregada pelo `akme publish --target neo4j --no-dry-run` (Cypher, sem plugin).
-Confere os nos de dado por label, as arestas com o nome das relacoes, a camada Conceito da ontologia,
+Confere os nos de dado por label, as arestas com o nome exato das relacoes, a camada Conceito da ontologia (espelho
+do schema.ttl: setas RELACAO_ONTOLOGIA com o nome em `nome`), o mapa db.schema.visualization sem setas falsas, os termos
+(Termo), a legenda name de cada no, a _descricao de nos e arestas, o esquema para o LLM na marca do projeto,
 as restricoes e indices akme_*, os valores e tipos gravados e a marca da carga (sincronizacao).
 
 Uso, com as variaveis AKME_NEO4J_* no ambiente:
@@ -22,7 +24,7 @@ import neo4j
 
 HERE = Path(__file__).resolve().parent
 PROJETO = "local_demo"
-# relacao -> (dominio, alcance, nome no gabarito)
+# relacao da ontologia -> (dominio, alcance, tipo da aresta de dado no Neo4j, que e tambem o nome no gabarito)
 EDGES = {
     "contem": ("Pedido", "ItemPedido", "CONTEM"),
     "pertenceA": ("Pedido", "Cliente", "PERTENCE_A"),
@@ -42,12 +44,25 @@ STORED_TYPES = {
     ("Pedido", "dt_pedido"): "DATE", ("Pedido", "id_cliente"): "STRING", ("Pedido", "id_pedido"): "STRING", ("Pedido", "nf"): "STRING", ("Pedido", "status"): "STRING", ("Pedido", "vl_total"): "FLOAT",
     ("Produto", "categoria"): "STRING", ("Produto", "sku"): "STRING", ("Produto", "vl_unitario"): "FLOAT",
 }
-CONSTRAINTS = ["akme_conceito_uniq_projeto_nome"] + [f"akme_uniq_{label}" for label in sorted(SOURCES)]
-RESERVED = {"_id", "_projeto", "_carga"}
+# akme_projeto_uniq: uma marca _AkmeProjeto por projeto (duas primeiras cargas simultaneas nao criam duas)
+CONSTRAINTS = sorted(["akme_conceito_uniq_projeto_nome", "akme_projeto_uniq", "akme_termo_uniq_projeto_nome"]
+                     + [f"akme_uniq_{label}" for label in SOURCES])
+RESERVED = {"_id", "_projeto", "_carga", "_descricao", "name"}  # name: legenda gravada pelo akme
 # classes do schema.ttl da demo: as 4 do template mais as 5 das edicoes da demo
 CONCEITOS = ["Cliente", "Entity", "Faturamento", "ItemPedido", "Metric", "Pedido", "Produto", "Relation", "Rule"]
 SUBCLASSES = ["Cliente->Entity", "Faturamento->Metric", "ItemPedido->Entity", "Pedido->Entity", "Produto->Entity"]
-DATA = "n._projeto = $p AND NOT n:Conceito"
+DATA = "n._projeto = $p AND NOT n:Conceito AND NOT n:Termo"
+# termos do content.yml da demo, cada um ligado ao conceito da sua classe
+TERMOS = {"categoria": "Produto", "cliente": "Cliente", "cliente_ativo": "Cliente", "data_pedido": "Pedido",
+          "faturamento": "Faturamento", "pedido": "Pedido", "produto": "Produto", "quantidade": "ItemPedido",
+          "status_pedido": "Pedido", "uf": "Cliente"}
+# _descricao das arestas: as relacoes da demo nao tem definicao, entao vale o rotulo
+EDGE_TEXT = {"contem": "contem", "pertenceA": "pertence a", "referencia": "referencia"}
+# setas RELACAO_ONTOLOGIA: toda owl:ObjectProperty do schema.ttl da demo, inversas incluidas
+# (dominio, nome, alcance, publicada nos dados)
+ONTOLOGY_ARROWS = [("Cliente", "possuiPedido", "Pedido", False), ("ItemPedido", "pertenceAoPedido", "Pedido", False),
+                   ("ItemPedido", "referencia", "Produto", True), ("Pedido", "contem", "ItemPedido", True),
+                   ("Pedido", "pertenceA", "Cliente", True)]
 
 
 class SemResultado(Exception):
@@ -115,7 +130,8 @@ def _main() -> int:
     failures: list[str] = []
 
     def query(cypher: str, **params) -> list[dict]:
-        return [r.data() for r in driver.execute_query(cypher, params, routing_="r").records]
+        return [r.data() for r in driver.execute_query(cypher, params, routing_="r",
+                                                       database_=os.environ.get("AKME_NEO4J_DATABASE") or None).records]
 
     def scalar(cypher: str, **params):
         rows = query(cypher, **params)
@@ -157,10 +173,21 @@ def _main() -> int:
               {relation: gabarito["relationships"][g] for relation, (_, _, g) in EDGES.items()})
         for relation, (domain, range_, g) in EDGES.items():
             check(f"arestas (:{domain})-[:{relation}]->(:{range_})",
-                  lambda d=domain, r=relation, a=range_: scalar(f"MATCH (:`{d}`)-[x:`{r}`]->(:`{a}`) WHERE NOT x._carga IS NULL RETURN count(x) AS c"),
+                  lambda d=domain, t=relation, a=range_: scalar(f"MATCH (:`{d}`)-[x:`{t}`]->(:`{a}`) WHERE NOT x._carga IS NULL RETURN count(x) AS c"),
                   gabarito["relationships"][g])
+        check("mapa db.schema.visualization: setas de dado so entre os pares dos contratos",
+              lambda: sorted((r["a"], r["t"], r["b"]) for r in query(
+                  "CALL db.schema.visualization() YIELD relationships UNWIND relationships AS r "
+                  "WITH startNode(r).name AS a, type(r) AS t, endNode(r).name AS b "
+                  "WHERE NOT a IN ['Conceito', 'Termo', '_AkmeProjeto'] RETURN a, t, b")),
+              sorted((d, relation, r) for relation, (d, r, _) in EDGES.items()))
+        check("legenda name em todo no de dado, distinta e comecando pelo label",
+              lambda: scalar(f"MATCH (n) WHERE {DATA} WITH n, labels(n)[0] AS l "
+                             "WITH count(n) AS total, count(DISTINCT n.name) AS distintos, "
+                             "count(CASE WHEN n.name STARTS WITH l + ' ' THEN 1 END) AS certos "
+                             "RETURN total = distintos AND total = certos AS c", p=p), True)
         check("nenhuma aresta entre dados e Conceito",
-              lambda: scalar("MATCH (a)-[r]-(b:Conceito) WHERE NOT a:Conceito RETURN count(r) AS c"), 0)
+              lambda: scalar("MATCH (a)-[r]-(b:Conceito) WHERE NOT a:Conceito AND NOT a:Termo RETURN count(r) AS c"), 0)
 
         # sincronizacao: tudo do projeto gravado pela mesma carga
         check("uma so _carga nos nos do projeto", lambda: scalar("MATCH (n) WHERE n._projeto = $p RETURN count(DISTINCT n._carga) AS c", p=p), 1)
@@ -174,11 +201,31 @@ def _main() -> int:
         check("SUBCLASSE_DE da ontologia",
               lambda: sorted(f"{r['a']}->{r['b']}" for r in query("MATCH (a:Conceito)-[:SUBCLASSE_DE]->(b:Conceito) RETURN a.nome AS a, b.nome AS b")),
               SUBCLASSES)
-        check("setas da ontologia com o nome das relacoes",
-              lambda: sorted((r["a"], r["t"], r["b"]) for r in query("MATCH (a:Conceito)-[r]->(b:Conceito) WHERE type(r) <> 'SUBCLASSE_DE' "
-                                                                       "RETURN a.nome AS a, type(r) AS t, b.nome AS b")),
-              sorted((d, relation, r) for relation, (d, r, _) in EDGES.items()))
+        check("setas da ontologia: RELACAO_ONTOLOGIA por relacao do schema.ttl, com nome e publicada_nos_dados",
+              lambda: sorted((r["a"], r["n"], r["b"], r["pub"]) for r in query(
+                  "MATCH (a:Conceito)-[r]->(b:Conceito) WHERE type(r) <> 'SUBCLASSE_DE' "
+                  "RETURN a.nome AS a, type(r) + ':' + r.nome AS n, b.nome AS b, r.publicada_nos_dados AS pub")),
+              sorted((d, f"RELACAO_ONTOLOGIA:{n}", r, pub) for d, n, r, pub in ONTOLOGY_ARROWS))
+        check("legenda name de Conceito e Termo igual ao nome",
+              lambda: scalar("MATCH (n) WHERE (n:Conceito OR n:Termo) AND n._projeto = $p AND n.name <> n.nome RETURN count(n) AS c", p=p), 0)
+        check("legenda name da marca", lambda: scalar("MATCH (m:_AkmeProjeto {projeto: $p}) RETURN m.name AS c", p=p), f"Projeto {p}")
         check("definicao de Pedido no grafo", lambda: bool(scalar("MATCH (c:Conceito {nome: 'Pedido'}) RETURN c.definicao AS c")), True)
+        check("termos ligados ao conceito da classe",
+              lambda: {r["t"]: r["c"] for r in query("MATCH (c:Conceito {_projeto: $p})-[:TEM_TERMO]->(t:Termo {_projeto: $p}) "
+                                                     "RETURN t.nome AS t, c.nome AS c", p=p)}, TERMOS)
+        check("nenhum Termo solto", lambda: scalar("MATCH (t:Termo) WHERE NOT (:Conceito)-[:TEM_TERMO]->(t) RETURN count(t) AS c"), 0)
+
+        # camada semantica nos dados: _descricao e esquema para o LLM
+        check("todo no de dado com _descricao igual a Conceito.definicao do seu label",
+              lambda: scalar(f"MATCH (n) WHERE {DATA} OPTIONAL MATCH (c:Conceito {{_projeto: $p}}) WHERE c.nome IN labels(n) "
+                             "WITH n, c WHERE c IS NULL OR coalesce(n._descricao, '') <> coalesce(c.definicao, '') "
+                             "RETURN count(n) AS c", p=p), 0)
+        check("_descricao das arestas de dado",
+              lambda: {r["t"]: r["d"] for r in query(f"MATCH (n)-[r]->() WHERE {DATA} RETURN DISTINCT type(r) AS t, r._descricao AS d", p=p)},
+              EDGE_TEXT)
+        check("esquema para o LLM na marca do projeto",
+              lambda: (lambda e: bool(e) and e.startswith("# Esquema do grafo") and "### Pedido" in e and "NOT n:Conceito" in e)(
+                  scalar("MATCH (m:_AkmeProjeto {projeto: $p}) RETURN m.esquema AS e", p=p)), True)
 
         # esquema: restricoes e indices do akme
         check("restricoes akme_*",
