@@ -17,9 +17,13 @@ from urllib.parse import quote, urlsplit
 
 from ..adapters import load_adapter
 from ..adapters.base import require
-from ..ontology import base_ns, is_metric_class, load_content, load_graph
+from ..ontology import base_ns, load_content, load_graph
 from ..project import Project
 from .export import build_export
+from .neo4j_plan import _config
+from .neo4j_plan import contract_keys as _keys
+from .neo4j_plan import join_columns as _join_columns
+from .neo4j_plan import labels_for as _labels
 from .publish import PublishError
 
 MAX_ROWS = 100_000
@@ -80,61 +84,6 @@ def rdf_literal(kind: str, value: Any) -> str:
     raise ValueError(f"valor invalido para {kind}: {value}")
 
 
-def _join_columns(contracts: list[dict[str, Any]]) -> set[tuple[str, str]]:
-    return {(c["join"][side]["source"], c["join"][side]["column"]) for c in contracts if c.get("join") for side in ("from", "to")}
-
-
-def _labels(data: dict[str, Any], project: Project, sources: list[str], excluded: list[str]) -> tuple[dict[str, str], list[str]]:
-    """Cada fonte vira uma classe. Classe ausente, ambigua ou repetida e problema: nao se escolhe em silencio."""
-    candidates: dict[str, list[str]] = {}
-
-    def add(source: str, label: str) -> None:
-        if label not in candidates.setdefault(source, []):
-            candidates[source].append(label)
-
-    for c in data["relation_contracts"]:
-        if c.get("join"):
-            add(c["join"]["from"]["source"], c["domain"])
-            add(c["join"]["to"]["source"], c["range"])
-    g = load_graph(project.schema_path)
-    classes = {t["name"]: t.get("class") for t in data["terms"]}
-    for m in data["mappings"]:
-        cls = classes.get(m["term"])
-        if cls and m.get("role") != "metric" and not is_metric_class(g, cls):
-            add(m["source"], cls)
-
-    problems = [f"etapa 5 exclui fonte inexistente: {source}" for source in excluded if source not in sources]
-    problems += [f"fonte {source} sem classe associada: mapeie a fonte ou exclua na etapa 5 (add_source com exclude)"
-                 for source in sources if source not in candidates and source not in excluded]
-    labels: dict[str, str] = {}
-    for source, options in sorted(candidates.items()):
-        if source in excluded:
-            continue
-        if source not in sources:
-            problems.append(f"fonte {source} citada na ontologia, mas nao existe no adapter")
-            continue
-        if len(options) > 1:
-            problems.append(f"fonte {source} com mais de uma classe: {', '.join(sorted(options))}")
-        labels[source] = options[0]
-    by_label: dict[str, list[str]] = {}
-    for source, label in labels.items():
-        by_label.setdefault(label, []).append(source)
-    problems += [f"classe {label} em mais de uma fonte: {', '.join(names)}" for label, names in sorted(by_label.items()) if len(names) > 1]
-    return labels, problems
-
-
-def _keys(contracts: list[dict[str, Any]]) -> dict[str, str]:
-    """A chave de uma fonte e a coluna do lado one nas relacoes com join."""
-    keys: dict[str, str] = {}
-    for c in contracts:
-        join, mult = c.get("join"), c.get("multiplicity")
-        if not join or mult == "many_to_many":
-            continue
-        side = join["from"] if mult == "one_to_many" else join["to"]
-        keys.setdefault(side["source"], side["column"])
-    return keys
-
-
 def _doc_lines(model: dict[str, Any], labels: dict[str, str]) -> list[str]:
     lines = [f"# {model['project']} {model['version']}: gerado por akme publish --target neo4j, para n10s.rdf.import", ""]
     for src in model["sources"]:
@@ -150,20 +99,6 @@ def _doc_lines(model: dict[str, Any], labels: dict[str, str]) -> list[str]:
                 lines.append(_comment("#   nao somar depois de juntar com: " + ", ".join(m["do_not_sum_after_join_with"])))
     lines.append("")
     return lines
-
-
-def _config(project: Project) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, str]], list[str], set[str]]:
-    """Chave e tipos aprovados na etapa 5 (secao sources do content.yml). O akme.yml nao guarda mais isso."""
-    from .ontology_write import list_pending
-
-    entries = {e["source"]: e for e in load_content(project)["sources"]}
-    excluded = sorted(s for s, e in entries.items() if e.get("exclude"))
-    keys = {s: [e["key"]] if isinstance(e.get("key"), str) else list(e.get("key") or []) for s, e in entries.items() if not e.get("exclude")}
-    types = {s: dict(e.get("types") or {}) for s, e in entries.items() if not e.get("exclude")}
-    pending = {e.payload.get("source") for e in list_pending(project) if e.type.value == "add_source"}
-    problems = ["o bloco neo4j do akme.yml nao e mais lido: chave e tipos de cada fonte agora sao decididos na etapa 5 "
-                "(suggest_sources e add_source); remova o bloco"] if project.config.get("neo4j") else []
-    return excluded, keys, types, problems, pending
 
 
 def _complete_rows(source: str, rows: list[dict[str, Any]], key: list[str], problems: list[str]) -> list[dict[str, Any]]:

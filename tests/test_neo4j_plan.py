@@ -1,0 +1,343 @@
+"""Plano da carga no Neo4j (dry-run): le cada fonte em blocos, sem teto de linhas, e lista problemas e avisos."""
+from __future__ import annotations
+
+import pytest
+
+from akme.adapters.local_folder import LocalFolderAdapter
+from akme.ontology import load_content
+from akme.project import Project, read_yaml, write_yaml
+from akme.tools import neo4j_plan
+from akme.tools import ontology_write
+from akme.tools.neo4j_plan import build_plan
+from akme.tools.profile import profile
+
+EXPECTED_NODES = {"Cliente": 8, "ItemPedido": 17, "Pedido": 10, "Produto": 8}
+EXPECTED_EDGES = {"contem": 17, "pertenceA": 10, "referencia": 17}
+
+
+def _rewrite_csv(project, name, text):
+    (project.root / "data" / name).write_text(text, encoding="utf-8")
+    profile(project)
+
+
+def _edit_sources(project, change):
+    """Altera a secao sources aprovada no content.yml, como se outra decisao da etapa 5 tivesse sido aplicada."""
+    content = read_yaml(project.content_path)
+    entries = {s["source"]: s for s in content.get("sources") or []}
+    change(entries)
+    content["sources"] = list(entries.values())
+    write_yaml(project.content_path, content)
+    return Project(project.root)
+
+
+def _set_key(project, source, key):
+    def change(entries):
+        if key is None:
+            entries.pop(source)
+        else:
+            entries.setdefault(source, {"source": source, "types": {}})["key"] = key
+    return _edit_sources(project, change)
+
+
+def _set_types(project, types):
+    def change(entries):
+        for source, entry in entries.items():
+            entry["types"] = types.get(source, {})
+        for source in set(types) - set(entries):
+            entries[source] = {"source": source, "key": ["a"], "types": types[source]}
+    return _edit_sources(project, change)
+
+
+def _add_mapping(monkeypatch, mapping):
+    real = neo4j_plan.build_export
+    def patched(project):
+        data = real(project)
+        data["mappings"] = [*data["mappings"], mapping]
+        return data
+    monkeypatch.setattr(neo4j_plan, "build_export", patched)
+
+
+# --- portados de tests/test_publish_neo4j.py (dry-run) ---
+
+def test_composite_key_identifies_items(seeded):
+    profile(seeded)
+    p = build_plan(seeded)
+    items = next(s for s in p.sources if s.source == "itens_pedido")
+    assert items.key == ["id_pedido", "sku"] and items.label == "ItemPedido"
+    assert p.nodes["ItemPedido"] == 17 and p.problems == []
+
+
+def test_source_without_key_is_refused(seeded):
+    profile(seeded)
+    project = _set_key(seeded, "itens_pedido", None)
+    assert any("itens_pedido" in p and "etapa 5" in p for p in build_plan(project).problems)
+
+
+def test_declared_key_with_unknown_column_is_refused(seeded):
+    profile(seeded)
+    project = _set_key(seeded, "itens_pedido", ["id_pedido", "nao_existe"])
+    assert any("nao_existe" in p for p in build_plan(project).problems)
+
+
+def test_declared_key_for_unknown_source_is_refused(seeded):
+    profile(seeded)
+    project = _set_key(seeded, "nao_existe", ["a"])
+    assert any("nao_existe" in p for p in build_plan(project).problems)
+
+
+def test_repeated_composite_key_is_refused(seeded):
+    path = seeded.root / "data" / "itens_pedido.csv"
+    _rewrite_csv(seeded, "itens_pedido.csv", path.read_text(encoding="utf-8") + "1001,CIM-50,1,1.00\n")
+    assert any("itens_pedido.id_pedido+sku" in p and "1001" in p for p in build_plan(seeded).problems)
+
+
+def test_empty_part_of_composite_key_is_refused(seeded):
+    path = seeded.root / "data" / "itens_pedido.csv"
+    _rewrite_csv(seeded, "itens_pedido.csv", path.read_text(encoding="utf-8") + "1001,,1,1.00\n")
+    assert any("chave id_pedido, sku vazia" in p for p in build_plan(seeded).problems)
+
+
+@pytest.mark.parametrize("old,new,message", [
+    ("2026-07-03", "03/07/2026", "pedidos.dt_pedido: 1 valor(es) invalido(s) para date"),
+    ("4120.50", "4.120,50", "pedidos.vl_total: 1 valor(es) invalido(s) para float"),
+])
+def test_invalid_value_is_refused(seeded, old, new, message):
+    path = seeded.root / "data" / "pedidos.csv"
+    _rewrite_csv(seeded, "pedidos.csv", path.read_text(encoding="utf-8").replace(old, new, 1).replace('4.120,50', '"4.120,50"'))
+    assert any(message in p for p in build_plan(seeded).problems)
+
+
+@pytest.mark.parametrize("types,fragment", [
+    ({"nao_existe": {"a": "string"}}, "nao_existe"),
+    ({"pedidos": {"nao_existe": "string"}}, "nao_existe"),
+    ({"pedidos": {"status": "booleano"}}, "booleano"),
+    ({"pedidos": {"id_cliente": "integer"}}, "id_cliente"),
+    ({"itens_pedido": {"sku": "date"}}, "sku"),
+])
+def test_invalid_type_declaration_is_refused(seeded, types, fragment):
+    assert any(fragment in p for p in build_plan(_set_types(seeded, types)).problems)
+
+
+def test_duplicate_key_is_refused_instead_of_merging_rows(seeded):
+    _rewrite_csv(seeded, "clientes.csv", "id_cliente,nm_cliente,cnpj,uf,dt_cadastro,fl_ativo\n"
+                                         "1,A,1,SP,2023-01-15,S\n1,B,2,MG,2023-01-15,S\n")
+    assert any("clientes.id_cliente" in p for p in build_plan(seeded).problems)
+
+
+def test_demo_has_no_problems(seeded):
+    profile(seeded)
+    assert build_plan(seeded).problems == []
+
+
+def test_source_without_class_is_refused(seeded):
+    profile(seeded)
+    (seeded.root / "data" / "extra.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    assert any("extra" in p and "sem classe" in p for p in build_plan(seeded).problems)
+
+
+def test_source_can_be_excluded_explicitly(seeded):
+    profile(seeded)
+    (seeded.root / "data" / "extra.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    project = _edit_sources(seeded, lambda entries: entries.update(extra={"source": "extra", "exclude": "fora do escopo"}))
+    p = build_plan(project)
+    assert p.problems == [] and p.sources_skipped == ["extra"]
+    assert p.nodes == EXPECTED_NODES
+
+
+def test_excluding_unknown_source_is_a_problem(seeded):
+    profile(seeded)
+    project = _edit_sources(seeded, lambda entries: entries.update(nao_existe={"source": "nao_existe", "exclude": "x"}))
+    assert any("nao_existe" in p for p in build_plan(project).problems)
+
+
+def test_source_with_two_classes_is_refused(seeded, monkeypatch):
+    profile(seeded)
+    _add_mapping(monkeypatch, {"term": "uf", "source": "pedidos", "column": "status", "role": "dimension"})
+    assert any("pedidos" in p and "Cliente" in p and "Pedido" in p for p in build_plan(seeded).problems)
+
+
+def test_two_sources_with_same_class_are_refused(seeded, monkeypatch):
+    profile(seeded)
+    (seeded.root / "data" / "clientes2.csv").write_text("id_cliente,uf\n99,SP\n", encoding="utf-8")
+    _add_mapping(monkeypatch, {"term": "uf", "source": "clientes2", "column": "uf", "role": "dimension"})
+    assert any("Cliente" in p and "clientes" in p and "clientes2" in p for p in build_plan(seeded).problems)
+
+
+def test_empty_key_is_refused(seeded):
+    _rewrite_csv(seeded, "produtos.csv", "sku,ds_produto,categoria,vl_unitario,un_medida\n"
+                                         "CIM-50,Cimento,cimento,32.90,SC\n,Sem sku,outros,1.00,UN\n")
+    assert any("produtos: 1 linha(s) com chave sku vazia" in p for p in build_plan(seeded).problems)
+
+
+def test_all_problems_are_listed_together(seeded):
+    (seeded.root / "data" / "extra.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    _rewrite_csv(seeded, "produtos.csv", "sku,ds_produto,categoria,vl_unitario,un_medida\n,Sem sku,outros,1.00,UN\n")
+    problems = build_plan(seeded).problems
+    assert any("extra" in p for p in problems) and any("chave sku vazia" in p for p in problems)
+
+
+def test_orphan_foreign_key_is_a_warning(seeded):
+    path = seeded.root / "data" / "pedidos.csv"
+    _rewrite_csv(seeded, "pedidos.csv", path.read_text(encoding="utf-8").replace("\n1001,1,", "\n1001,999,", 1))
+    p = build_plan(seeded)
+    assert p.relationships["pertenceA"] == 9
+    assert p.problems == []
+    assert any("pertenceA: 1 de 10" in w for w in p.warnings)
+
+
+def test_relation_without_any_match_is_refused(seeded):
+    path = seeded.root / "data" / "clientes.csv"
+    text = path.read_text(encoding="utf-8").splitlines()
+    _rewrite_csv(seeded, "clientes.csv", "\n".join([text[0]] + [f"x{line}" for line in text[1:]]) + "\n")
+    assert any("pertenceA" in p and "nenhuma" in p for p in build_plan(seeded).problems)
+
+
+def test_join_column_missing_in_data_is_refused(seeded):
+    path = seeded.root / "data" / "pedidos.csv"
+    _rewrite_csv(seeded, "pedidos.csv", path.read_text(encoding="utf-8").replace("id_cliente", "cliente", 1))
+    assert any("pertenceA" in p and "id_cliente" in p for p in build_plan(seeded).problems)
+
+
+def test_metric_column_without_type_is_a_warning(seeded):
+    p = build_plan(_set_types(seeded, {}))
+    assert any("pedidos.vl_total" in w and "nao soma" in w for w in p.warnings)
+
+
+def test_demo_has_no_warnings(seeded):
+    assert build_plan(seeded).warnings == []
+
+
+# --- portados de tests/test_export_sources.py ---
+
+def _propose(project, payload):
+    return ontology_write.propose_edit(project, "add_source", payload, proposed_by="agent")
+
+
+def test_export_reads_approved_sources(seeded):
+    p = build_plan(seeded)
+    assert not p.problems and p.nodes["ItemPedido"] == 17
+
+
+def test_export_refuses_source_without_approved_entry(seeded):
+    content = load_content(seeded)
+    content["sources"] = [s for s in content["sources"] if s["source"] != "produtos"]
+    write_yaml(seeded.content_path, content)
+    assert any("produtos" in p and "etapa 5" in p for p in build_plan(seeded).problems)
+
+
+def test_export_says_when_decision_is_pending(seeded):
+    content = load_content(seeded)
+    content["sources"] = [s for s in content["sources"] if s["source"] != "produtos"]
+    write_yaml(seeded.content_path, content)
+    _propose(seeded, {"source": "produtos", "key": ["sku"]})
+    assert any("produtos" in p and "pendente" in p for p in build_plan(seeded).problems)
+
+
+def test_old_neo4j_block_in_config_is_refused(seeded):
+    config = read_yaml(seeded.root / "akme.yml")
+    write_yaml(seeded.root / "akme.yml", {**config, "neo4j": {"keys": {"pedidos": "id_pedido"}}})
+    p = build_plan(Project(seeded.root))
+    assert any("akme.yml" in x and "neo4j" in x for x in p.problems)
+
+
+# --- novos ---
+
+def test_plan_counts_demo(seeded):
+    p = build_plan(seeded)
+    assert p.nodes == EXPECTED_NODES
+    assert p.relationships == EXPECTED_EDGES and p.rows == 43
+    assert p.project == "demo" and p.relations_not_published == [] and p.sources_skipped == []
+    assert sum(s.rows for s in p.sources) == 43
+    edges = {e.relation: e for e in p.edges}
+    assert edges["pertenceA"].from_source == "pedidos" and edges["pertenceA"].to_source == "clientes"
+    assert edges["referencia"].expected == 17 and edges["referencia"].from_column == "sku"
+    pedidos = next(s for s in p.sources if s.source == "pedidos")
+    assert pedidos.types == {"dt_pedido": "date", "vl_total": "float"} and "nf" in pedidos.columns
+
+
+def test_no_row_limit(seeded):
+    lines = ["id_pedido,sku,qt_itens,vl_item"] + [f"1001,SKU-{i},1,1.00" for i in range(120_000)]
+    (seeded.root / "data" / "itens_pedido.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    p = build_plan(seeded)
+    assert not any("truncada" in x for x in p.problems)
+    assert p.nodes["ItemPedido"] == 120_000
+    assert p.relationships["contem"] == 120_000
+    # os SKU novos nao existem em produtos: aresta referencia nenhuma, e isso e problema, nao excecao
+    assert any("referencia" in x and "nenhuma das 120000" in x for x in p.problems)
+
+
+def test_plan_reads_each_source_in_blocks(seeded, monkeypatch):
+    calls = []
+    real = LocalFolderAdapter.iter_rows
+
+    def spy(self, source, batch=5000):
+        calls.append((source, batch))
+        return real(self, source, batch)
+
+    def must_not_sample(*args, **kwargs):
+        raise AssertionError("o plano le em blocos, nao por amostra")
+
+    monkeypatch.setattr(LocalFolderAdapter, "iter_rows", spy)
+    monkeypatch.setattr(LocalFolderAdapter, "read_sample", must_not_sample)
+    build_plan(seeded)
+    assert sorted(calls) == [("clientes", 5000), ("itens_pedido", 5000), ("pedidos", 5000), ("produtos", 5000)]
+
+
+def test_plan_closes_the_adapter_even_on_error(seeded, monkeypatch):
+    closed = []
+
+    def boom(self, source, batch=5000):
+        raise RuntimeError("falha de leitura")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(LocalFolderAdapter, "iter_rows", boom)
+    monkeypatch.setattr(LocalFolderAdapter, "close", lambda self: closed.append(True))
+    with pytest.raises(RuntimeError, match="falha de leitura"):
+        build_plan(seeded)
+    assert closed == [True]
+
+
+def test_empty_source_plans_zero_nodes(seeded):
+    (seeded.root / "data" / "produtos.csv").write_text("sku,ds_produto,categoria,vl_unitario,un_medida\n", encoding="utf-8")
+    p = build_plan(seeded)
+    assert p.nodes["Produto"] == 0
+    assert p.relationships["referencia"] == 0
+    assert any("relacao referencia: nenhuma das 17 linha(s) de itens_pedido encontra alvo em produtos" == x for x in p.problems)
+
+
+def test_empty_source_still_checks_declared_columns(seeded):
+    (seeded.root / "data" / "produtos.csv").write_text("sku,ds_produto,categoria,vl_unitario,un_medida\n", encoding="utf-8")
+    project = _set_types(_set_key(seeded, "produtos", ["nao_existe"]), {"produtos": {"vl_nao_existe": "float"}})
+    problems = build_plan(project).problems
+    assert "fonte produtos: chave declarada usa coluna inexistente: nao_existe" in problems
+    assert "etapa 5 cita coluna inexistente: produtos.vl_nao_existe" in problems
+
+
+def test_empty_source_still_checks_join_columns(seeded):
+    (seeded.root / "data" / "produtos.csv").write_text("cod,ds_produto\n", encoding="utf-8")
+    project = _set_key(seeded, "produtos", ["cod"])
+    assert any("referencia" in p and "produtos.sku" in p for p in build_plan(project).problems)
+
+
+def test_reserved_column_name_is_refused(seeded):
+    path = seeded.root / "data" / "clientes.csv"
+    header, *rows = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join([header + ",_id", *[r + ",x" for r in rows]]) + "\n", encoding="utf-8")
+    assert "clientes._id usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+
+
+def test_reserved_class_name_is_refused(seeded):
+    from rdflib import OWL, RDF
+    from akme.ontology import base_ns, load_graph, save_graph
+
+    g = load_graph(seeded.schema_path)
+    g.add((base_ns(g)["Conceito"], RDF.type, OWL.Class))
+    save_graph(g, seeded.schema_path)
+    assert "classe Conceito usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+
+
+def test_shared_names_live_in_the_plan():
+    from akme.tools import n10s
+    assert n10s._labels is neo4j_plan.labels_for
+    assert n10s._keys is neo4j_plan.contract_keys
+    assert n10s._join_columns is neo4j_plan.join_columns
