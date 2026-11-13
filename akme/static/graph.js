@@ -102,8 +102,11 @@ $("#search").addEventListener("input", (e) => renderNav(e.target.value));
 
 function renderPanel() {
   const el = $("#panel");
+  el.classList.toggle("is-empty", !selected);
   if (!selected) {
-    el.innerHTML = `<div class="panel-head"><div class="rv-empty"><b>Nenhuma classe escolhida</b><span>Escolha uma classe no grafo ou na lista para ver termos, mapeamentos, restrições e glossário ligados a ela.</span></div></div>`;
+    // o grafo ja abre centrado numa classe: o painel diz isso, em vez de "nenhuma classe escolhida"
+    const f = focus && cls(focus);
+    el.innerHTML = `<div class="panel-head"><div class="rv-empty"><b>${f ? `Grafo centrado em ${esc(f.label || f.name)}` : "Nenhuma classe escolhida"}</b><span>Clique numa classe no grafo ou na lista para ver termos, mapeamentos, restrições e glossário ligados a ela.</span></div></div>`;
     return;
   }
   const c = DATA.classes.find((x) => x.name === selected);

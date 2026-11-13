@@ -15,7 +15,7 @@ from ..models import (
 from ..ontology import (
     add_class, add_relation, class_names, is_metric_class, load_content, load_graph, save_content, save_graph,
 )
-from ..project import Project, read_yaml, write_yaml
+from ..project import Project, read_yaml, remove_file, write_yaml
 from .contracts import check_join_shape, contradictions, observe_join
 from .requirements import cq_references, mirror_reserved, next_id, requirements_status
 
@@ -223,7 +223,8 @@ def _check_graph_refs(project: Project, edit_type: EditType, payload: dict[str, 
 def list_pending(project: Project) -> list[Edit]:
     if not project.pending_dir.exists():
         return []
-    return [Edit.model_validate(read_yaml(p)) for p in sorted(project.pending_dir.glob("*.yml"))]
+    # um pendente aplicado entre o glob e a leitura some: le vazio e fica de fora
+    return [Edit.model_validate(d) for p in sorted(project.pending_dir.glob("*.yml")) if (d := read_yaml(p))]
 
 
 def _load_pending(project: Project, edit_id: str) -> Edit:
@@ -405,7 +406,7 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
         "requirement_id": edit.requirement_id, "approved_by": approved_by, "date": entry["applied_at"],
     })
     save_content(project, content)
-    _pending_path(project, edit_id).unlink()
+    remove_file(_pending_path(project, edit_id))
     return entry
 
 
@@ -425,7 +426,7 @@ def reject_edit(project: Project, edit_id: str, rejected_by: str, reason: str = 
     entry = {"edit_id": edit.id, "type": edit.type.value, "status": "rejected",
              "rejected_by": rejected_by, "reason": reason, "rejected_at": now_iso()}
     _append_changelog(project, entry)
-    _pending_path(project, edit_id).unlink()
+    remove_file(_pending_path(project, edit_id))
     return entry
 
 

@@ -13,7 +13,7 @@
   const WAIT_REPLY_MS = 600000; // pergunta sem resposta conta como trabalho por ate 10 min
 
   const S = { offset: 0, sig: "", items: [], verdicts: {}, unread: 0, open: false, sending: false,
-    activity: {}, decision: { mode: "", authorized_by: "" } };
+    activity: {}, decision: { mode: "", authorized_by: "" }, ready: false, channel: false };
 
   async function call(path, opts) {
     const r = await fetch(path, opts);
@@ -113,8 +113,16 @@
     if (changed) document.dispatchEvent(new CustomEvent("akme:mode", { detail: d }));
   }
 
+  // o agente ja falou por aqui (sessao do canal ou resposta): a conversa e na pagina, nao ha outro chat
+  function markChannel() {
+    if (S.channel) return;
+    S.channel = true;
+    document.body.classList.add("channel");
+    window.dispatchEvent(new Event("akme-channel"));
+  }
   function ingest(items) {
     for (const it of items) {
+      if ((it.role === "event" && it.kind === "session_start") || it.role === "agent") markChannel();
       // cada sessao nova do agente comeca uma conversa limpa; o que veio antes fica so no log
       if (it.role === "event" && it.kind === "session_start") { S.items = []; S.verdicts = {}; S.unread = 0; continue; }
       if (it.role === "verdict") S.verdicts[it.request_id] = it;
@@ -185,6 +193,7 @@
     let first;
     try { first = await call("/api/chat?offset=0&timeout=0", { headers: { Accept: "application/json" } }); } catch (e) { return; }
     $("#chat-toggle").hidden = false;
+    S.ready = true;
     S.offset = first.offset;
     S.sig = first.sig || "";
     S.activity = first.activity || {};
@@ -203,5 +212,21 @@
     setInterval(renderStatus, 3000); // o "trabalhando" expira com o tempo, sem evento
     poll();
   }
+  // usado pelas telas de revisao: textos do modo canal e "Comentar com a IA"
+  window.AkmeChannel = {
+    available: () => S.ready,
+    on: () => S.channel,
+    // o servidor escreve "No chat, peca ao agente..."; no modo canal o agente segue sozinho
+    step: (t) => (S.channel ? String(t || "").replace(/^No chat, peça (ao agente )?(para )?/, "O agente segue sozinho: ") : String(t || "")),
+    after: () => (S.channel ? "O agente recebe o resultado e segue no painel Conversa." : "Volte para o chat: o agente segue para o próximo passo."),
+    ask(text) {
+      if (!S.ready) return;
+      setOpen(true);
+      const input = $("#chat-input");
+      input.value = text + input.value.replace(/^\[[^\]]*\]\s*/, "");
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    },
+  };
   init();
 })();

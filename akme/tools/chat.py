@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from ..models import now_iso
-from ..project import Project
+from ..project import Project, write_text_atomic
 
 CHAT_FILE = "chat.jsonl"
 ACTIVITY_FILE = "activity.json"
@@ -85,11 +85,7 @@ def activity_path(project: Project) -> Path:
 
 def mark_activity(project: Project, tool: str) -> None:
     """O agente chamou uma tool do akme: a pagina mostra que ele esta trabalhando."""
-    path = activity_path(project)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"tool": str(tool)[:80], "at": now_iso()}), encoding="utf-8")
-    tmp.replace(path)
+    write_text_atomic(activity_path(project), json.dumps({"tool": str(tool)[:80], "at": now_iso()}))
 
 
 def read_activity(project: Project) -> dict[str, Any]:

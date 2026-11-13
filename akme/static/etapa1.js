@@ -67,12 +67,39 @@
 
   // ---------- modelo ----------
   // prev guarda o que o revisor ja decidiu nesta sessao; um reload do servidor nao apaga as escolhas
+  // decisoes feitas e ainda nao salvas ficam num rascunho deste navegador: recarregar a pagina nao as apaga
+  const DRAFT_SKIP = new Set(["payload", "src", "rationale", "saved", "mine", "kind", "proposed", "field", "open", "det", "more", "editing"]);
+  const draftKey = (project) => "akme-draft-etapa1:" + (project || "");
+  function readDraft(project) {
+    try { return JSON.parse(localStorage.getItem(draftKey(project)) || "null") || {}; } catch (e) { return {}; }
+  }
+  function clearDraft(project) { try { localStorage.removeItem(draftKey(project)); } catch (e) { /* sem armazenamento */ } }
+  function writeDraft(M) {
+    if (!M || isAuto()) return;
+    const items = {};
+    Object.values(M.byId).forEach((it) => {
+      if (it.saved) return;
+      const o = {};
+      Object.keys(it).forEach((k) => { if (!DRAFT_SKIP.has(k)) o[k] = it[k]; });
+      items[it.edit_id] = o;
+    });
+    const touched = Object.values(M.byId).some((it) => !it.saved && decided(it)) || M.owns.length || M.ownCqs.length || M.noUc;
+    try {
+      if (touched) localStorage.setItem(draftKey(M.project), JSON.stringify({ items, owns: M.owns, ownCqs: M.ownCqs, seq: M.seq, noUc: M.noUc }));
+      else clearDraft(M.project);
+    } catch (e) { /* sem armazenamento: o rascunho fica so na memoria */ }
+  }
   function buildModel(data, prev) {
     const old = (prev && prev.byId) || {};
+    const project = (data && data.project) || "";
+    // primeira montagem (pagina recem-aberta): recupera o rascunho; depois, o modelo anterior manda
+    const D0 = prev ? {} : readDraft(project), dItems = D0.items || {};
+    const dr = (id, rv) => (!rv && dItems[id] ? Object.assign({}, dItems[id], { edit_id: id }) : null);
     // owns: casos escritos pelo revisor; o rascunho vive na janela (dialogo), fora do modelo
-    const M = { step: prev ? prev.step : 0, ucs: [], reqs: [], owns: prev ? prev.owns : [],
-      seq: prev ? prev.seq : 0, noUc: prev ? prev.noUc : null, noUcSeen: prev ? prev.noUcSeen : {}, noUcIds: [], gds: [], gls: [], tmpMap: prev ? prev.tmpMap : {}, cqs: [], ownCqs: prev ? prev.ownCqs : [],
-      applied: { ucs: [] }, byId: {}, reqEditing: prev ? prev.reqEditing : false };
+    const arr = (v) => (Array.isArray(v) ? v : []);
+    const M = { step: prev ? prev.step : 0, ucs: [], reqs: [], owns: prev ? prev.owns : arr(D0.owns),
+      seq: prev ? prev.seq : D0.seq || 0, noUc: prev ? prev.noUc : D0.noUc || null, noUcSeen: prev ? prev.noUcSeen : {}, noUcIds: [], gds: [], gls: [], tmpMap: prev ? prev.tmpMap : {}, cqs: [], ownCqs: prev ? prev.ownCqs : arr(D0.ownCqs),
+      applied: { ucs: [] }, byId: {}, reqEditing: prev ? prev.reqEditing : false, project };
     const r = (data && data.requirements) || {};
     M.applied.ucs = r.use_cases || [];
     M.applied.cqs = r.competency_questions || [];
@@ -83,12 +110,12 @@
       if (!covers(p)) continue;
       const pl = p.payload || {}, rv = p.review, was = old[p.id];
       if (p.type === "add_use_case") {
-        const it = was || { edit_id: p.id, sel: rv ? rv.decision === "accept" : false };
+        const it = was || dr(p.id, rv) || { edit_id: p.id, sel: rv ? rv.decision === "accept" : false };
         Object.assign(it, { kind: "uc", payload: pl, src: sourceOf(p), saved: !!rv, mine: !!p.proposed_by && p.proposed_by !== "agent" });
         M.ucs.push(it); M.byId[p.id] = it;
       } else if (p.type === "add_competency_question") {
         const e = (rv && rv.edits) || {};
-        const it = was || { edit_id: p.id, dec: rv ? (rv.decision === "accept" ? "ok" : "rej") : null,
+        const it = was || dr(p.id, rv) || { edit_id: p.id, dec: rv ? (rv.decision === "accept" ? "ok" : "rej") : null,
           prio: rv && rv.decision === "accept" ? e.priority || pl.priority || "" : "", reason: rv && rv.decision === "reject" ? rv.reason || "" : "",
           why: "", open: false, det: false, editing: false,
           q: String(e.question ?? pl.question ?? ""), type: e.type ?? pl.type ?? "", concepts: list(e.concepts ?? pl.concepts) };
@@ -99,13 +126,13 @@
         const e = (rv && rv.edits) || {};
         // a nota da reformulacao e gravada com o prefixo "Nova pergunta: "; na tela, so o texto
         const t0 = String(e.note || (e.decision !== "precedence" && e.reason) || "");
-        const it = was || { edit_id: p.id, choice: e.decision || "", winner: e.winner || "", text: e.decision === "reformulate" ? t0.replace(/^Nova pergunta: /, "") : t0,
+        const it = was || dr(p.id, rv) || { edit_id: p.id, choice: e.decision || "", winner: e.winner || "", text: e.decision === "reformulate" ? t0.replace(/^Nova pergunta: /, "") : t0,
           open: false, det: false, more: false };
         Object.assign(it, { kind: p.type === "add_gap" ? "gap" : "div", payload: pl, rationale: p.rationale || "", saved: !!rv });
         M.gds.push(it); M.byId[p.id] = it;
       } else if (p.type === "add_glossary") {
         const e = (rv && rv.edits) || {};
-        const it = was || { edit_id: p.id, dec: rv ? (rv.decision === "accept" ? "ok" : "rej") : null, why: "", reason: rv && rv.decision === "reject" ? rv.reason || "" : "",
+        const it = was || dr(p.id, rv) || { edit_id: p.id, dec: rv ? (rv.decision === "accept" ? "ok" : "rej") : null, why: "", reason: rv && rv.decision === "reject" ? rv.reason || "" : "",
           editing: false, meaning: String(e.meaning ?? pl.meaning ?? ""), convention: String(e.convention ?? pl.convention ?? "") };
         if (!was && it.reason) { const k = GL_WHY.find(([, l]) => l === it.reason); it.why = k ? k[0] : "outro"; }
         Object.assign(it, { kind: "gl", payload: pl, src: sourceOf(p), saved: !!rv });
@@ -116,7 +143,7 @@
         // so na primeira vez: se o revisor desfez, um reload nao traz de volta
         if (!M.noUcSeen[p.id]) { M.noUcSeen[p.id] = true; if (!M.noUc) M.noUc = { text: String(pl.value || ""), edit_id: p.id, ok: true }; }
       } else {
-        const it = was || { edit_id: p.id, ok: rv ? rv.decision === "accept" : false, editing: false, value: String((rv && rv.edits && rv.edits.value) ?? pl.value ?? "") };
+        const it = was || dr(p.id, rv) || { edit_id: p.id, ok: rv ? rv.decision === "accept" : false, editing: false, value: String((rv && rv.edits && rv.edits.value) ?? pl.value ?? "") };
         Object.assign(it, { kind: "req", field: pl.field, proposed: String(pl.value ?? ""), src: sourceOf(p), saved: !!rv });
         M.reqs.push(it); M.byId[p.id] = it;
       }
@@ -296,12 +323,23 @@
     if (vis.includes(3)) n += M.gls.filter((g) => !glDone(g)).length;
     return n;
   }
+  // decidida aqui mas ainda nao gravada no servidor
+  function decided(it) {
+    if (it.kind === "uc") return !!it.sel;
+    if (it.kind === "req") return !!it.ok;
+    if (it.kind === "cq") return cqDone(it);
+    if (it.kind === "gap" || it.kind === "div") return gdDone(it);
+    if (it.kind === "gl") return glDone(it);
+    return false;
+  }
+  const unsavedOf = (M) => Object.values(M.byId).filter((it) => !it.saved && decided(it)).length + M.owns.length + M.ownCqs.length;
+  // o numero da aba so cai depois de salvar: decidir sem salvar nao muda nada na ontologia
   function remaining(data) {
-    return E.M ? remainingOf(E.M) : pendingCount(data);
+    return E.M ? remainingOf(E.M) + unsavedOf(E.M) : pendingCount(data);
   }
   // modo automatico (a main marca o body): a IA decide e aplica; aqui so se acompanha
   const isAuto = () => document.body.dataset.decisionMode === "auto";
-  const VIEW_ACTS = new Set(["go", "back", "next", "outras", "cq-det", "gd-det", "gd-more"]);
+  const VIEW_ACTS = new Set(["go", "back", "next", "outras", "cq-det", "gd-det", "gd-more", "gd-ask"]);
 
   // ---------- tela 3: lacunas e divergencias ----------
   function needOf(c) {
@@ -334,6 +372,11 @@
   function gdClose(c) {
     return gdDone(c) && needOf(c) ? `<div><button type="button" class="btn btn-outline btn-sm" data-e1="gd-close" data-id="${esc(c.edit_id)}">concluir</button></div>` : "";
   }
+  // abre a Conversa com o item citado ([L-03]), para a resposta do agente ficar ligada a ele
+  function askBtn(c) {
+    const ch = window.AkmeChannel;
+    return ch && ch.available() && !isAuto() ? `<button type="button" class="lnk" data-e1="gd-ask" data-id="${esc(c.edit_id)}">Comentar com a IA</button>` : "";
+  }
   function gapCard(c) {
     if (gdDone(c) && !c.open) return gdLine(c);
     const pl = c.payload, id = esc(c.edit_id);
@@ -344,7 +387,7 @@
     return `<article class="rv-card cq-lean${gdDone(c) ? " st-ok" : ""}" data-gd="${id}">
       <div class="cq-body"><h3 class="cq-q">${esc(pl.question)}</h3>
         <div class="cq-sig"><span class="e1-why">● ${esc(pl.reason || "os dados não respondem")}</span>
-          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button></div>${det}</div>
+          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button>${askBtn(c)}</div>${det}</div>
       <div class="cq-decide"><div class="e1-opts" role="group" aria-label="O que fazer com esta lacuna">${GAP_OPTS.map(([v, l]) => `<button type="button" data-e1="gd-set" data-id="${id}" data-v="${v}" aria-pressed="${c.choice === v}">${esc(l)}</button>`).join("")}</div>
         ${sug ? `<span class="choice-help">A IA sugere ${esc(sug)}.</span>` : ""}${openNote(c)}${needField(c)}${gdClose(c)}</div></article>`;
   }
@@ -357,11 +400,12 @@
     const more = c.more || other;
     const det = c.det ? `<div class="cq-det" id="e1-det-${id}"><p class="eyebrow">${esc([pl.id, "proposta pela IA"].filter(Boolean).join(" · "))}</p>
       ${pl.reason ? `<p class="p"><b>Por que a IA sugere:</b> ${esc(pl.reason)}</p>` : ""}
+      ${pl.hypothesis ? `<p class="p"><b>Hipótese da IA:</b> ${esc(pl.hypothesis)}</p>` : ""}
       ${c.rationale ? `<p class="p secondary"><b>Justificativa da IA:</b> ${esc(c.rationale)}</p>` : ""}</div>` : "";
     return `<article class="rv-card cq-lean${gdDone(c) ? " st-ok" : ""}" data-gd="${id}">
       <div class="cq-body"><h3 class="cq-q">${esc(divTitle(pl))}</h3>
         <div class="cq-sig">${sug ? `<span>A IA sugere <b>${esc(pl.winner)}</b></span>` : ""}
-          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button></div>${det}</div>
+          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button>${askBtn(c)}</div>${det}</div>
       <div class="cq-decide"><div class="e1-srcs">${srcs.map((x, i) => `<button type="button" class="e1-src" data-e1="dv-win" data-id="${id}" data-i="${i}" aria-pressed="${c.choice === "precedence" && c.winner === lab(x, i)}">
           <span class="l">${esc(lab(x, i))}</span>${x.quote ? `<span class="qt">“${esc(x.quote)}”</span>` : ""}${x.path ? `<span class="pa">${esc(x.path)}${x.locator ? " · " + esc(x.locator) : ""}</span>` : ""}</button>`).join("")}</div>
         ${other ? "" : `<div><button type="button" class="lnk" data-e1="gd-more" data-id="${id}" aria-expanded="${more}">${more ? "esconder outras opções" : "nenhuma das duas? outras opções"}</button></div>`}
@@ -512,7 +556,10 @@
   function screenHtml(M) {
     const s = STEPS[M.step];
     const body = M.step === 0 ? screenUc(M) : M.step === 1 ? screenCq(M) : M.step === 2 ? screenGd(M) : screenGl(M);
-    return `<p class="e1-lead">${esc(s.lead)}</p>${body}`;
+    const ns = isAuto() || !E.ctx.api ? 0 : unsavedOf(M);
+    const aviso = ns ? `<div class="unsaved" role="status"><span><b>${ns === 1 ? "1 decisão ainda não salva" : ns + " decisões ainda não salvas"}.</b> Só entram na ontologia depois de conferir e salvar.</span>
+      <button type="button" class="btn" data-e1="save">Conferir e salvar</button></div>` : "";
+    return `<p class="e1-lead">${esc(s.lead)}</p>${aviso}${body}`;
   }
   function footHtml(M) {
     const nx = nextStep(M);
@@ -530,7 +577,8 @@
       <section class="e1-screen" data-screen="${STEPS[M.step].id}">${screenHtml(M)}</section>
       <div class="e1-foot">${footHtml(M)}</div></div>`;
     if (focusSel) { const t = $(focusSel, E.el); if (t) t.focus({ preventScroll: true }); }
-    if (E.ctx.onCount) E.ctx.onCount(remainingOf(M));
+    writeDraft(M);
+    if (E.ctx.onCount) E.ctx.onCount(remainingOf(M) + unsavedOf(M));
   }
   // depois de digitar: atualiza so o stepper e as marcas de obrigatorio, sem perder o foco
   function refresh(input) {
@@ -540,7 +588,8 @@
     const label = input && input.id ? $(`label[for="${input.id}"] .req`, E.el) : null;
     if (label) label.hidden = !!input.value.trim();
     msg("");
-    if (E.ctx.onCount) E.ctx.onCount(remainingOf(E.M));
+    writeDraft(E.M);
+    if (E.ctx.onCount) E.ctx.onCount(remainingOf(E.M) + unsavedOf(E.M));
   }
   function msg(text, kind) {
     const el = $("#e1-msg", E.el);
@@ -563,6 +612,9 @@
     if (falta.length) { msg(`<b>Falta:</b> ${falta.map(esc).join("; ")}`, "warn"); return; }
     const nx = nextStep(E.M);
     if (nx !== undefined) { goStep(nx); return; }
+    trySave();
+  }
+  function trySave() {
     if (isAuto()) { msg("No modo automático, quem salva é a IA.", ""); return; }
     // salvar so com as telas visiveis completas; leva para a primeira que falta
     const bad = visibleSteps(E.M).find((i) => missing(E.M, i).length);
@@ -578,6 +630,8 @@
       case "go": return goStep(Number(b.dataset.step));
       case "back": return goStep(prevStep(M));
       case "next": return onNext();
+      case "save": return trySave();
+      case "gd-ask": return it && window.AkmeChannel && window.AkmeChannel.ask(`[${(it.payload || {}).id || it.edit_id}] `);
       case "outras": if (E.ctx.onOutras) E.ctx.onOutras(); return;
       case "uc": it.sel = !it.sel; if (it.sel && M.noUc) M.noUc = null; return render(`[data-e1="uc"][data-id="${b.dataset.id}"]`);
       case "draft-on": return openDraft(null, b);
@@ -904,9 +958,10 @@
       const out = await api.post("/api/apply", { approved_by: name, stage: "requirements" });
       const after = (out && out.stage_after) || {};
       E.saving = false;
+      clearDraft(E.M.project);
       d.querySelector("form").innerHTML = `<h2 class="h3-semibold" id="e1-save-t">Etapa 1 salva e aplicada</h2>
         <div class="e1-empty"><b>${(out.applied || []).length} ${(out.applied || []).length === 1 ? "decisão entrou" : "decisões entraram"} na ontologia</b>
-          <span>Volte para o chat: o agente segue para o próximo passo.${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
+          <span>${window.AkmeChannel ? window.AkmeChannel.after() : "Volte para o chat: o agente segue para o próximo passo."}${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
         <div class="dlg-actions"><button type="button" class="btn" data-s="done">Fechar</button></div>`;
       d.querySelector('[data-s="done"]').focus();
     } catch (e) {

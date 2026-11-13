@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import threading
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 import yaml
 from dotenv import load_dotenv  
@@ -90,16 +92,49 @@ class Project:
         return path if path.is_absolute() else self.root / path
 
 
+T = TypeVar("T")
+
+
+def _retry(fn: Callable[[], T], tries: int = 40, wait: float = 0.05) -> T:
+    """No Windows, abrir, trocar ou apagar um arquivo que outro processo esta lendo da PermissionError
+    (WinError 32/5) por alguns milissegundos: a pagina de revisao le pending/ enquanto o agente grava."""
+    for i in range(tries):
+        try:
+            return fn()
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(wait)
+    raise AssertionError("inalcancavel")
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    """Grava num temporario da mesma pasta e troca de uma vez: quem le nunca ve o arquivo pela metade."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    try:
+        _retry(lambda: os.replace(tmp, path))
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def remove_file(path: Path) -> None:
+    _retry(lambda: path.unlink(missing_ok=True))
+
+
+def read_text(path: Path) -> str:
+    return _retry(lambda: path.read_text(encoding="utf-8"))
+
+
 def read_yaml(path: Path) -> dict[str, Any]:
-    if not path.exists():
+    try:
+        return yaml.safe_load(read_text(path)) or {}
+    except FileNotFoundError:  # nao existe, ou foi apagado entre listar a pasta e ler
         return {}
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
 def write_yaml(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.safe_dump(data, allow_unicode=True, sort_keys=False, default_flow_style=False),
-        encoding="utf-8",
-    )
+    write_text_atomic(path, yaml.safe_dump(data, allow_unicode=True, sort_keys=False, default_flow_style=False))
     
