@@ -10,7 +10,7 @@ Template para construir, validar e publicar uma ontologia e uma camada semântic
 - Extras opcionais por adapter ou formato: `postgres`, `snowflake`, `databricks`, `rdf`, `neo4j`, `pdf`, `office`
 
 ## Estrutura
-- `SKILL.md` — a skill do agente: regras e as seis etapas do fluxo (`.claude/skills/akme/SKILL.md` só aponta para ela)
+- `SKILL.md` — a skill do agente: regras e as seis etapas do fluxo (`.claude/skills/akme/SKILL.md` e `.agents/skills/akme/SKILL.md` só apontam para ela)
 - `akme/` — pacote Python: CLI (`cli.py`), servidor MCP (`server.py`), servidor da página local (`review_server.py`), modelos
 - `akme/tools/` — lógica determinística de cada tool (ler, propor, aplicar, validar, exportar, publicar)
 - `akme/adapters/` — conectores de entrada (pasta local, Postgres, Snowflake, Databricks)
@@ -27,7 +27,8 @@ Template para construir, validar e publicar uma ontologia e uma camada semântic
 - `uv run pytest -q` — roda os testes (a suíte inteira leva alguns minutos)
 - `uv run akme init --demo` e `uv run akme demo` — prepara e roda a demo
 - `uv run akme review` — serve a página local em `http://127.0.0.1:8765`
-- `uv run akme serve` — sobe o servidor MCP (stdio); registrado em `.mcp.json`
+- `uv run akme serve` — sobe o servidor MCP (stdio); registrado em `.mcp.json` (Claude Code), `.codex/config.toml` (Codex) e `.cursor/mcp.json` (Cursor); no Antigravity, com `agy mcp add` (ver README)
+- `claude --dangerously-load-development-channels server:akme` — modo canal (experimental, só Claude Code): a conversa com o agente acontece no painel "Conversa" da página local (`akme/channel.py`, log em `ontology/pending/chat.jsonl`)
 - `uv run akme connect | profile | validate | eval | export | stage | publish` — passos individuais
 
 ## Convenções

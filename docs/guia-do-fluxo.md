@@ -89,7 +89,8 @@ Para Snowflake, Databricks ou Postgres: `uv run akme init --adapter snowflake` e
 ambiente listadas em `.env.example`.
 
 Abra o Claude Code na pasta. O `.mcp.json` registra o servidor `akme` e a skill `akme` carrega o
-`SKILL.md`, que é o roteiro que o agente segue.
+`SKILL.md`, que é o roteiro que o agente segue. Codex, Cursor e Antigravity também funcionam: veja
+"Outras harnesses" no `README.md`.
 
 ### 4.2 Quem decide: você ou a IA
 
