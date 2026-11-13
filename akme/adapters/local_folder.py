@@ -24,7 +24,9 @@ class LocalFolderAdapter(Adapter):
         missing = [str(r) for r in self.roots if not r.is_dir()]
         if missing:
             raise AdapterError(f"pasta nao encontrada: {', '.join(missing)}")
-        self.encoding = encoding
+        # utf-8-sig le igual ao utf-8 e ainda tira o BOM do inicio do arquivo (CSV exportado do Excel);
+        # sem isso a primeira coluna vira "﻿nome" e a chave proposta nao bate com o que a pagina envia
+        self.encoding = "utf-8-sig" if encoding.lower().replace("_", "-") in ("utf-8", "utf8") else encoding
         self.delimiter = delimiter
         self.recursive = recursive
         self._tables: dict[str, tuple[Path, Path, str | None]] | None = None

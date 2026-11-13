@@ -6,7 +6,7 @@ from typing import Any
 from rdflib import OWL, RDF, RDFS, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS
 
-from .project import Project, read_yaml, write_yaml
+from .project import Project, read_text, read_yaml, write_text_atomic, write_yaml
 
 DEFAULT_BASE = "https://akme.example/ontology#"
 
@@ -28,12 +28,12 @@ EMPTY_CONTENT: dict[str, Any] = {
 
 def load_graph(path: Path) -> Graph:
     g = Graph()
-    g.parse(path, format="turtle")
+    g.parse(data=read_text(path), format="turtle")
     return g
 
 
 def save_graph(g: Graph, path: Path) -> None:
-    path.write_text(g.serialize(format="turtle"), encoding="utf-8")
+    write_text_atomic(path, g.serialize(format="turtle"))
 
 
 def base_ns(g: Graph) -> Namespace:

@@ -10,7 +10,7 @@ from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 from ..adapters import AdapterError
 from ..models import ADDITIVITY, METRIC_FIELDS, Finding, ValidationReport
 from ..ontology import classes, has_license, is_metric_class, load_content, local, relations
-from ..project import Project, read_yaml
+from ..project import Project, read_yaml, write_text_atomic
 from .contracts import contradictions, observe_join
 from .profile import load_profile
 
@@ -277,5 +277,5 @@ def validate(project: Project, oops: bool = False, check_data: bool = True) -> V
         findings=findings, coverage=coverage, pitfalls=pitfalls, oops=oops_result,
     )
     project.validation_path.parent.mkdir(parents=True, exist_ok=True)
-    project.validation_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+    write_text_atomic(project.validation_path, report.model_dump_json(indent=2))
     return report

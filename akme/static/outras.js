@@ -86,17 +86,41 @@
     return out;
   }
   // prev guarda o que o revisor ja decidiu nesta sessao; um reload do servidor nao apaga as escolhas
+  // decisoes feitas e ainda nao salvas ficam num rascunho deste navegador: recarregar a pagina nao as apaga
+  const DRAFT_SKIP = new Set(["p", "v", "saved", "open", "det", "editing"]);
+  const draftKey = (project) => "akme-draft-outras:" + (project || "");
+  function readDraft(project) {
+    try { return JSON.parse(localStorage.getItem(draftKey(project)) || "null") || {}; } catch (e) { return {}; }
+  }
+  function writeDraft(M) {
+    if (!M || isAuto()) return;
+    const items = {};
+    M.items.forEach((it) => {
+      if (it.saved || (!it.dec && !Object.keys(diffOf(it)).length)) return;
+      const o = {};
+      Object.keys(it).forEach((k) => { if (!DRAFT_SKIP.has(k)) o[k] = it[k]; });
+      items[it.id] = o;
+    });
+    try {
+      if (Object.keys(items).length || M.own.length) localStorage.setItem(draftKey(M.project), JSON.stringify({ items, own: M.own }));
+      else localStorage.removeItem(draftKey(M.project));
+    } catch (e) { /* sem armazenamento: o rascunho fica so na memoria */ }
+  }
   function buildModel(data, prev) {
     const old = (prev && prev.byId) || {};
-    const M = { items: [], byId: {}, own: prev ? prev.own : [], apOpen: prev ? prev.apOpen : false, ctxOpen: prev ? prev.ctxOpen : false };
+    const project = (data && data.project) || "";
+    // primeira montagem (pagina recem-aberta): recupera o rascunho; depois, o modelo anterior manda
+    const draft = prev ? {} : readDraft(project), dItems = draft.items || {};
+    const M = { items: [], byId: {}, own: prev ? prev.own : Array.isArray(draft.own) ? draft.own : [], apOpen: prev ? prev.apOpen : false, ctxOpen: prev ? prev.ctxOpen : false, project };
     M.req = (data && data.requirements) || {};
     M.stage = (data && data.stage) || {};
     for (const p of (data && data.pending) || []) {
       if (!covers(p)) continue;
       const rv = p.review, was = old[p.id];
-      const it = was || { id: p.id, dec: rv ? (rv.decision === "reject" ? "rej" : "ok") : null, why: "",
+      const fromDraft = !was && !rv && dItems[p.id] ? Object.assign({ open: false, det: false, editing: false }, dItems[p.id], { id: p.id }) : null;
+      const it = was || fromDraft || { id: p.id, dec: rv ? (rv.decision === "reject" ? "rej" : "ok") : null, why: "",
         reason: rv && rv.decision === "reject" ? rv.reason || "" : "", open: false, det: false, editing: false, vals: editVals(p) };
-      if (!was && it.reason) { const k = WHY.find(([, l]) => l === it.reason); it.why = k ? k[0] : "outro"; }
+      if (!was && !fromDraft && it.reason) { const k = WHY.find(([, l]) => l === it.reason); it.why = k ? k[0] : "outro"; }
       Object.assign(it, { p, v: viewOf(p), saved: !!rv });
       M.items.push(it); M.byId[p.id] = it;
     }
@@ -112,9 +136,11 @@
     const pl = it.p.payload || {}, out = {};
     (it.v.editable || []).forEach((f) => {
       const cur = String(it.vals[f.key] ?? "").trim();
-      if (f.kind === "list") { const l = splitList(cur); if (JSON.stringify(l) !== JSON.stringify(list(pl[f.key]))) out[f.key] = l; }
+      // compara com o original normalizado do mesmo jeito: trim() do JS tira espacos e o BOM (﻿),
+      // e sem isso um campo intocado parecia "ajustado" e ia para o servidor diferente do proposto
+      if (f.kind === "list") { const l = splitList(cur); if (JSON.stringify(l) !== JSON.stringify(splitList(list(pl[f.key]).join(",")))) out[f.key] = l; }
       else if (f.kind === "map") { if (cur !== mapText(pl[f.key])) out[f.key] = cur; }
-      else if (cur !== String(pl[f.key] ?? "")) out[f.key] = cur;
+      else if (cur !== String(pl[f.key] ?? "").trim()) out[f.key] = cur;
     });
     return out;
   }
@@ -131,7 +157,10 @@
     if (ne) m.push(plural(ne, "texto ajustado está vazio", "textos ajustados estão vazios"));
     return m;
   }
-  const remainingOf = (M) => M.items.filter((it) => !done(it)).length;
+  // decididas aqui mas ainda nao gravadas no servidor (e perguntas/alteracoes escritas pelo revisor)
+  const unsavedOf = (M) => M.items.filter((it) => done(it) && !it.saved).length + M.own.length;
+  // o numero da aba so cai depois de salvar: decidir sem salvar nao muda nada na ontologia
+  const remainingOf = (M) => M.items.filter((it) => !done(it)).length + unsavedOf(M);
   function pendingCount(data) {
     return ((data && data.pending) || []).filter(covers).length;
   }
@@ -352,7 +381,7 @@
     return GROUP_ORDER.concat(Array.from(new Set(M.items.map((it) => it.v.group))).filter((g) => !GROUP_ORDER.includes(g)));
   }
   function screenHtml(M) {
-    const auto = isAuto(), und = M.items.filter((it) => !it.dec).length, can = !auto && !!O.ctx.api;
+    const auto = isAuto(), und = M.items.filter((it) => !it.dec).length, can = !auto && !!O.ctx.api, ns = unsavedOf(M);
     const bar = `<div class="e1-cqbar"><span class="e1-count">${und ? `<b>${und}</b> ${und === 1 ? "proposta para avaliar" : "propostas para avaliar"}` : M.items.length ? "Todas decididas" : "Nada pendente da IA"}</span>
       <span class="e1-cqbar-a">${und && can ? `<button type="button" class="btn btn-outline" data-o="all" title="Aceita as ${und} propostas ainda sem decisão, como a IA propôs. Dá para rever cada uma antes de salvar.">✓ Aceitar tudo (${und})</button>` : ""}
       ${can ? '<button type="button" class="btn btn-outline" data-o="ncq">+ Nova pergunta</button>' : ""}</span></div>`;
@@ -364,7 +393,9 @@
     const st = M.stage || {};
     const nada = !M.items.length && !M.own.length
       ? `<div class="e1-empty"><b>Nada a decidir</b><span>${esc([st.label, st.next_step].filter(Boolean).join(". ") || "Quando o agente propuser algo, aparece aqui.")}</span></div>` : "";
-    return `${bar}${nada}${groups}${own}${appliedSection(M)}${contextSection(M)}`;
+    const aviso = ns && can ? `<div class="unsaved" role="status"><span><b>${plural(ns, "decisão ainda não salva", "decisões ainda não salvas")}.</b> Só entram na ontologia depois de conferir e salvar.</span>
+      <button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : "";
+    return `${bar}${aviso}${nada}${groups}${own}${appliedSection(M)}${contextSection(M)}`;
   }
   function render(focusSel) {
     if (!O.el || !O.M) return;
@@ -374,6 +405,7 @@
       <section class="e1-screen" data-screen="outras">${screenHtml(M)}</section>
       ${any && !auto ? `<div class="e1-foot"><span class="e1-msg" id="ou-msg" role="status" aria-live="polite"></span><button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : ""}</div>`;
     if (focusSel) { const t = $(focusSel, O.el); if (t) t.focus({ preventScroll: true }); }
+    writeDraft(M);
     if (O.ctx.onCount) O.ctx.onCount(remainingOf(M));
   }
   function msg(text, kind) {
@@ -441,6 +473,7 @@
       if (was !== done(it)) { const pos = el.selectionStart; render(); const t = $(`#${el.id}`, O.el); if (t) { t.focus(); t.setSelectionRange(pos, pos); } return; }
     }
     msg("");
+    writeDraft(O.M);
     if (O.ctx.onCount) O.ctx.onCount(remainingOf(O.M));
   }
   // details nao borbulha o toggle: escuta na captura para lembrar o que ficou aberto entre um reload e outro
@@ -754,6 +787,7 @@
       const after = (out && out.stage_after) || {}, n = (out.applied || []).length, nr = (out.rejected || []).length, held = (out.held_by_gate || []).length;
       O.saving = false;
       if (O.ctx.setBusy) O.ctx.setBusy(false);
+      try { localStorage.removeItem(draftKey(M.project)); } catch (e) { /* sem armazenamento */ }
       d.querySelector("form").innerHTML = `<h2 class="h3-semibold" id="ou-save-t">Salvo e aplicado</h2>
         <div class="e1-empty"><b>${plural(n, "decisão entrou", "decisões entraram")} na ontologia</b>
           <span>${nr ? plural(nr, "rejeição ficou registrada", "rejeições ficaram registradas") + " no changelog. " : ""}${held ? plural(held, "proposta ficou", "propostas ficaram") + " esperando a etapa 1 fechar. " : ""}Volte para o chat: o agente segue para o próximo passo.${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
