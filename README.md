@@ -1,6 +1,6 @@
 # akme-template
 
-Template para construir, validar e publicar uma ontologia e uma camada semantica sobre a base de dados de um cliente. Segue LOT + NeOn com humano no loop: um agente de IA (Claude Code) le o `SKILL.md`, consulta a ontologia pelo servidor MCP `akme` e propoe edicoes que so entram na ontologia depois de aprovadas por uma pessoa. A ontologia vive em `ontology/` como texto versionado; Snowflake, Databricks, Postgres e pastas locais sao apenas entradas e alvos de publicacao.
+Template para construir, validar e publicar uma ontologia e uma camada semantica sobre a base de dados de um cliente. Segue LOT + NeOn com humano no loop: um agente de IA (Claude Code, de preferencia, ou Codex, Cursor ou Antigravity) le o `SKILL.md`, consulta a ontologia pelo servidor MCP `akme` e propoe edicoes que so entram na ontologia depois de aprovadas por uma pessoa. A ontologia vive em `ontology/` como texto versionado; Snowflake, Databricks, Postgres e pastas locais sao apenas entradas e alvos de publicacao.
 
 > Vai comecar um projeto de verdade? Siga **Criar uma ontologia do zero**. A secao **Demo** no fim usa dados de exemplo e serve so para conhecer a ferramenta.
 
@@ -8,7 +8,7 @@ Template para construir, validar e publicar uma ontologia e uma camada semantica
 
 ### 1. Prepare o ambiente
 
-Requisitos: Python 3.11+, [uv](https://docs.astral.sh/uv/) e [Claude Code](https://code.claude.com).
+Requisitos: Python 3.11+, [uv](https://docs.astral.sh/uv/) e [Claude Code](https://code.claude.com) (recomendado) ou outra harness com MCP: Codex, Cursor ou Antigravity (ver **Outras harnesses**).
 
 ```bash
 uv sync
@@ -61,6 +61,23 @@ Na primeira vez ele pergunta se pode usar o servidor MCP `akme` deste projeto: a
 Para o vai e volta com voce, o agente abre a pagina de revisao em `http://127.0.0.1:8765` (sempre pela URL; o `docs/index.html` aberto do disco fica so em modo leitura). La cada proposta aparece com a evidencia e com o que o dado mostra, e voce aceita, ajusta ou rejeita. Quando voce aplica, o agente segue sozinho.
 
 > **Modo canal (opcional, so no Claude Code):** para conversar com o agente pela propria pagina, sem voltar ao terminal, abra o Claude Code com `claude --dangerously-load-development-channels server:akme` e a pagina com `uv run akme review`. O painel "Conversa" da pagina passa a falar com a sessao. A flag mostra um aviso de "desenvolvimento local" porque o canal do akme nao esta na lista aprovada da Anthropic.
+
+### Outras harnesses
+
+O Claude Code e o caminho recomendado, mas o fluxo e o mesmo em qualquer agente com MCP: as instrucoes do projeto estao em `AGENTS.md`, a skill em `.agents/skills/akme/` aponta para o `SKILL.md` e o servidor e sempre `uv run akme serve`.
+
+| Harness | Skill | Servidor MCP `akme` |
+|---|---|---|
+| Claude Code | `.claude/skills/akme/` | `.mcp.json` (aceite na primeira vez) |
+| Codex | `.agents/skills/akme/` | `.codex/config.toml`; o Codex so le esse arquivo depois que voce marca a pasta como confiavel ao abrir `codex` nela |
+| Cursor | `.agents/skills/akme/` | `.cursor/mcp.json`; ative o `akme` em Settings > MCP |
+| Antigravity (`agy`) | `.agents/skills/akme/` | o `agy` so tem config global; registre uma vez com o comando abaixo, trocando o caminho |
+
+```powershell
+agy mcp add --env AKME_ROOT=C:\caminho\do\projeto akme uv -- --directory C:\caminho\do\projeto run akme serve
+```
+
+So o Claude Code tem: o modo canal, os agentes de pesquisa de `.claude/agents/` e o formulario de "quem decide" (nas outras a pergunta vem no chat). Se as tools do `akme` nao aparecerem depois de mudar o servidor, reinicie o MCP na harness (Claude Code: `/mcp`; Codex e `agy`: abra uma sessao nova; Cursor: recarregue em Settings > MCP).
 
 ### 4. Primeiro passo: quem decide
 

@@ -38,6 +38,9 @@ def test_ai_cannot_review_apply_or_reject_in_human_mode(project):
         ontology_write.apply_edit(project, e.id, "agent")
     with pytest.raises(ModeError):
         ontology_write.reject_edit(project, e.id, "Claude", "nao")
+    for name in ("Codex", "Gemini", "Cursor"):  # outras harnesses tambem nao assinam
+        with pytest.raises(ModeError):
+            ontology_write.reject_edit(project, e.id, name, "nao")
     assert ontology_write.list_pending(project)  # nada mudou
 
 
