@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ..models import now_iso
-from ..project import Project
+from ..project import Project, write_text_atomic
 
 ROUND_FILE = "round.json"
 WAIT_DEFAULT = 540.0
@@ -35,11 +35,7 @@ def read_round(project: Project) -> dict[str, Any] | None:
 
 
 def _write(project: Project, data: dict[str, Any]) -> None:
-    path = round_path(project)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    write_text_atomic(round_path(project), json.dumps(data, ensure_ascii=False, indent=2))
 
 
 def open_round(project: Project) -> dict[str, Any]:

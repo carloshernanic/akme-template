@@ -733,6 +733,9 @@ dialog.e1-dlg::backdrop { background: oklch(20.64% 0.0205 271.56 / 0.35); backdr
 .e1-cqbar-a { display: flex; gap: 8px; flex-wrap: wrap; }
 .e1-count { font-size: 14px; color: var(--text-secondary); }
 .e1-count b { color: var(--text-primary); font-weight: 600; }
+/* decisoes feitas na tela e ainda nao gravadas no servidor */
+.unsaved { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 12px 16px; background: var(--fill-ui-3); border: 1px solid var(--border-divider); border-left: 4px solid var(--status-warning); font-size: 14px; color: var(--text-primary); }
+.unsaved > span { flex: 1 1 16rem; min-width: 0; }
 .e1-cqs { display: flex; flex-direction: column; gap: 12px; }
 .e1-line { display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; background: var(--surface-primary); box-shadow: var(--elevation-0); border-left: 3px solid var(--border-secondary); font-size: 15px; line-height: 22px; }
 .e1-line.ok { border-left-color: var(--status-success); }
