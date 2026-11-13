@@ -74,7 +74,9 @@ def test_base_comum_em_portugues_e_sem_ids_crus():
     for novo in ("Propósito e perguntas", "mapeamentos", "Armadilhas de modelagem", "Glossário"):
         assert novo in graph, novo
     review = (DOCS / "review.js").read_text(encoding="utf-8")
-    assert "function humanMissing" in review and "st.missing || []).map(humanMissing)" in review
+    assert "function humanMissing" in review and ".map(humanMissing)" in review
+    # o banner nomeia o pendente da etapa 1 e leva ate ele, em vez de "Decidir 1 item da etapa 1"
+    assert "function pendingLabel" in review and 'data-act="goto"' in review
     css = (DOCS / "akme.css").read_text(encoding="utf-8")
     assert ".rv-section > h3, .panel-section h3, .e1-sub {" in css
     assert ".rv-empty, .e1-empty, .chat-empty {" in css

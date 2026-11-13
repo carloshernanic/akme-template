@@ -107,6 +107,8 @@
   function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   const req = () => S.data.requirements || {};
   const pending = () => S.data.pending || [];
+  // conversa pela propria pagina (modo canal): nao ha "outro chat" para onde voltar
+  const channel = () => !!(window.AkmeChannel && window.AkmeChannel.on());
   const stage = () => S.data.stage || null;
   const round = () => S.data.round || {};
   const agentWaiting = () => round().status === "waiting";
@@ -151,6 +153,20 @@
     if (name === "ontologia" && window.AkmeGraph) { window.AkmeGraph.show(); dispatchEvent(new Event("resize")); }
   }
 
+  // ids citados em "pendentes da etapa 1 sem revisao: a, b"
+  function pendingIdsOf(missing) {
+    const m = missing.find((x) => /^pendentes da etapa 1 sem revisao/.test(x));
+    return m ? (String(m).split(":")[1] || "").split(",").map((x) => x.trim()).filter(Boolean) : [];
+  }
+  // "CQ-008: alteração da pergunta" ou o texto do item, para o revisor achar na tela
+  function pendingLabel(p) {
+    const pl = p.payload || {}, t = p.type;
+    const kind = { update_competency_question: "alteração da pergunta", remove_competency_question: "exclusão da pergunta",
+      update_gap: "alteração da lacuna", update_divergence: "alteração da divergência" }[t];
+    if (kind) return `${pl.id}: ${kind}`;
+    const txt = pl.question || pl.topic || pl.name || pl.value || p.id;
+    return `“${String(txt).length > 70 ? String(txt).slice(0, 69) + "…" : txt}”`;
+  }
   // traduz o "missing" do servidor (escrito para o agente, com ids) para uma frase ao revisor
   function humanMissing(m) {
     const n = (txt) => (String(txt).split(":")[1] || "").split(",").filter((x) => x.trim()).length;
@@ -171,12 +187,21 @@
       <div class="step-rail"><span class="step-marker">${s.status === "completed" ? I.check : s.number}</span><span class="step-sep"></span></div>
       <div class="step-body"><span class="step-title">${esc(s.name)}</span></div></li>`).join("");
     chip.innerHTML = `<span class="status-dot ${st.gate_active ? "warning" : "information"}"></span>${esc(st.label)}`;
-    chip.title = st.next_step || "";
+    chip.title = window.AkmeChannel ? window.AkmeChannel.step(st.next_step) : st.next_step || "";
     // a faixa so aparece quando os requisitos estao abertos: e o unico caso em que o humano precisa ler o que falta
-    const missing = (st.missing || []).map(humanMissing);
+    const raw = st.missing || [], ids = pendingIdsOf(raw);
+    const missing = raw.filter((m) => !/^pendentes da etapa 1 sem revisao/.test(m)).map(humanMissing);
+    const items = ids.map((id) => pending().find((p) => p.id === id)).filter(Boolean)
+      .map((p) => `<li>Decidir ${esc(pendingLabel(p))} <button type="button" class="lnk" data-act="goto" data-id="${esc(p.id)}">ver</button></li>`);
+    // depois da etapa 1, um item dela pendente trava as etapas seguintes: o topo volta para "Etapa 1"
+    const why = ids.length && raw.some((m) => /^pendentes da etapa 1/.test(m)) && (st.counts || {}).classes
+      ? '<p class="p secondary">Enquanto este item não for decidido e salvo, a etapa volta para 1 e as propostas das etapas seguintes esperam.</p>' : "";
     banner.className = "callout callout-atencao";
-    banner.innerHTML = `${I.warn}<div><div class="t">Requisitos abertos</div><div class="b">${missing.length ? `<ul>${missing.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : esc(st.next_step || "")}</div></div>`;
-    banner.hidden = !st.gate_active || S.mode === "etapa1";
+    banner.innerHTML = `${I.warn}<div><div class="t">Requisitos abertos</div><div class="b">${items.length || missing.length ? `<ul>${items.join("")}${missing.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>${why}` : esc(st.next_step || "")}</div></div>`;
+    // aparece sempre que a etapa 1 esta aberta (nao so com a ontologia vazia): e o que explica o topo voltar para "Etapa 1";
+    // na aba Etapa 1 so quando o item que falta mora em Outras propostas
+    const outside = ids.some((id) => { const p = pending().find((x) => x.id === id); return p && !coveredByE1(p); });
+    banner.hidden = st.requirements_closed || !(items.length || missing.length) || (S.mode === "etapa1" && !outside);
   }
 
   // ---------- modelo de cartões ----------
@@ -967,9 +992,9 @@
     const r = round(), n = counts();
     let html = "";
     if (S.api && r.status === "waiting") {
-      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">${lean() ? "Decida e clique em <b>Conferir e salvar</b>" : "Decida, salve e clique em <b>Aplicar decididas</b>"}. Depois volte para o chat da criação de ontologia: o agente segue sozinho, sem você precisar escrever nada.</div></div></div>`;
+      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">${lean() ? "Decida e clique em <b>Conferir e salvar</b>" : "Decida, salve e clique em <b>Aplicar decididas</b>"}. ${channel() ? "Depois disso o agente segue sozinho no painel Conversa." : "Depois volte para o chat da criação de ontologia: o agente segue sozinho, sem você precisar escrever nada."}</div></div></div>`;
     } else if (S.api && r.status === "applied" && !n.todo) {
-      html = `<div class="callout callout-ok">${I.ok}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo.</div></div></div>`;
+      html = `<div class="callout callout-ok">${I.ok}<div><div class="t">${channel() ? "Decisões aplicadas" : "Volte para o chat da criação de ontologia"}</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo${channel() ? " no painel Conversa" : ""}.</div></div></div>`;
     }
     el.innerHTML = html;
     el.hidden = !html;
@@ -1092,13 +1117,27 @@
     body.innerHTML = `<h2 class="h3-semibold">Aplicado</h2>
       <div class="callout callout-ok">${I.ok}<div><div class="t">${plural((out.applied || []).length, "proposta entrou", "propostas entraram")} na ontologia; ${plural((out.rejected || []).length, "rejeitada registrada", "rejeitadas registradas")} no changelog.</div>
         <div class="b">${types ? `<p>${esc(types)}.</p>` : ""}${(out.held_by_gate || []).length ? `<p>${out.held_by_gate.length} propostas da ontologia ficaram esperando os requisitos fecharem.</p>` : ""}${(out.preexisting_errors || []).length ? `<p>A validação já tinha ${out.preexisting_errors.length} erros antes; eles continuam lá.</p>` : ""}</div></div></div>
-      <div class="callout callout-back">${I.info}<div><div class="t">Volte para o chat da criação de ontologia</div><div class="b">${waited ? "O agente estava esperando esta aplicação e já está seguindo para o próximo passo." : "Diga ao agente que aplicou, para ele seguir."}${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
+      <div class="callout callout-back">${I.info}<div><div class="t">${channel() ? "O agente segue no painel Conversa" : "Volte para o chat da criação de ontologia"}</div><div class="b">${waited ? "O agente estava esperando esta aplicação e já está seguindo para o próximo passo." : "Diga ao agente que aplicou, para ele seguir."}${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
       <div class="dlg-actions"><button type="button" class="btn" data-act="dlg-close">Fechar</button></div>`;
     try { await reload(); } catch (e) {}
     render();
-    setMsg("success", "Decisões aplicadas. Volte para o chat da criação de ontologia.");
+    setMsg("success", channel() ? "Decisões aplicadas. O agente segue no painel Conversa." : "Decisões aplicadas. Volte para o chat da criação de ontologia.");
   }
 
+  // leva o revisor ate o cartao de um pendente: troca de aba se precisar, rola e poe o foco
+  function gotoPending(id) {
+    const p = pending().find((x) => x.id === id);
+    if (!p) return;
+    setTab("revisao");
+    S.mode = coveredByE1(p) || !OU() ? "etapa1" : "outras";
+    render(); renderBar();
+    const v = $("#view-revisao"), q = sel(id);
+    const el = v.querySelector(`[data-ou="${q}"], [data-gd="${q}"]`) || v.querySelector(`[data-id="${q}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    const f = el.matches("button, [tabindex]") ? el : el.querySelector("button, textarea, input");
+    if (f) f.focus({ preventScroll: true });
+  }
   // ---------- eventos ----------
   function onClick(e) {
     const b = e.target.closest("[data-act]");
@@ -1107,6 +1146,7 @@
     if (isAuto() && DECISION_ACTS.has(act)) return;
     switch (act) {
       case "mode": S.mode = b.dataset.value === "etapa1" ? "etapa1" : "outras"; S.selected = null; render(); renderBar(); return;
+      case "goto": return gotoPending(b.dataset.id);
       case "scope": S.scope = b.dataset.scope; S.group = null; S.selected = null; render(); return;
       case "group": S.group = b.dataset.group; if (S.scope === "applied" || S.scope === "context") S.scope = "todo"; S.selected = null; render(); return;
       case "clear-group": S.group = null; render(); return;
@@ -1283,10 +1323,13 @@
       viewEl.addEventListener("input", onInput);
       viewEl.addEventListener("change", onInput);
       $("#rv-nav").addEventListener("click", onClick);
+      $("#gate-banner").addEventListener("click", onClick); // "ver" do pendente que trava a etapa
       $("#tab-ontologia").addEventListener("click", () => setTab("ontologia"));
       $("#tab-revisao").addEventListener("click", () => setTab("revisao"));
       document.addEventListener("keydown", onKey);
       document.addEventListener("akme:mode", () => render());
+      // o chat descobre o modo canal depois da primeira pintura: refaz os textos
+      window.addEventListener("akme-channel", () => { if (S.data) { render(); renderBar(); } });
       S.wired = true;
     }
     const n = counts();
