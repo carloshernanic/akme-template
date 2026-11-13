@@ -7,6 +7,7 @@ problema, o que a carga aceita mas o humano deve saber vira aviso.
 """
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from itertools import chain
@@ -17,12 +18,12 @@ from ..adapters.base import check_batch
 from ..ontology import classes, is_metric_class, load_content, load_graph
 from ..project import Project
 from .export import build_export
-from .neo4j_onto import ONTOLOGY_TYPE
-from .neo4j_values import TYPES, convert, filled, name, invisible_hint, node_id, shown, visible
+from .neo4j_values import (
+    META_TYPES, RESERVED_LABELS, RESERVED_PROPS, TYPES, convert, filled, invisible_hint, name, node_id,
+    reserved_problem, shown, visible,
+)
 
-RESERVED_LABELS = ("Conceito", "Termo", "_AkmeProjeto")
-META_TYPES = (ONTOLOGY_TYPE, "SUBCLASSE_DE", "TEM_TERMO")  # tipos de aresta da camada de ontologia
-RESERVED_PROPS = ("_id", "_projeto", "_carga", "_descricao")
+TEMPLATE_PROJECT = "akme-template"  # nome que vem no akme.yml do template
 BATCH = 5000  # linhas por bloco de leitura
 EXAMPLES = 5  # exemplos de chave repetida citados no problema
 
@@ -35,8 +36,9 @@ class SourcePlan:
     types: dict[str, str]
     columns: list[str]
     rows: int
-    caption: str | None = None  # coluna que completa a legenda `name` (ver caption_column)
+    caption: str | None = None  # coluna da legenda `name` (ver caption_choice)
     own_name: bool = False  # a fonte tem coluna `name`: ela vale como legenda; o akme so grava a sua onde ela esta vazia
+    caption_alone: bool = False  # a legenda e so o valor dessa coluna (decidida na etapa 5 ou coluna com cara de nome)
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,7 @@ class Plan:
     warnings: list[str] = field(default_factory=list)
     rows: int = 0
     descricao: bool = False  # neo4j.descricao_nos_dados do akme.yml: grava _descricao nos nos e arestas de dado
+    concepts_without_data: list[str] = field(default_factory=list)  # classes da ontologia sem no de dado nesta carga
 
 
 def join_columns(contracts: list[dict[str, Any]]) -> set[tuple[str, str]]:
@@ -149,8 +152,9 @@ def neo4j_options(project: Project) -> tuple[dict[str, Any], list[str]]:
     return options, problems
 
 
-def _config(project: Project) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, str]], list[str], set[str]]:
-    """Chave e tipos aprovados na etapa 5 (secao sources do content.yml). O akme.yml nao guarda mais isso."""
+def _config(project: Project) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, str]], list[str], set[str],
+                                       dict[str, str]]:
+    """Chave, tipos e legenda aprovados na etapa 5 (secao sources do content.yml). O akme.yml nao guarda mais isso."""
     from .ontology_write import list_pending
 
     entries = {e["source"]: e for e in load_content(project)["sources"]}
@@ -158,8 +162,9 @@ def _config(project: Project) -> tuple[list[str], dict[str, list[str]], dict[str
     keys = {s: [e["key"]] if isinstance(e.get("key"), str) else list(e.get("key") or []) for s, e in entries.items() if not e.get("exclude")}
     types = {s: dict(e.get("types") or {}) for s, e in entries.items() if not e.get("exclude")}
     pending = {e.payload.get("source") for e in list_pending(project) if e.type.value == "add_source"}
+    captions = {s: str(e["caption"]) for s, e in entries.items() if not e.get("exclude") and e.get("caption")}
     problems = neo4j_options(project)[1]
-    return excluded, keys, types, problems, pending
+    return excluded, keys, types, problems, pending, captions
 
 
 @dataclass
@@ -176,6 +181,16 @@ class Scan:
     invalid: Counter[str] = field(default_factory=Counter)
     examples: dict[str, Any] = field(default_factory=dict)  # primeiro valor invalido por coluna
     filled: Counter[str] = field(default_factory=Counter)  # valores preenchidos por coluna tipada
+    present: Counter[str] = field(default_factory=Counter)  # linhas com a coluna preenchida, para toda coluna
+    sample: dict[str, Any] = field(default_factory=dict)  # primeiro valor preenchido de cada coluna
+    # valores distintos por coluna, ate DISTINCT_CAP (memoria limitada), e quantas linhas preenchidas havia quando
+    # a coluna chegou ao teto: a legenda so usa sozinha uma coluna que distingue os registros
+    distinct: dict[str, set[int]] = field(default_factory=dict)
+    distinct_at: dict[str, int] = field(default_factory=dict)
+
+    def distinct_ratio(self) -> dict[str, float]:
+        """Fracao de valores distintos entre as linhas preenchidas de cada coluna (1.0 = nenhum repetido)."""
+        return {c: len(seen) / (self.distinct_at.get(c) or self.present[c] or 1) for c, seen in self.distinct.items()}
     first: dict[str, Any] = field(default_factory=dict)  # primeiro valor preenchido por coluna tipada
     values: dict[str, Counter[str]] = field(default_factory=dict)
     ragged: tuple[int, int] | None = None  # (linhas com colunas a mais ou a menos, numero da primeira no arquivo)
@@ -207,6 +222,15 @@ def scan_source(adapter: Any, source: str, declared: list[str], column_types: di
             if not key:
                 continue
             for row in block:
+                for col in columns:
+                    if filled(row.get(col)):
+                        state.present[col] += 1
+                        state.sample.setdefault(col, row[col])
+                        seen = state.distinct.setdefault(col, set())
+                        if len(seen) < DISTINCT_CAP:
+                            seen.add(hash(str(row[col])))
+                            if len(seen) == DISTINCT_CAP:
+                                state.distinct_at[col] = state.present[col]
                 if not all(filled(row.get(c)) for c in key):
                     continue
                 state.complete += 1
@@ -265,19 +289,70 @@ def identifier_problems(plan: Plan, contracts: list[dict[str, Any]]) -> list[str
 def type_problems(contracts: list[dict[str, Any]]) -> list[str]:
     """Relacao com o nome de um tipo da camada de ontologia (RELACAO_ONTOLOGIA, SUBCLASSE_DE, TEM_TERMO) juntaria
     arestas de dado com as setas entre Conceito no mesmo tipo: vira problema."""
-    return [f"relacao {r} tem o nome de um tipo reservado da camada de ontologia do akme; renomeie a relacao"
+    return [reserved_problem("relation", r)
             for r in sorted({c["relation"] for c in contracts if c.get("relation")}) if r in META_TYPES]
 
 
-def caption_column(mappings: list[dict[str, Any]], source: str, key: list[str], joins: set[tuple[str, str]],
-                   columns: list[str]) -> str | None:
-    """Coluna que completa a legenda `name` de cada no: a primeira coluna mapeada da fonte, na ordem do content.yml,
-    que existe nos dados e nao e chave nem join (identificadores ja estao no inicio da legenda)."""
-    for m in mappings:
-        column = m.get("column")
-        if m.get("source") == source and column in columns and column not in key and (source, column) not in joins:
-            return column
-    return None
+# nomes de coluna (ou de termo) que indicam o texto que identifica o registro para uma pessoa
+_NAME_TOKENS = {"name", "nome", "nm", "title", "titulo", "label", "rotulo", "descricao", "description", "desc", "ds"}
+# nomes que indicam identificador: nao servem de legenda sozinhos (e um inteiro com esse nome fica texto)
+IDENTIFIER_TOKENS = {"id", "identifier", "ident", "number", "numero", "num", "nr", "no", "code", "codigo", "cod", "cd",
+                     "cnpj", "cpf", "cep", "nf", "sku", "key", "chave"}
+DISTINCT_CAP = 2000  # valores distintos guardados por coluna durante a leitura
+CAPTION_DISTINCT = 0.5  # coluna com cara de nome so vira legenda sozinha se metade dos valores for distinta
+CAPTION_NAME_FILL = 0.9  # coluna com cara de nome so vira legenda sozinha se estiver preenchida em 90% das linhas
+CAPTION_EXTRA_FILL = 0.5  # coluna que completa "Label chave" precisa estar preenchida em metade das linhas
+
+
+def tokens(identifier: str) -> list[str]:
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", identifier)
+    return [t for t in re.split(r"[^a-zA-Z0-9]+", spaced.lower()) if t]
+
+
+def looks_like_identifier(identifier: str) -> bool:
+    return any(t in IDENTIFIER_TOKENS for t in tokens(identifier))
+
+
+def caption_choice(mappings: list[dict[str, Any]], source: str, key: list[str], joins: set[tuple[str, str]],
+                   columns: list[str], types: dict[str, str], present: Any, rows: int,
+                   declared: str | None = None, distinct: dict[str, float] | None = None) -> tuple[str | None, bool]:
+    """(coluna da legenda `name`, a legenda e so o valor dela). Deterministica, sem julgamento:
+
+    1. a coluna decidida na etapa 5 (`caption` do add_source), quando existe nos dados;
+    2. sem decisao, uma coluna de texto com cara de nome (o nome da coluna ou de um termo mapeado nela tem `nome`,
+       `name`, `titulo`, `descricao`...), preenchida em 90% das linhas: mapeadas primeiro, na ordem do content.yml,
+       depois as demais na ordem das colunas. Nas duas, a legenda e so o valor (`Plataforma DIGEST`). Com
+       `distinct` (fracao de valores distintos por coluna, Scan.distinct_ratio), a coluna tambem precisa distinguir
+       os registros: `nm_cidade` em clientes ou a categoria em produtos repetem demais e nao viram legenda sozinhas
+       (passam a completar `Label chave`, pela regra 3, se forem mapeadas);
+    3. sem nenhuma, a primeira coluna mapeada que nao e chave nem join e esta preenchida em metade das linhas: ela
+       completa `Label chave` (`Pedido 1001 2026-07-03`);
+    4. nada: a legenda e `Label chave`.
+    `present`: linhas com cada coluna preenchida (Scan.present); `rows`: linhas da fonte."""
+    if declared and declared in columns:
+        return declared, True
+    mapped = [m for m in mappings if m.get("source") == source and m.get("column") in columns]
+    terms_of: dict[str, list[str]] = {}
+    for m in mapped:
+        terms_of.setdefault(m["column"], []).append(str(m.get("term") or ""))
+
+    def name_like(column: str) -> bool:
+        if types.get(column, "string") != "string" or looks_like_identifier(column):
+            return False
+        if (source, column) in joins and column not in key:
+            return False  # chave de outra tabela: o nome esta la, nao aqui
+        return any(_NAME_TOKENS & set(tokens(text)) for text in [column, *terms_of.get(column, [])])
+
+    ordered = list(dict.fromkeys([m["column"] for m in mapped] + list(columns)))
+    for column in ordered:
+        if (name_like(column) and rows and present[column] >= CAPTION_NAME_FILL * rows
+                and (distinct is None or distinct.get(column, 1.0) >= CAPTION_DISTINCT)):
+            return column, True
+    for m in mapped:
+        column = m["column"]
+        if column not in key and (source, column) not in joins and rows and present[column] >= CAPTION_EXTRA_FILL * rows:
+            return column, False
+    return None, False
 
 
 def metric_warnings(data: dict[str, Any], graph: Any) -> list[str]:
@@ -327,7 +402,7 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
     check_batch(batch)
     data = build_export(project)
     contracts = data["relation_contracts"]
-    excluded, declared, types, config_problems, pending = _config(project)
+    excluded, declared, types, config_problems, pending, captions = _config(project)
     joins = join_columns(contracts)
     plan = Plan(project=project.name, sources_skipped=sorted(excluded),
                 descricao=neo4j_options(project)[0]["descricao_nos_dados"])
@@ -339,7 +414,7 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
         labels, label_problems = labels_for(data, project, sources, excluded)
         problems = plan.problems
         problems += config_problems + label_problems
-        problems += [f"classe {name} usa nome reservado do akme no Neo4j" for name in reserved]
+        problems += [reserved_problem("class", name) for name in reserved]
         problems += [f"etapa 5 cita fonte inexistente: {shown([source])}" for source in declared if source not in sources]
         problems += [f"etapa 5: tipo desconhecido {kind} em {source}.{column}; use {', '.join(TYPES)}"
                      for source, columns in types.items() for column, kind in columns.items() if kind not in TYPES]
@@ -361,7 +436,7 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
                                 "confira a extracao ou exclua a fonte na etapa 5")
             if state.absent:
                 problems.append(f"fonte {source}: chave declarada usa coluna inexistente: {shown(state.absent)}")
-            problems += [f"{source}.{c} usa nome reservado do akme no Neo4j" for c in columns if c in RESERVED_PROPS]
+            problems += [f"fonte {source}: {reserved_problem('column', c)}" for c in columns if c in RESERVED_PROPS]
             if key and state.complete < state.rows:
                 problems.append(f"fonte {source}: {state.rows - state.complete} linha(s) com chave {', '.join(key)} vazia")
             if state.repeated:
@@ -381,8 +456,13 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
             if own_name:
                 plan.warnings.append(f"fonte {source} tem coluna name: ela vale como legenda dos nos de {label} no "
                                      "Browser; o akme so grava a sua nas linhas com name vazio")
-            caption = caption_column(data["mappings"], source, list(key), joins, columns)
-            plan.sources.append(SourcePlan(source, label, list(key), column_types, columns, state.rows, caption, own_name))
+            wanted = captions.get(source)
+            if wanted and columns and wanted not in columns:
+                problems.append(f"etapa 5: a legenda de {source} cita coluna inexistente: {shown([wanted])}")
+            caption, alone = caption_choice(data["mappings"], source, list(key), joins, columns, column_types,
+                                            state.present, state.rows, wanted, state.distinct_ratio())
+            plan.sources.append(SourcePlan(source, label, list(key), column_types, columns, state.rows, caption, own_name,
+                                           alone))
             read[source] = state
     finally:
         adapter.close()
@@ -390,5 +470,13 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
     edge_labels = {s.source: s.label for s in plan.sources if s.key}
     _edges(plan, contracts, edge_labels, read)
     plan.problems += identifier_problems(plan, contracts) + type_problems(contracts)
-    plan.warnings += metric_warnings(data, load_graph(project.schema_path))
+    graph = load_graph(project.schema_path)
+    plan.warnings += metric_warnings(data, graph)
+    from .neo4j_onto import concepts_without_data  # import tardio: neo4j_onto nao depende do plano
+    plan.concepts_without_data = [c["name"] for c in concepts_without_data(
+        graph, load_content(project), {s.source: s.label for s in plan.sources})]
+    if plan.project == TEMPLATE_PROJECT:
+        plan.warnings.append(f"o projeto ainda se chama {TEMPLATE_PROJECT}, o nome que vem no template: e com esse nome "
+                             "que o grafo fica marcado no Neo4j. Para trocar, mude `project` no akme.yml antes da "
+                             "primeira carga (depois dela, o banco so aceita o nome com que foi carregado)")
     return plan

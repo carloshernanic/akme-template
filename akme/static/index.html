@@ -55,6 +55,7 @@
       <nav class="tabs" id="tabs" role="tablist" aria-label="Vistas" hidden>
         <button type="button" class="tab" id="tab-revisao" role="tab" aria-controls="view-revisao" aria-selected="true">Revisão <span class="badge" id="tab-revisao-count" hidden></span></button>
         <button type="button" class="tab" id="tab-ontologia" role="tab" aria-controls="view-ontologia" aria-selected="false">Ontologia</button>
+        <button type="button" class="tab" id="tab-exportar" role="tab" aria-controls="view-exportar" aria-selected="false">Exportar</button>
       </nav>
       <span class="spacer"></span>
       <span class="stage-chip" id="stage-chip"></span>
@@ -106,6 +107,8 @@
         </section>
         <section class="summary" id="summary"></section>
       </div>
+
+      <section id="view-exportar" role="tabpanel" aria-labelledby="tab-exportar" hidden></section>
     </main>
   </div>
 </div>
@@ -132,6 +135,7 @@
 <script src="graph.js"></script>
 <script src="etapa1.js"></script>
 <script src="outras.js"></script>
+<script src="exportar.js"></script>
 <script src="review.js"></script>
 <script src="app.js"></script>
 <script src="chat.js"></script>

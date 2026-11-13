@@ -17,6 +17,29 @@ from urllib.parse import quote
 from ..models import SOURCE_TYPES
 
 TYPES = SOURCE_TYPES
+
+# Nomes que o akme usa no Neo4j. A lista fica so aqui: o plano da carga, o propose_edit e o validate leem daqui, para
+# o nome reservado ser barrado na etapa em que e criado, nao so na carga.
+ONTOLOGY_TYPE = "RELACAO_ONTOLOGIA"  # tipo unico das setas entre Conceito; o nome da relacao fica em `nome`
+RESERVED_LABELS = ("Conceito", "Termo", "_AkmeProjeto")
+META_TYPES = (ONTOLOGY_TYPE, "SUBCLASSE_DE", "TEM_TERMO")  # tipos de aresta da camada de ontologia
+RESERVED_PROPS = ("_id", "_projeto", "_carga", "_descricao")
+
+
+def reserved_problem(kind: str, identifier: str) -> str | None:
+    """Texto da recusa quando `identifier` e um nome que o akme usa no Neo4j; None quando o nome esta livre.
+    `kind`: "class", "relation" ou "column"."""
+    if kind == "class" and identifier in RESERVED_LABELS:
+        return (f"o nome de classe {identifier} e reservado: no Neo4j o akme guarda a ontologia em nos "
+                f"{', '.join(RESERVED_LABELS)}. Acrescente uma palavra do dominio ao nome (por exemplo, Conceito vira "
+                "ConceitoRubrica)")
+    if kind == "relation" and identifier in META_TYPES:
+        return (f"o nome de relacao {identifier} e reservado: no Neo4j o akme usa {', '.join(META_TYPES)} nas setas "
+                "da ontologia. Use um nome do dominio em lowerCamelCase")
+    if kind == "column" and identifier in RESERVED_PROPS:
+        return (f"a coluna {identifier} tem um nome reservado: no Neo4j o akme grava {', '.join(RESERVED_PROPS)} em "
+                "cada no. Renomeie a coluna na origem")
+    return None
 INT64_MAX = 2**63 - 1
 _NUMBER = re.compile(r"-?\d+(\.\d+)?([eE][-+]?\d+)?$")
 _INTEGER = re.compile(r"-?(0|[1-9]\d*)(\.0+)?$")
@@ -61,16 +84,33 @@ def node_id(values: Sequence[Any]) -> str:
     return "/".join(quote(str(v), safe="") for v in values)
 
 
-CAPTION_KEY = 8  # caracteres de cada valor da chave na legenda
-CAPTION_EXTRA = 40  # caracteres do valor que completa a legenda
+CAPTION_KEY = 8  # caracteres de um valor de chave com cara de codigo (uuid, hash) na legenda
+CAPTION_ID_LIKE = 16  # valor de chave sem espaco e maior que isto e tratado como codigo e cortado
+CAPTION_EXTRA = 40  # caracteres do valor que completa a legenda, e de um valor de chave que e texto
+CAPTION_ALONE = 60  # caracteres da legenda quando ela e so o valor da coluna de legenda
 
 
-def caption(label: str, key_values: Sequence[Any], extra: Any = None) -> str:
-    """Legenda `name` de um no de dado, que o Neo4j Browser mostra na bolinha: o label, os primeiros 8 caracteres de
-    cada valor da chave (unidos por barra, sem percent-encoding) e, se preenchido, o valor da coluna de legenda do
-    plano (espacos colapsados, ate 40 caracteres). Deterministica: so depende da linha."""
-    text = f"{label} " + "/".join(str(v)[:CAPTION_KEY] for v in key_values)
-    if filled(extra):
+def _key_part(value: Any) -> str:
+    """Valor da chave na legenda: codigo longo (sem espaco) fica nos primeiros 8 caracteres; texto fica legivel."""
+    text = " ".join(str(value).split())
+    if " " not in text and len(text) > CAPTION_ID_LIKE:
+        return text[:CAPTION_KEY]
+    return text[:CAPTION_EXTRA]
+
+
+def caption(label: str, key_values: Sequence[Any], extra: Any = None, alone: bool = False) -> str:
+    """Legenda `name` de um no de dado, que o Neo4j Browser mostra na bolinha. Deterministica: so depende da linha.
+
+    `alone` (legenda decidida na etapa 5, ou coluna com cara de nome): a legenda e o proprio valor de `extra`, como
+    `Plataforma DIGEST`; a cor da bolinha ja diz a classe. Linha com esse valor vazio cai na forma abaixo.
+    Sem `alone`: o label, a chave (valores unidos por barra, sem percent-encoding; codigo longo cortado em 8
+    caracteres) e, se preenchido, o valor de `extra` (espacos colapsados, ate 40 caracteres)."""
+    if alone and filled(extra):
+        text = " ".join(str(extra).split())[:CAPTION_ALONE].rstrip()
+        if text:  # so espacos: nao vira bolinha em branco, cai em `Label chave`
+            return text
+    text = f"{label} " + "/".join(_key_part(v) for v in key_values)
+    if filled(extra) and not alone:
         text += " " + " ".join(str(extra).split())[:CAPTION_EXTRA]
     return text.rstrip()
 

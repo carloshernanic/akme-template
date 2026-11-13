@@ -9,15 +9,15 @@ from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 
 from ..adapters import AdapterError
 from ..models import ADDITIVITY, METRIC_FIELDS, Finding, ValidationReport
-from ..ontology import classes, has_license, is_metric_class, load_content, local, relations
+from ..ontology import ROOT_CLASSES, classes, has_license, is_metric_class, load_content, local, relations
 from ..project import Project, read_yaml, write_text_atomic
 from .contracts import contradictions, observe_join
+from .neo4j_values import reserved_problem
 from .profile import load_profile
 
 OOPS_REST = "https://oops.linkeddata.es/rest"
 OEG_STATUS = "https://raw.githubusercontent.com/oeg-upm/oeg-service-status/main/services_status.json"
 OOPS = Namespace("http://oops.linkeddata.es/def#")
-ROOT_CLASSES = {"Entity", "Relation", "Rule", "Metric"}
 
 
 def _parse_ttl(project: Project, findings: list[Finding]) -> Graph | None:
@@ -137,6 +137,19 @@ def _check_precedence(content: dict[str, Any], findings: list[Finding]) -> None:
             findings.append(Finding(level="error", check="precedence_conflict", subject=key,
                                     message=f"precedencia contraditoria para '{key}': {pair[0]} sobre {pair[1]} e o inverso"))
         seen[key] = pair
+
+
+def _check_reserved_names(g: Graph, content: dict[str, Any], findings: list[Finding]) -> None:
+    """Nomes que o akme usa no Neo4j (Conceito, Termo, RELACAO_ONTOLOGIA, _id...): a carga recusaria. Aviso, nao
+    erro, porque os outros alvos de publicacao aceitam."""
+    found = ([(c["name"], reserved_problem("class", c["name"])) for c in classes(g)]
+             + [(r["name"], reserved_problem("relation", r["name"])) for r in relations(g)]
+             + [(f"{m.get('source')}.{m.get('column')}", reserved_problem("column", str(m.get("column") or "")))
+                for m in content["mappings"]])
+    for subject, problem in dict.fromkeys(found):
+        if problem:
+            findings.append(Finding(level="warning", check="reserved_name", subject=subject,
+                                    message=problem + "; a exportacao para o Neo4j recusa este nome"))
 
 
 def _check_questions(content: dict[str, Any], project: Project, findings: list[Finding]) -> None:
@@ -264,6 +277,7 @@ def validate(project: Project, oops: bool = False, check_data: bool = True) -> V
         pitfalls = native_pitfalls(g)
         _check_relation_contracts(g, content, project, findings, check_data)
         _check_metrics(g, content, findings)
+        _check_reserved_names(g, content, findings)
         if oops:
             oops_result = oops_scan(project.schema_path.read_text(encoding="utf-8"))
             pitfalls += oops_result.get("pitfalls", [])

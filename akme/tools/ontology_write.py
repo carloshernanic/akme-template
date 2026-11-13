@@ -17,6 +17,7 @@ from ..ontology import (
 )
 from ..project import Project, read_yaml, remove_file, write_yaml
 from .contracts import check_join_shape, contradictions, observe_join
+from .neo4j_values import reserved_problem
 from .requirements import cq_references, mirror_reserved, next_id, requirements_status
 
 
@@ -41,6 +42,7 @@ def propose_edit(project: Project, type: str, payload: dict[str, Any], rationale
         status = requirements_status(project)
         if status["gate_active"]:
             raise EditError("requisitos nao fechados: " + "; ".join(status["missing"]))
+    _check_reserved_name(edit_type, payload)
     if edit_type in (EditType.add_class, EditType.add_relation):
         _check_graph_refs(project, edit_type, payload)
     payload = _validate_payload(project, edit_type, payload, proposed_by)
@@ -66,6 +68,19 @@ _AUTO_ID = {EditType.add_competency_question: "CQ", EditType.add_use_case: "UC",
 
 _ID_LISTS = {EditType.add_competency_question: "competency_questions", EditType.add_use_case: "use_cases",
              EditType.add_gap: "gaps", EditType.add_divergence: "divergences"}
+
+
+_RESERVED_FIELD = {EditType.add_class: ("class", "name"), EditType.add_relation: ("relation", "name"),
+                   EditType.add_mapping: ("column", "column")}
+
+
+def _check_reserved_name(edit_type: EditType, payload: dict[str, Any]) -> None:
+    """Recusa, na etapa em que o nome e criado, o que a carga no Neo4j recusaria so na etapa 5."""
+    if edit_type in _RESERVED_FIELD:
+        kind, field = _RESERVED_FIELD[edit_type]
+        problem = reserved_problem(kind, str(payload.get(field) or ""))
+        if problem:
+            raise EditError(problem)
 
 
 def _check_new_id(project: Project, edit_type: EditType, new_id: str) -> None:
@@ -389,7 +404,7 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
         save_content(project, content)
     elif edit.type == EditType.add_source:
         content = load_content(project)
-        decided = {k: v for k, v in p.items() if k not in ("checked", "class")}
+        decided = {k: v for k, v in p.items() if k not in ("checked", "class") and not (k == "caption" and not v)}
         content["sources"] = [s for s in content["sources"] if s.get("source") != p["source"]] + [decided]
         save_content(project, content)
     entry = {
@@ -450,7 +465,7 @@ _REVIEW_KEYS = {
     EditType.add_mapping: {"note"},
     EditType.add_constraint: {"rule"},
     EditType.add_precedence: {"reason"},
-    EditType.add_source: {"key", "types"},
+    EditType.add_source: {"key", "types", "caption"},
 }
 _REVIEW_CHOICES = {"type": CQ_TYPES, "status": CQ_STATUSES, "priority": PRIORITIES}
 
@@ -494,7 +509,8 @@ def review_edit(project: Project, edit_id: str, decision: str, reviewer: str,
         if isinstance(edits.get("key"), str):
             edits["key"] = [k.strip() for k in edits["key"].split(",") if k.strip()]
         rechecked = _checked_source(project, dict(edit.payload) | edits)
-        edits = {k: rechecked[k] for k in ("key", "types", "checked")}
+        # caption vazio na revisao tira a legenda proposta: volta a valer a regra automatica do plano
+        edits = {k: rechecked[k] for k in ("key", "types", "checked")} | {"caption": rechecked.get("caption", "")}
     if decision == "accept" and edit.type == EditType.add_competency_question:
         if edits.get("status", edit.payload.get("status")) not in ("approved", "reserved"):
             edits["status"] = "approved"

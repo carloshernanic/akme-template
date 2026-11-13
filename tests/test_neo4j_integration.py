@@ -123,8 +123,11 @@ def test_real_load_refuses_foreign_nodes_and_deletes_nothing(seeded, db):
 
 def test_real_ontology_shape(seeded, db):
     _publish(seeded)
-    assert _count(db, "MATCH (c:Conceito {_projeto: 'demo'}) RETURN count(c)") == 9
-    assert _count(db, "MATCH (:Conceito)-[r:SUBCLASSE_DE]->(:Conceito) RETURN count(r)") == 5
+    # as classes de base do akme (Entity, Metric, Relation, Rule) nao viram Conceito
+    assert _count(db, "MATCH (c:Conceito {_projeto: 'demo'}) RETURN count(c)") == 5
+    assert _count(db, "MATCH (:Conceito)-[r:SUBCLASSE_DE]->(:Conceito) RETURN count(r)") == 0
+    assert _count(db, "MATCH (c:Conceito {_projeto: 'demo'}) WHERE c.publicada_nos_dados RETURN count(c)") == 5
+    assert _count(db, "MATCH (c:Conceito {nome: 'Faturamento'}) RETURN c.tipo") == "metrica"
     assert _count(db, "MATCH (:Conceito {nome: 'Pedido'})-[r:RELACAO_ONTOLOGIA {nome: 'pertenceA'}]->(:Conceito {nome: 'Cliente'}) "
                       "RETURN count(r)") == 1
     assert _count(db, "MATCH (:Conceito)-[r]->(n) WHERE NOT n:Conceito AND NOT n:Termo RETURN count(r)") == 0, "camadas separadas"
@@ -341,7 +344,7 @@ def test_real_interleaved_loads_do_not_empty_the_database(seeded, db, monkeypatc
     assert _count(db, "MATCH (n) WHERE n._projeto = 'demo' AND NOT n:Conceito AND NOT n:Termo RETURN count(n)") \
         == sum(EXPECTED_NODES.values())
     assert _count(db, "MATCH (m:_AkmeProjeto {projeto: 'demo'}) RETURN m.carga_atual") == b["carga"]
-    assert neo4j_load.verify(build_plan(seeded), "demo", 9, 10)["ok"]
+    assert neo4j_load.verify(build_plan(seeded), "demo", 5, 10)["ok"]
 
 
 def test_real_malformed_csv_is_refused_by_the_plan(seeded, db):
@@ -375,7 +378,7 @@ def test_real_backtick_label_loads_and_unicode_escape_is_refused(seeded, db):
 
     plan = _with_label(build_plan(seeded), "Cliente", "Cli`ente")
     neo4j_load.load(seeded, plan, "2026-01-01T00:00:00.000+00:00")
-    assert neo4j_load.verify(plan, "demo", 9, 10)["ok"]
+    assert neo4j_load.verify(plan, "demo", 5, 10)["ok"]
     labels = set(_count(db, "MATCH (n) UNWIND labels(n) AS l RETURN collect(DISTINCT l)"))
     assert labels == {"Cli`ente", "Pedido", "ItemPedido", "Produto", "Conceito", "Termo", "_AkmeProjeto"}
     assert _count(db, "MATCH (:Pedido)-[r:pertenceA]->(:`Cli``ente`) RETURN count(r)") == 10
@@ -407,7 +410,7 @@ def test_real_newer_load_mid_blocks_leaves_the_database_as_the_newer_one(seeded,
     assert _count(db, f"MATCH (n) WHERE {data} RETURN count(n)") == sum(EXPECTED_NODES.values())
     assert _count(db, f"MATCH (n) WHERE {data} AND n._carga <> $c RETURN count(n)", c=b["carga"]) == 0, "nada de A"
     assert _count(db, "MATCH (n)-[r]->() WHERE n._projeto = 'demo' AND r._carga <> $c RETURN count(r)", c=b["carga"]) == 0
-    assert neo4j_load.verify(build_plan(seeded), "demo", 9, 10)["ok"]
+    assert neo4j_load.verify(build_plan(seeded), "demo", 5, 10)["ok"]
 
 
 def test_real_lock_inside_the_sync_command_deletes_nothing(seeded, db, monkeypatch):
@@ -475,7 +478,7 @@ def test_real_newer_load_during_the_ontology_leaves_the_newer_one_intact(seeded,
     assert _count(db, "MATCH (n)-[r]->() WHERE n._projeto = 'demo' AND r._carga <> $c RETURN count(r)", c=b["carga"]) == 0
     assert _count(db, "MATCH (m:_AkmeProjeto {projeto: 'demo'}) RETURN m.carga_atual") == b["carga"]
     assert _count(db, "MATCH (m:_AkmeProjeto {projeto: 'demo'}) RETURN m.esquema").startswith("# Esquema do grafo")
-    assert neo4j_load.verify(build_plan(seeded), "demo", 9, 10)["ok"]
+    assert neo4j_load.verify(build_plan(seeded), "demo", 5, 10)["ok"]
 
 
 # --- Task 11: nomes do TTL, espelho da ontologia, legenda name e guia -------------------------------------------
@@ -501,11 +504,11 @@ def test_real_ttl_names_and_the_native_map_has_no_false_arrows(seeded, db):
 
 
 def test_real_ontology_layer_mirrors_the_schema_ttl(seeded, db):
-    from akme.ontology import classes, load_graph, relations
+    from akme.ontology import ROOT_CLASSES, classes, load_graph, relations
 
     _publish(seeded)
     g = load_graph(seeded.schema_path)
-    names = {c["name"] for c in classes(g)}
+    names = {c["name"] for c in classes(g)} - ROOT_CLASSES  # as classes de base do akme nao viram Conceito
     arrows = sorted((d, r["name"], x) for r in relations(g) for d in set(r["domain"]) for x in set(r["range"])
                     if d in names and x in names)
     subclasses = sorted((c["name"], p) for c in classes(g) for p in set(c["subclass_of"]) if p in names)
@@ -548,12 +551,13 @@ def test_real_load_rewrites_the_guide_for_this_database(seeded, db):
     result = _publish(seeded)
     assert not any(k.startswith("cq_") for k in result)
     guide = (seeded.docs_dir / "publish" / "neo4j_guia.html").read_text(encoding="utf-8")
-    assert guide.count("<slide ") == 6
+    assert guide.count("<slide ") == 5
     assert "apoc.create" not in guide and "RETURN a, r, b" in guide, "o banco de teste nao tem APOC"
     assert neo4j_load.has_apoc() is False
     with (seeded.docs_dir / "publish" / "neo4j_consultas.csv").open(encoding="utf-8", newline="") as f:
         queries = [(r["name"], r["query"]) for r in csv.DictReader(f) if r["query"]]
-    assert len(queries) == 2 + 4
+    assert [n for n, _ in queries][:3] == ["1. O mapa das classes", "2. O grafo inteiro", "3. A ontologia"]
+    assert len(queries) == 3 + 4, "na demo todo conceito tem dado: sem a consulta de conceitos sem dados"
     for name, query in queries:  # toda consulta do guia roda neste banco e devolve algo
         assert db.execute_query(query).records, name
 
@@ -563,12 +567,14 @@ def test_real_every_node_has_a_distinguishing_caption(seeded, db):
     rows = db.execute_query("MATCH (n) WHERE n._projeto = 'demo' AND NOT n:Conceito AND NOT n:Termo "
                             "RETURN labels(n)[0] AS l, n.name AS name").records
     assert len(rows) == sum(EXPECTED_NODES.values())
-    assert all(r["name"] and r["name"].startswith(r["l"] + " ") for r in rows)
+    assert all(r["name"] for r in rows)
+    # Cliente e Produto tem coluna com cara de nome (nm_cliente, ds_produto): a legenda e o valor; os outros, classe e chave
+    assert all(r["name"].startswith(r["l"] + " ") for r in rows if r["l"] in ("Pedido", "ItemPedido"))
     assert len({r["name"] for r in rows}) == len(rows)
     assert _count(db, "MATCH (c:Conceito {nome: 'Pedido'}) RETURN c.name") == "Pedido"
     assert _count(db, "MATCH (t:Termo {nome: 'uf'}) RETURN t.name") == "uf"
     assert _count(db, "MATCH (m:_AkmeProjeto {projeto: 'demo'}) RETURN m.name") == "Projeto demo"
-    assert _count(db, "MATCH (c:Cliente {_id: '1'}) RETURN c.name") == "Cliente 1 SP"
+    assert _count(db, "MATCH (c:Cliente {_id: '1'}) RETURN c.name") == "Construtora Horizonte"
 
 
 def _script(name):

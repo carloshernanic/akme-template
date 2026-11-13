@@ -1,6 +1,10 @@
-"""Camada de ontologia no Neo4j, espelho do schema.ttl: um no :Conceito por classe, SUBCLASSE_DE por rdfs:subClassOf,
-uma seta RELACAO_ONTOLOGIA {nome} por owl:ObjectProperty (e por par domain/range) e um no
+"""Camada de ontologia no Neo4j, espelho do schema.ttl: um no :Conceito por classe do dominio, SUBCLASSE_DE por
+rdfs:subClassOf, uma seta RELACAO_ONTOLOGIA {nome} por owl:ObjectProperty (e por par domain/range) e um no
 :Termo por termo do content.yml, ligado ao seu Conceito por TEM_TERMO.
+
+As classes de base do akme (Entity, Metric, Relation, Rule) nao viram Conceito: nao sao conceitos do negocio. De qual
+delas a classe descende fica em `tipo` (entidade, metrica, relacao ou regra). `publicada_nos_dados` diz se ha nos de
+dado com esse label (ou, na metrica, se ela tem expressao sobre uma fonte publicada).
 
 Devolve statements (texto Cypher, parametros) deterministicos. Texto vindo do cliente ou da ontologia vai sempre como
 parametro; so identificadores (nome da relacao) entram no texto, pelo name() de neo4j_values. A carga (Task 6)
@@ -12,13 +16,13 @@ import math
 import re
 from typing import Any
 
-from ..ontology import classes, is_metric_class, load_content, load_graph, relations
+from ..ontology import ROOT_CLASSES, classes, is_metric_class, load_content, load_graph, relations, root_class
 from ..project import Project
 from .contracts import fanout_sources
-from .neo4j_values import name
+from .neo4j_values import ONTOLOGY_TYPE, name
 
+KIND = {"Entity": "entidade", "Metric": "metrica", "Relation": "relacao", "Rule": "regra"}  # valor de Conceito.tipo
 _FLIP = {"many_to_one": "one_to_many", "one_to_many": "many_to_one"}  # multiplicidade lida ao contrario
-ONTOLOGY_TYPE = "RELACAO_ONTOLOGIA"  # tipo unico das setas entre Conceito; o nome da relacao fica em `nome`
 
 Statement = tuple[str, dict[str, Any]]
 
@@ -74,6 +78,32 @@ def term_entries(content: dict[str, Any], concepts: set[str]) -> list[tuple[str,
     return out
 
 
+def exported_concepts(g: Any, content: dict[str, Any]) -> set[str]:
+    """Classes que viram no :Conceito: todas, menos as de base do akme. Uma classe de base so entra se um termo estiver
+    ligado direto a ela, para o Termo nao ficar sem Conceito. A carga e a conferencia depois dela leem daqui."""
+    used_roots = {t.get("class") for t in content["terms"]} & ROOT_CLASSES
+    # relacao com dominio ou alcance numa classe de base: ela entra, senao a seta RELACAO_ONTOLOGIA sumiria calada
+    for r in relations(g):
+        used_roots |= (set(r["domain"]) | set(r["range"])) & ROOT_CLASSES
+    return {c["name"] for c in classes(g)} - (ROOT_CLASSES - used_roots)
+
+
+def concepts_without_data(g: Any, content: dict[str, Any], labels: dict[str, str]) -> list[dict[str, Any]]:
+    """Classes do dominio sem no de dado (e metricas sem expressao sobre fonte publicada), por nome: o que a ontologia
+    define e a carga nao traz. `labels`: fonte -> label do plano."""
+    with_data = set(labels.values())
+    return [c for c in sorted(classes(g), key=lambda c: c["name"])
+            if c["name"] not in ROOT_CLASSES and c["name"] not in with_data
+            and not (is_metric_class(g, c["name"]) and _metric_published(content, c["name"], labels))]
+
+
+def _metric_published(content: dict[str, Any], cls: str, labels: dict[str, str]) -> bool:
+    """A metrica tem mapping de papel metric sobre uma fonte que virou no no grafo."""
+    terms = {t["name"] for t in content["terms"] if t.get("class") == cls}
+    return any(m.get("term") in terms and m.get("role") == "metric" and m.get("source") in labels
+               for m in content["mappings"])
+
+
 def _metric_props(content: dict[str, Any], contracts: list[dict[str, Any]], cls: str,
                   labels: dict[str, str]) -> dict[str, Any]:
     """Contrato da metrica: termo da classe com mapping de papel metric. So os campos presentes.
@@ -105,16 +135,22 @@ def ontology_statements(project: Project, published: set[str], labels: dict[str,
     g = load_graph(project.schema_path)
     content = load_content(project)
     contracts = content["relation_contracts"]
-    cls_list = sorted(classes(g), key=lambda c: c["name"])
-    names = {c["name"] for c in cls_list}
+    names = exported_concepts(g, content)
+    cls_list = sorted((c for c in classes(g) if c["name"] in names), key=lambda c: c["name"])
+    with_data = set(labels.values())
     rels = {r["name"]: r for r in relations(g)}
     out: list[Statement] = []
 
     for c in cls_list:
         props: dict[str, Any] = {"nome": c["name"], "name": c["name"], "rotulo": c["label"], "definicao": c["comment"],
                                  "iri": c["iri"]}
+        kind = KIND.get(root_class(g, c["name"]))
+        if kind:
+            props["tipo"] = kind
+        props["publicada_nos_dados"] = c["name"] in with_data
         if is_metric_class(g, c["name"]):
             props |= _metric_props(content, contracts, c["name"], labels)
+            props["publicada_nos_dados"] = _metric_published(content, c["name"], labels)
         out.append((f"MERGE {_CONCEITO} SET c = $props, c._projeto = $projeto, c._carga = $carga",
                     {"nome": c["name"], "props": props}))
 

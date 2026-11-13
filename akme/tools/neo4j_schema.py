@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..ontology import classes, is_metric_class, load_content, load_graph, relations
+from ..ontology import classes, is_metric_class, load_content, load_graph, relations, root_class
 from ..project import Project
 from .contracts import fanout_sources
-from .neo4j_onto import join_labels
+from .neo4j_onto import KIND, concepts_without_data, join_labels
 from .neo4j_plan import Plan
 
 SCHEMA_QUERY = "MATCH (p:_AkmeProjeto {projeto: $projeto}) RETURN p.esquema"
@@ -81,7 +81,8 @@ def llm_schema(project: Project, plan: Plan) -> str:
         lines += ["ATENCAO: o plano tem problemas e a carga seria recusada; este texto descreve o que seria gravado.", ""]
     lines += [
         "## Como consultar", "",
-        "- Labels do akme que NAO sao dados: `Conceito` (um no por classe da ontologia, com `definicao`), "
+        "- Labels do akme que NAO sao dados: `Conceito` (um no por classe da ontologia, com `definicao`, `tipo` "
+        "(entidade, metrica, relacao ou regra) e `publicada_nos_dados`: se ha nos de dado com esse label), "
         "`Termo` (termos do negocio, ligados ao seu Conceito por `TEM_TERMO`) e `_AkmeProjeto` (marca do projeto; "
         "guarda este esquema em `esquema`).",
         "- Arestas de dado tem como tipo o nome exato da relacao na ontologia (`[:feitoPorCliente]`). A camada de "
@@ -98,8 +99,9 @@ def llm_schema(project: Project, plan: Plan) -> str:
            f"({ID_TEXT}), `_projeto` o projeto e `_carga` a data da carga. Nos e arestas de dado nao tem `_descricao`: "
            "a definicao de cada classe e relacao esta neste esquema e na propriedade `definicao` do `Conceito` "
            "(`MATCH (c:Conceito {nome: 'Label'}) RETURN c.definicao`)."]),
-        "- `name` e a legenda que o akme grava em todo no para o Neo4j Browser (label, inicio da chave e uma coluna "
-        "descritiva), nao uma coluna da origem; nao use em filtros. Quando a fonte tem coluna `name`, vale a da origem.",
+        "- `name` e a legenda que o akme grava em todo no para o Neo4j Browser (o valor da coluna de legenda de cada "
+        "label, indicada abaixo, ou o label com a chave), nao uma coluna da origem; nao use em filtros: filtre pela "
+        "coluna original. Quando a fonte tem coluna `name`, vale a da origem.",
         f"- Este esquema fica no banco: `{SCHEMA_QUERY}`.",
         "- Propriedade sem tipo declarado e texto (string), mesmo quando parece numero. Celula vazia na origem nao "
         "vira propriedade.",
@@ -112,12 +114,20 @@ def llm_schema(project: Project, plan: Plan) -> str:
             lines.append(f"- definicao: {_one_line(definitions[src.label])}")
         lines.append(f"- fonte: `{src.source}`; nos previstos: {plan.nodes.get(src.label, 0)}")
         lines.append("- chave: " + (", ".join(f"`{c}`" for c in src.key) if src.key else "nenhuma"))
+        if src.caption and src.caption_alone and not src.own_name:
+            lines.append(f"- legenda (`name`): o valor de `{src.caption}`")
         mapped = column_terms(content, src.source)
+        joined = {e.from_column: e for e in plan.edges if e.from_source == src.source and e.domain == src.label}
         lines.append("- propriedades:")
         for column in sorted(src.columns):
             entry = f"  - `{column}` ({src.types.get(column, 'string')})"
-            if column in mapped:
-                entry += ": " + " | ".join(sorted(mapped[column]))
+            notes = sorted(mapped.get(column, []))
+            if column in joined and column not in src.key:
+                e = joined[column]
+                notes.append(f"coluna de juncao: repete o que a aresta `[:{e.relation}]` ja diz; para chegar em "
+                             f"`(:{e.range})`, siga a aresta em vez de filtrar por esta coluna")
+            if notes:
+                entry += ": " + " | ".join(notes)
             lines.append(entry)
         out_edges = sorted((e for e in plan.edges if e.domain == src.label), key=lambda e: e.relation)
         if out_edges:
@@ -146,6 +156,17 @@ def llm_schema(project: Project, plan: Plan) -> str:
         lines += ["Relacoes da ontologia sem aresta no grafo (nao use em consultas de dados): "
                   + ", ".join(sorted(plan.relations_not_published)), ""]
 
+    without_data = concepts_without_data(g, content, labels)
+    if without_data:
+        lines += ["## Conceitos sem dados no grafo", "",
+                  "Estao na ontologia (no `Conceito` com `publicada_nos_dados: false`), mas nenhum no de dado tem esse "
+                  "label: nao use como label em consultas de dados. Servem para explicar o dominio.", ""]
+        for c in without_data:
+            kind = KIND.get(root_class(g, c["name"]))
+            lines.append(f"- `{c['name']}`" + (f" ({kind})" if kind else "")
+                         + (f": {_one_line(c['comment'])}" if c["comment"] else ""))
+        lines.append("")
+
     if content["glossary"]:
         lines += ["## Glossario", ""]
         for item in content["glossary"]:
@@ -159,7 +180,9 @@ def llm_schema(project: Project, plan: Plan) -> str:
         for rule in content["constraints"]:
             where = ", ".join(x for x in (f"termo {rule['term']}" if rule.get("term") else "",
                                            f"severidade {rule['severity']}" if rule.get("severity") else "") if x)
-            lines.append(f"- {rule.get('id', '')}" + (f" ({where})" if where else "") + f": {_one_line(rule.get('rule'))}")
+            # o content.yml nem sempre guarda id na restricao: sem ele, a linha comeca pelo termo
+            head = (f"{rule['id']} ({where})" if where else str(rule["id"])) if rule.get("id") else where
+            lines.append("- " + (f"{head}: " if head else "") + _one_line(rule.get("rule")))
         lines.append("")
     if content["precedence"]:
         lines += ["## Precedencias", ""]

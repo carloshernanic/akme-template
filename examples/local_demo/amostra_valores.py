@@ -115,7 +115,8 @@ def main() -> int:
                 expected[identity] = {c: convert(src.types.get(c, "string"), v) for c, v in r.items() if filled(v)}
                 if not src.own_name or not filled(r.get("name")):  # legenda gravada pelo akme
                     expected[identity]["name"] = caption(src.label, [r[c] for c in src.key],
-                                                         r.get(src.caption) if src.caption else None)
+                                                         r.get(src.caption) if src.caption else None,
+                                                         src.caption_alone)
             records = driver.execute_query(
                 f"UNWIND $ids AS id MATCH (n:`{src.label.replace('`', '``')}` {{_id: id}}) WHERE n._projeto = $p "
                 "RETURN id, collect(properties(n)) AS ns", {"ids": list(expected), "p": project.name}, routing_="r",

@@ -52,8 +52,9 @@ CONSTRAINTS = sorted(["akme_conceito_uniq_projeto_nome", "akme_projeto_uniq", "a
                      + [f"akme_uniq_{label}" for label in SOURCES])
 RESERVED = {"_id", "_projeto", "_carga", "_descricao", "name"}  # name: legenda gravada pelo akme
 # classes do schema.ttl da demo: as 4 do template mais as 5 das edicoes da demo
-CONCEITOS = ["Cliente", "Entity", "Faturamento", "ItemPedido", "Metric", "Pedido", "Produto", "Relation", "Rule"]
-SUBCLASSES = ["Cliente->Entity", "Faturamento->Metric", "ItemPedido->Entity", "Pedido->Entity", "Produto->Entity"]
+# as classes de base do akme (Entity, Metric, Relation, Rule) nao viram Conceito; o tipo fica em Conceito.tipo
+CONCEITOS = ["Cliente", "Faturamento", "ItemPedido", "Pedido", "Produto"]
+SUBCLASSES: list[str] = []
 DATA = "n._projeto = $p AND NOT n:Conceito AND NOT n:Termo"
 DESCRICAO = None  # None: le neo4j.descricao_nos_dados do akme.yml da pasta atual; True ou False forca o modo
 
@@ -195,10 +196,14 @@ def _main() -> int:
                   "WITH startNode(r).name AS a, type(r) AS t, endNode(r).name AS b "
                   "WHERE NOT a IN ['Conceito', 'Termo', '_AkmeProjeto'] RETURN a, t, b")),
               sorted((d, relation, r) for relation, (d, r, _) in EDGES.items()))
-        check("legenda name em todo no de dado, distinta e comecando pelo label",
+        # Cliente e Produto tem coluna com cara de nome (nm_cliente, ds_produto): a legenda e o valor dela; Pedido e
+        # ItemPedido nao tem: a legenda comeca pelo label e a chave
+        check("legenda name em todo no de dado, distinta; nome do cliente e do produto, ou label e chave",
               lambda: scalar(f"MATCH (n) WHERE {DATA} WITH n, labels(n)[0] AS l "
                              "WITH count(n) AS total, count(DISTINCT n.name) AS distintos, "
-                             "count(CASE WHEN n.name STARTS WITH l + ' ' THEN 1 END) AS certos "
+                             "count(CASE WHEN (l = 'Cliente' AND n.name = n.nm_cliente) "
+                             "OR (l = 'Produto' AND n.name = n.ds_produto) "
+                             "OR (l IN ['Pedido', 'ItemPedido'] AND n.name STARTS WITH l + ' ') THEN 1 END) AS certos "
                              "RETURN total = distintos AND total = certos AS c", p=p), True)
         check("nenhuma aresta entre dados e Conceito",
               lambda: scalar("MATCH (a)-[r]-(b:Conceito) WHERE NOT a:Conceito AND NOT a:Termo RETURN count(r) AS c"), 0)

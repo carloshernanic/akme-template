@@ -102,6 +102,17 @@ def superclasses(g: Graph, name: str) -> set[str]:
     return seen
 
 
+# classes de base do akme: toda classe do dominio descende de uma delas; nao sao conceitos do negocio
+ROOT_CLASSES = {"Entity", "Relation", "Rule", "Metric"}
+
+
+def root_class(g: Graph, name: str) -> str:
+    """Classe de base (Entity, Metric, Relation ou Rule) de que `name` descende; vazio se nenhuma."""
+    if name in ROOT_CLASSES:
+        return name
+    return next(iter(sorted(ROOT_CLASSES & superclasses(g, name))), "")
+
+
 def is_metric_class(g: Graph, name: str) -> bool:
     return name == "Metric" or "Metric" in superclasses(g, name)
 

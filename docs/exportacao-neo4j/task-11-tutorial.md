@@ -2,7 +2,10 @@
 
 Pedido de Mateus em 12/11/2026, depois da crítica do João (o Browser mostra bolinhas soltas e exige Cypher): um tutorial gerado sempre que alguém publica, sobre o projeto que for. Base: [Pesquisa: como ver o grafo](pesquisa-visualizacao.md) e o protótipo feito à mão para o Olist.
 
-A task passou por três decisões de Mateus no mesmo dia, registradas em [Decisões de 12/11/2026](#decisoes-de-12112026). Esta página descreve o estado final. O escopo está congelado.
+A task passou por três decisões de Mateus no mesmo dia, registradas em [Decisões de 12/11/2026](#decisoes-de-12112026). Esta página descreve o estado final da Task 11. O escopo está congelado.
+
+!!! note "Mudança de 13/11/2026"
+    Na correção G7/G8 o guia passou de seis para cinco páginas: "Os dados" entrou na primeira, que agora abre pelo mapa das classes e, até 500 registros, pelo grafo inteiro; o "Explorar" parte do registro mais ligado de cada classe; e o publish gera `docs/publish/neo4j_estilo.grass`. As perguntas de competência continuam fora do guia (decisão 3, abaixo). O texto desta página não foi reescrito; o guia atual está na seção 4.1 de `reports/docs_exp_neo4j/README.md`.
 
 ## O que muda
 

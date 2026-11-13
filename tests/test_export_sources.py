@@ -126,7 +126,7 @@ def test_review_page_shows_export_group_with_data_check(seeded):
     assert view["group"] == "source" and view["group_label"] == "Exportação Neo4j" and view["stage"] == 5
     assert view["title"] == "Tabela pedidos" and "Pedido" in view["subtitle"]
     assert any("10 de 10" in line for line in view["observed"]["lines"])
-    assert {f["key"] for f in view["editable"]} == {"key", "types"}
+    assert {f["key"] for f in view["editable"]} == {"key", "types", "caption"}
     excluded = present(_propose(seeded, {"source": "clientes", "exclude": "fora do escopo"}))
     assert "fora" in excluded["subtitle"]
 
@@ -244,3 +244,105 @@ def test_add_source_with_invisible_character_in_key_is_shown_and_explained(seede
     message = str(exc.value)
     assert "coluna inexistente em pedidos: <U+FEFF>id_pedido" in message
     assert "﻿" not in message and "BOM" in message and "sem esse caractere" in message
+
+
+# --- legenda (caption) decidida na etapa 5 ---
+
+def test_suggestion_proposes_a_name_like_caption(seeded):
+    by = {s["source"]: s for s in suggest_sources(seeded)}
+    assert by["clientes"]["caption"] == "nm_cliente" and by["clientes"]["payload"]["caption"] == "nm_cliente"
+    assert any(n.startswith("legenda: nm_cliente") for n in by["clientes"]["notes"])
+    assert by["pedidos"]["caption"] == "" and "caption" not in by["pedidos"]["payload"]
+    assert any("nenhuma coluna com cara de nome" in n for n in by["pedidos"]["notes"])
+
+
+def test_caption_is_checked_shown_and_saved(seeded):
+    _without_sources(seeded)
+    with pytest.raises(EditError, match="coluna inexistente em pedidos: nao_existe"):
+        _propose(seeded, {"source": "pedidos", "key": ["id_pedido"], "caption": "nao_existe"})
+    edit = _propose(seeded, {"source": "pedidos", "key": ["id_pedido"], "caption": "status"})
+    cap = edit.payload["checked"]["caption"]
+    assert cap == {"column": "status", "decided": True, "alone": True, "rows": 10, "filled": 10, "example": "FATURADO"}
+    view = present(edit)
+    assert {"label": "Legenda", "value": "status", "mono": True} in view["fields"]
+    assert any(line.startswith("legenda (decidida): coluna status, preenchida em 10 de 10 linhas") for line in view["observed"]["lines"])
+    ontology_write.review_edit(seeded, edit.id, "accept", "maria")
+    ontology_write.apply_reviewed(seeded, "maria")
+    entry = next(s for s in load_content(seeded)["sources"] if s["source"] == "pedidos")
+    assert entry["caption"] == "status"
+
+
+def test_without_a_caption_the_review_shows_the_automatic_one(seeded):
+    _without_sources(seeded)
+    named = present(_propose(seeded, {"source": "clientes", "key": ["id_cliente"]}))
+    assert {"label": "Legenda", "value": "automática", "mono": False} in named["fields"]
+    assert any(line.startswith("legenda (automática): coluna nm_cliente") and "Construtora Horizonte" in line
+               for line in named["observed"]["lines"])
+    plain = present(_propose(seeded, {"source": "pedidos", "key": ["id_pedido"]}))
+    assert any("nenhuma coluna com cara de nome" in line and "Pedido 1001" in line for line in plain["observed"]["lines"])
+
+
+def test_reviewer_can_change_or_clear_the_caption(seeded):
+    _without_sources(seeded)
+    edit = _propose(seeded, {"source": "pedidos", "key": ["id_pedido"], "caption": "status"})
+    with pytest.raises(EditError, match="coluna inexistente em pedidos: nada"):
+        ontology_write.review_edit(seeded, edit.id, "accept", "maria", edits={"caption": "nada"})
+    reviewed = ontology_write.review_edit(seeded, edit.id, "accept", "maria", edits={"caption": "nf"})
+    assert reviewed.review.edits["caption"] == "nf" and reviewed.review.edits["checked"]["caption"]["column"] == "nf"
+    cleared = ontology_write.review_edit(seeded, edit.id, "accept", "maria", edits={"caption": ""})
+    assert cleared.review.edits["caption"] == ""
+    ontology_write.apply_reviewed(seeded, "maria")
+    entry = next(s for s in load_content(seeded)["sources"] if s["source"] == "pedidos")
+    assert "caption" not in entry, "legenda vazia nao e gravada: vale a automatica"
+
+
+def test_sparse_caption_is_an_alert_in_the_review(seeded):
+    _without_sources(seeded)
+    _rewrite(seeded, "pedidos", "status", ["FATURADO", "", "", "", "", "", "", "", "", ""])
+    view = present(_propose(seeded, {"source": "pedidos", "key": ["id_pedido"], "caption": "status"}))
+    assert any("está vazia em 9 de 10 linhas" in a for a in view["alerts"])
+
+
+def test_excluded_source_refuses_a_caption(seeded):
+    _without_sources(seeded)
+    with pytest.raises(EditError, match="fonte excluida nao pode ter key, types nem caption"):
+        _propose(seeded, {"source": "clientes", "exclude": "fora", "caption": "uf"})
+
+
+def test_reserved_column_is_refused_in_step_5(seeded):
+    _without_sources(seeded)
+    path = seeded.root / "data" / "clientes.csv"
+    header, *rows = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join([header + ",_id", *[r + ",x" for r in rows]]) + "\n", encoding="utf-8")
+    with pytest.raises(EditError, match="a coluna _id tem um nome reservado.*Renomeie a coluna na origem"):
+        _propose(seeded, {"source": "clientes", "key": ["id_cliente"]})
+
+
+# --- nomes reservados barrados na etapa em que sao criados (N4) ---
+
+def test_reserved_names_are_refused_when_proposed(seeded):
+    propose = ontology_write.propose_edit
+    with pytest.raises(EditError, match="o nome de classe Conceito e reservado.*ConceitoRubrica"):
+        propose(seeded, "add_class", {"name": "Conceito", "label": "Conceito", "comment": "nota de I a A+"})
+    with pytest.raises(EditError, match="o nome de classe Termo e reservado"):
+        propose(seeded, "add_class", {"name": "Termo", "label": "Termo", "comment": "c"})
+    with pytest.raises(EditError, match="o nome de relacao TEM_TERMO e reservado"):
+        propose(seeded, "add_relation", {"name": "TEM_TERMO", "domain": "Pedido", "range": "Cliente", "label": "tem",
+                                         "multiplicity": "many_to_one", "no_join_reason": "conceitual"})
+    with pytest.raises(EditError, match="a coluna _id tem um nome reservado"):
+        propose(seeded, "add_mapping", {"term": "uf", "source": "clientes", "column": "_id"})
+    assert propose(seeded, "add_class", {"name": "ConceitoRubrica", "label": "Conceito", "comment": "nota de I a A+"})
+
+
+def test_validate_warns_about_reserved_names_already_in_the_ontology(seeded):
+    from rdflib import OWL, RDF
+    from akme.ontology import base_ns, load_graph, save_graph
+    from akme.tools.validate import validate
+
+    assert not [f for f in validate(seeded).findings if f.check == "reserved_name"]
+    g = load_graph(seeded.schema_path)
+    g.add((base_ns(g)["Conceito"], RDF.type, OWL.Class))
+    save_graph(g, seeded.schema_path)
+    found = [f for f in validate(seeded).findings if f.check == "reserved_name"]
+    assert [(f.level, f.subject) for f in found] == [("warning", "Conceito")]
+    assert "a exportacao para o Neo4j recusa este nome" in found[0].message

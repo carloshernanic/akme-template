@@ -29,7 +29,8 @@ Palavras que aparecem no guia:
 | Docker, contêiner | O Docker roda o Neo4j isolado na sua máquina, sem instalar nada no sistema. O contêiner é esse Neo4j rodando |
 | Volume | Pasta do Docker onde o Neo4j guarda os dados. Sobrevive quando o contêiner é recriado |
 | Cypher | A linguagem de consulta do Neo4j. O akme grava o grafo com comandos Cypher, e você usa Cypher para consultar no Browser |
-| Conceito (camada da ontologia) | Nó com o label `Conceito`, um por classe da ontologia (ex: `Pedido`), com a definição. As relações da ontologia aparecem como setas `RELACAO_ONTOLOGIA` entre conceitos, com o nome da relação em `nome` |
+| Conceito (camada da ontologia) | Nó com o label `Conceito`, um por classe da ontologia (ex: `Pedido`), com a definição, o `tipo` (entidade, métrica, relação ou regra) e `publicada_nos_dados`, que diz se há registros dessa classe no grafo. As relações da ontologia aparecem como setas `RELACAO_ONTOLOGIA` entre conceitos, com o nome da relação em `nome` |
+| Legenda | O texto que aparece na bolinha de cada nó no Neo4j Browser. Você escolhe a coluna na etapa 5 (por exemplo, o nome do cliente) |
 | Sincronização | No fim de cada carga, o akme apaga do banco o que é deste projeto e não veio da origem nesta carga. Assim as contagens do banco batem com as da origem lida nesta carga |
 | Dry-run | Ensaio: gera tudo e mostra o resumo, sem gravar no banco |
 
@@ -158,18 +159,35 @@ A ontologia diz o que cada tabela significa, mas não diz duas coisas que o Neo4
 - **a chave:** qual coluna identifica cada linha, para a mesma linha não virar dois nós;
 - **os tipos:** quais colunas são data, inteiro ou decimal. Sem tipo, a coluna vira texto, e não dá para somar nem comparar datas.
 
+E uma terceira, que decide se o grafo se lê ou não:
+- **a legenda:** qual coluna aparece escrita na bolinha de cada nó. Escolha a que você usaria para reconhecer o registro: o nome do cliente, o título do projeto. Nunca um código.
+
 1. **No chat, peça ao agente:** "prepare a exportação para o Neo4j". Ele chama `suggest_sources`, ajusta o que exige julgamento e registra uma proposta por tabela. Exemplos de ajuste: chave composta, dinheiro como decimal. Cada proposta é conferida contra os dados na hora, lendo a tabela inteira.
 2. **Abra a página de revisão** no endereço que o agente indicar, normalmente http://127.0.0.1:8765/.
 3. **Em "Por tipo", clique em "Exportação Neo4j".** Cada cartão é uma tabela, com:
    - a chave;
    - os tipos;
-   - o que o dado mostra, por exemplo "2 de 2 valores convertem para data".
+   - a legenda: a coluna escolhida, ou "automática";
+   - o que o dado mostra, por exemplo "2 de 2 valores convertem para data" e como a bolinha vai aparecer ("a bolinha mostra, por exemplo, Construtora Horizonte").
 
    Tabelas que não aparecem na ontologia vêm marcadas para ficar de fora.
-4. **Corrija o que discordar.** Em "Ajustar texto antes de aceitar", mude a chave ou os tipos no formato `coluna: tipo, coluna: tipo`. Os tipos possíveis são `string`, `integer`, `float` e `date`. A página confere a edição contra os dados.
+4. **Corrija o que discordar.** Em "Ajustar texto antes de aceitar", mude a chave, os tipos (no formato `coluna: tipo, coluna: tipo`) ou a legenda (o nome de uma coluna). Os tipos possíveis são `string`, `integer`, `float` e `date`. A página confere a edição contra os dados.
+   - **Legenda "automática":** sem coluna escolhida, o akme procura uma coluna de texto com cara de nome (`nome`, `nm_`, `titulo`, `descricao`, `ds_`...) preenchida em pelo menos 90% das linhas. Se não achar, a bolinha mostra a classe e a chave, como `Pedido 1001`. O cartão diz qual das duas vai valer.
+   - **Para tirar uma legenda proposta,** apague o campo: volta a valer a automática.
 5. **Clique em "Aceitar tudo", depois em "Salvar decisões", e use "Aplicar decididas" com o seu nome.**
 
 "Aceitar tudo" aceita só o que não exige escolha sua. O que precisar de escolha continua na lista, com o motivo. As decisões ficam no `content.yml`, versionadas com a ontologia.
+
+## O caminho curto: a aba "Exportar" da página
+
+Desde 13/11/2026 a página local faz o caminho inteiro. Rode `uv run akme review`, abra o endereço que ele mostra e clique na aba **Exportar**. São quatro passos na mesma tela:
+
+1. **Banco:** diz o que falta no `.env`, mostra as linhas para colar e o comando do Docker que cria o Neo4j (já com as portas do seu `.env` e o tutorial abrindo sozinho). Depois de salvar o `.env`, clique em **Conferir de novo**: a página lê o arquivo outra vez e testa a conexão. A senha fica só no `.env`; a página nunca a mostra nem a pede.
+2. **O que vai para o grafo:** a prévia do dry-run: registros por classe, ligações, o que já está no banco, avisos e os problemas que bloqueiam a carga. Classe sem nenhuma ligação sai marcada "sem ligações".
+3. **Carregar:** o botão **Carregar no Neo4j**, liberado depois de marcar "Entendi que a carga altera o banco e não tem como desfazer". Se a carga for apagar mais de 20% de alguma classe, a página pede o número de registros removidos, como a CLI. As recusas são as mesmas da CLI (problema no plano, banco de outro projeto).
+4. **Ver o grafo:** o link do Neo4j Browser, o usuário e a senha para entrar, o comando do tutorial pronto para copiar e o arquivo de consultas para baixar. Se o Browser não responder no endereço esperado, a página avisa e diz qual linha pôr no `.env` (`AKME_NEO4J_BROWSER_URL`); sem ela o tutorial não abre e o Browser não mostra erro.
+
+A carga pelo botão é a mesma da CLI. Só quem está na página consegue dispará-la: o agente não tem tool nem rota para isso. As Partes 1 a 4 abaixo continuam valendo para quem prefere o terminal e explicam cada passo em detalhe.
 
 ## Parte 3. Exportar
 
@@ -308,14 +326,13 @@ Na lateral do Browser, o ícone de banco lista os labels, que são as classes, e
 
 ### 4.1 Abrir o tutorial do projeto
 
-Todo `publish --target neo4j`, dry-run ou carga, gera um tutorial curto do projeto para o Neo4j Browser: `docs/publish/neo4j_guia.html`. São seis páginas de navegação, com consultas que rodam com um clique:
+Todo `publish --target neo4j`, dry-run ou carga, gera um tutorial curto do projeto para o Neo4j Browser: `docs/publish/neo4j_guia.html`. São cinco páginas de navegação, com consultas que rodam com um clique:
 
-1. **O que tem aqui:** cada classe com o número de registros;
-2. **A ontologia:** classes e relações com os nomes do `schema.ttl`;
-3. **Os dados:** o mapa calculado pelo Neo4j, uma bolinha por classe;
-4. **Explorar:** um registro de cada classe e tudo o que está ligado a ele;
-5. **Como navegar:** o que cada clique do Browser faz;
-6. **Perguntas em português:** o caminho para o console da Aura (seção 4.2; o gerador de Cypher e o AuraDB não foram testados).
+1. **O que tem aqui:** começa pelo desenho. Primeiro o mapa das classes (uma bolinha por classe, uma seta por ligação que existe nos dados); em grafo pequeno (até 500 registros), também o grafo inteiro numa consulta; depois, cada classe com o número de registros. Classe sem nenhuma ligação nos dados sai marcada "(sem ligações)";
+2. **A ontologia:** classes e relações com os nomes do `schema.ttl`, e a lista dos conceitos que ainda não têm registros no grafo;
+3. **Explorar:** o registro mais ligado de cada classe e tudo o que está ligado a ele (para classe sem ligações, só os registros);
+4. **Como navegar:** o que cada clique do Browser faz e como importar as cores;
+5. **Perguntas em português:** o caminho para o console da Aura (seção 4.2; o gerador de Cypher e o AuraDB não foram testados).
 
 Para abrir:
 
@@ -325,9 +342,11 @@ Para abrir:
 
 O servidor só entrega o guia ao Neo4j Browser: `http://localhost:7474`, `http://127.0.0.1:7474`, a porta de `AKME_NEO4J_BROWSER_URL` (Docker com outra porta) e `https://console.neo4j.io`. Outro site aberto no navegador não consegue lê-lo.
 
-**Seta `RELACAO_ONTOLOGIA`** = relação da ontologia; o nome do TTL está em `nome`. Para ver o nome na seta: no painel *Results overview*, clique no chip `RELACAO_ONTOLOGIA` e escolha `nome` como legenda (o Browser guarda a escolha). A página "A ontologia" do tutorial já desenha com os nomes quando o banco tem o plugin APOC (setas virtuais, nada gravado).
+**Seta `RELACAO_ONTOLOGIA`** = relação da ontologia; o nome do TTL está em `nome`. Para ver o nome na seta: importe o estilo (abaixo); ou, no painel *Results overview*, clique no chip `RELACAO_ONTOLOGIA` e escolha `nome` como legenda (o Browser guarda a escolha). A página "A ontologia" do tutorial já desenha com os nomes quando o banco tem o plugin APOC (setas virtuais, nada gravado).
 
 Para abrir sozinho a cada conexão, use a linha opcional `NEO4J_browser_post__connect__cmd` do `docker run` (passo 1.4). Para um contêiner que já existe, recrie-o com a linha nova (o volume guarda os dados).
+
+**Cores por classe (uma vez por navegador).** O publish também gera `docs/publish/neo4j_estilo.grass`: uma cor fixa por classe, a camada de ontologia em cinza, o nome dentro de cada bolinha e o nome da relação nas setas `RELACAO_ONTOLOGIA`. Para aplicar: rode `:style` no campo do topo, clique no botão **Upload GraSS styles** (seta para cima, no canto do quadro), escolha o arquivo e confirme em **Import**. O Browser guarda o estilo naquele navegador; para voltar ao padrão, o botão **Reset styles to default** do mesmo quadro. Sem o arquivo, o Browser sorteia as cores e as bolinhas ficam pequenas demais para o nome caber.
 
 As consultas do tutorial também estão em `docs/publish/neo4j_consultas.csv`. No Browser, ícone **Queries**, **Upload**, escolha o arquivo: aparece a pasta `akme <projeto>`. As consultas importadas ficam só naquele navegador.
 
@@ -343,8 +362,30 @@ O console da Neo4j na nuvem (`console.neo4j.io`) pode ser ligado ao banco local 
 O que precisa saber:
 
 - **Conexão rápida, sem TLS, a cada sessão.** "Add deployment" (Instances) só aceita `https`, `neo4j+s` ou `bolt+s`; o banco local, sem TLS, não pode ser salvo ali.
-- **O gerador de Cypher precisa do plugin APOC** no banco: no Docker, acrescente `--env NEO4J_PLUGINS='["apoc"]'` ao `docker run` do passo 1.4 (não testado com o gerador). Confira a consulta proposta antes de usar a resposta: ninguém a revisou.
+- **O gerador de Cypher precisa do plugin APOC** no banco. Sem ele, o Query mostra o aviso "The gen-ai tool requires the apoc.meta.schema procedure installed. Please install APOC to use the query generator" (visto em 13/11/2026). Como ligar está logo abaixo, em "Ligar o APOC". Confira a consulta proposta antes de usar a resposta: ninguém a revisou.
 - **O Bloom não responde perguntas de número.** "Quantas cidades?" devolve nós, não um número. Para números, use o Query.
+
+#### Ligar o APOC
+
+O APOC é um plugin oficial do Neo4j que o Docker baixa e instala sozinho ao subir, com a linha `--env NEO4J_PLUGINS='["apoc"]'`. Num contêiner novo, acrescente essa linha ao `docker run` do passo 1.4. Num contêiner que já existe, recrie-o com a linha nova: **o grafo e a senha ficam no volume, não no contêiner**, então nada se perde.
+
+```bash
+set -a; . ./.env; set +a
+docker rm -f akme-neo4j
+NEO4J_AUTH="neo4j/$AKME_NEO4J_PASSWORD" docker run -d --name akme-neo4j \
+  --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
+  --env NEO4J_AUTH --volume=akme-neo4j-data:/data \
+  --env NEO4J_PLUGINS='["apoc"]' \
+  neo4j:2026.10.1
+```
+
+Use o mesmo nome, as mesmas portas e o mesmo volume do seu contêiner (`docker ps` mostra nome e portas; `docker inspect <nome> --format '{{range .Mounts}}{{.Name}} {{end}}'` mostra o volume). Se você usava a linha opcional `NEO4J_browser_post__connect__cmd`, repita-a.
+
+- Na primeira subida, o Docker baixa o APOC da internet: espere cerca de 1 minuto antes de conectar.
+- Para conferir, no Query ou no Browser: `SHOW PROCEDURES YIELD name WHERE name = 'apoc.meta.schema' RETURN name` deve devolver uma linha.
+- Reconecte o console (passos 1 a 4 acima): o aviso amarelo some.
+- A carga do akme não muda: o APOC não grava nós nem conflita com ela. Com ele, a página "A ontologia" do tutorial também desenha as setas com os nomes (seção 4.1).
+- **Não testado ainda** (13/11/2026): o gerador de Cypher do console com o APOC ligado. Quem testar, registre aqui o resultado.
 
 Cuidados com dado real de cliente, antes de usar o console:
 
@@ -361,7 +402,7 @@ Cada nó de dado tem:
 - `_id`, que é a identidade dele, formada pela chave (ex: `1001`, ou `1001/CIM-50` numa chave composta);
 - `_projeto` e `_carga`, usadas pela proteção do destino e pela sincronização;
 - só se você ligar a opção (abaixo), `_descricao`, a definição da classe, igual à do `Conceito`. Sem a opção, que é o padrão, a definição fica no `Conceito` de mesmo nome: `MATCH (c:Conceito {nome: 'Pedido'}) RETURN c.definicao`;
-- `name`, a legenda que o Browser mostra na bolinha: o label, o início da chave e o valor de uma coluna descritiva (por exemplo, `ItemPedido 1001/CIM-50 100`). Se a tabela tiver uma coluna `name`, vale a dela.
+- `name`, a legenda que o Browser mostra na bolinha: o valor da coluna de legenda da etapa 5 (por exemplo, `Construtora Horizonte`). Sem coluna de legenda, ou na linha em que ela está vazia, o label e a chave, mais uma coluna descritiva quando há (por exemplo, `ItemPedido 1001/CIM-50 100`). Se a tabela tiver uma coluna `name`, vale a dela.
 
 **`_descricao` nos dados (opcional, desligada por padrão).** Para gravar a definição em cada nó e aresta de dado, e vê-la ao clicar no nó do Browser, acrescente ao `akme.yml`:
 
@@ -372,7 +413,7 @@ neo4j:
 
 e carregue de novo. Custa disco: no Olist, o banco ficou 14% maior numa base nova e 43% maior regravando por cima de uma carga anterior. Para voltar, apague o bloco e carregue de novo: a carga apaga a propriedade. O bloco `neo4j` só aceita essa opção.
 
-As arestas de dados têm o nome exato da relação na ontologia, por exemplo `(:Pedido)-[:pertenceA]->(:Cliente)`; com a opção ligada, também uma `_descricao`: a definição da relação ou, enquanto a ontologia não tiver uma, o rótulo (por exemplo, `pertence a`). Uma relação inversa sem aresta própria (`possuiPedido`) é a mesma aresta lida ao contrário: `MATCH (c:Cliente)<-[:pertenceA]-(p:Pedido)`. Na camada da ontologia, cada relação do `schema.ttl`, inversas incluídas, aparece como seta `RELACAO_ONTOLOGIA` entre os conceitos, com o nome em `nome`: `(:Conceito {nome: 'Pedido'})-[:RELACAO_ONTOLOGIA {nome: 'pertenceA'}]->(:Conceito {nome: 'Cliente'})`, mais `publicada_nos_dados`, que diz se ela tem aresta nos dados; a hierarquia aparece como `SUBCLASSE_DE`. Por os tipos serem diferentes, o mapa do próprio Neo4j (`CALL db.schema.visualization()`, página "Os dados" do tutorial) desenha só as ligações que existem nos dados. Os termos do negócio ficam em nós `Termo`, ligados ao seu conceito: `MATCH p = (:Conceito)-[:TEM_TERMO]->(:Termo) RETURN p`. Os dados não se ligam à ontologia por arestas, só pelo label.
+As arestas de dados têm o nome exato da relação na ontologia, por exemplo `(:Pedido)-[:pertenceA]->(:Cliente)`; com a opção ligada, também uma `_descricao`: a definição da relação ou, enquanto a ontologia não tiver uma, o rótulo (por exemplo, `pertence a`). Uma relação inversa sem aresta própria (`possuiPedido`) é a mesma aresta lida ao contrário: `MATCH (c:Cliente)<-[:pertenceA]-(p:Pedido)`. As classes de base do akme (`Entity`, `Metric`, `Relation`, `Rule`) não viram `Conceito`: de qual delas a classe descende fica em `tipo`. Para ver o que a ontologia define e os dados ainda não têm: `MATCH (c:Conceito) WHERE NOT c.publicada_nos_dados RETURN c.nome, c.tipo, c.definicao`. Na camada da ontologia, cada relação do `schema.ttl`, inversas incluídas, aparece como seta `RELACAO_ONTOLOGIA` entre os conceitos, com o nome em `nome`: `(:Conceito {nome: 'Pedido'})-[:RELACAO_ONTOLOGIA {nome: 'pertenceA'}]->(:Conceito {nome: 'Cliente'})`, mais `publicada_nos_dados`, que diz se ela tem aresta nos dados; a hierarquia aparece como `SUBCLASSE_DE`. Por os tipos serem diferentes, o mapa do próprio Neo4j (`CALL db.schema.visualization()`, página "Os dados" do tutorial) desenha só as ligações que existem nos dados. Os termos do negócio ficam em nós `Termo`, ligados ao seu conceito: `MATCH p = (:Conceito)-[:TEM_TERMO]->(:Termo) RETURN p`. Os dados não se ligam à ontologia por arestas, só pelo label.
 
 ## Usar com um LLM
 
@@ -431,6 +472,9 @@ Se você seguiu uma versão antiga deste guia, pode apagar também a pasta `.neo
 | `erro: UnicodeDecodeError: ...` (ou outro nome de erro) | Erro inesperado ao ler a origem ou falar com o banco, por exemplo um CSV que não está em UTF-8 | Corrija a causa citada; nada foi gravado se o erro veio antes da confirmação |
 | `carga executada, mas o banco diverge do previsto: ...` | O banco não ficou com as contagens do plano | Mostre a mensagem ao agente; os dados continuam gravados |
 | `fonte X sem chave e tipos aprovados na etapa 5` | Falta a decisão da tabela | Faça a Parte 2 para essa tabela |
+| `o nome de classe Conceito e reservado: ...` (ou `Termo`; relação `TEM_TERMO`, `SUBCLASSE_DE`, `RELACAO_ONTOLOGIA`; coluna `_id`, `_projeto`, `_carga`, `_descricao`) | O akme usa esses nomes no Neo4j para guardar a ontologia. A proposta é recusada já na etapa 2 ou 3; numa ontologia antiga, o `akme validate` avisa e a carga recusa | Classe ou relação: peça ao agente outro nome, com uma palavra do domínio (`ConceitoRubrica`). Coluna: renomeie na origem |
+| `etapa 5: a legenda de X cita coluna inexistente: ...` | A coluna escolhida como legenda saiu da tabela ou mudou de nome | Refaça a decisão da tabela na etapa 5 (Parte 2) |
+| Aviso `o projeto ainda se chama akme-template` | O `project` do `akme.yml` é o que vem no template, e o grafo fica marcado com esse nome | Antes da primeira carga, troque `project` no `akme.yml` pelo nome do cliente. Depois da primeira carga, só limpando o banco (seção 3.4) |
 | `fonte X com mais de uma classe` | Termos de classes diferentes mapeados para a mesma tabela | Mostre a mensagem ao agente; a correção é na ontologia |
 | `o bloco neo4j do akme.yml nao le mais keys` (ou `types`, `sources`) | Configuração antiga, de antes da etapa 5 | Apague essas chaves do bloco `neo4j` do `akme.yml` (ele só aceita `descricao_nos_dados`) e faça a Parte 2 |
 | `neo4j.descricao_nos_dados no akme.yml deve ser true ou false` | Valor como `sim` ou `"true"` entre aspas | Escreva `true` ou `false`, sem aspas |
@@ -466,4 +510,5 @@ O comando não mostra nada quando dá certo. Depois, rode a carga de novo (seç�
 - **Relações sem definição:** a ontologia ainda não exige definição nas relações, então, com a opção ligada, a `_descricao` das arestas costuma ser só o rótulo.
 - **Aura não testado:** tudo neste guia foi testado com o Neo4j local em Docker. O AuraDB e o Enterprise não foram testados; a conexão do console da Aura ao banco local foi testada uma vez (seção 4.2).
 - **Tutorial só nesta máquina:** o `akme review` serve o tutorial em `127.0.0.1`. Para um time, o arquivo `docs/publish/neo4j_guia.html` precisa de um endereço com CORS que todos alcancem. Não testamos o `:guide` no Query do console da Aura.
-- **Legenda automática:** a legenda `name` usa a primeira coluna mapeada da tabela que não é chave nem join, sem julgamento. Para outra legenda, ponha uma coluna `name` na origem.
+- **Legenda automática:** sem legenda decidida na etapa 5, o akme escolhe pelo nome da coluna, sem julgamento: uma coluna de texto com cara de nome, preenchida em 90% das linhas; se não houver, a classe e a chave, mais a primeira coluna mapeada que não é chave nem join e está preenchida em metade das linhas. Para outra legenda, decida na etapa 5.
+- **Legenda de quem já carregou:** quem carregou antes de 13/11/2026 vê as legendas mudarem na próxima carga (por exemplo, `Cliente 1 SP` vira `Construtora Horizonte`). Não é preciso refazer a etapa 5: a regra automática vale para as tabelas já aprovadas.

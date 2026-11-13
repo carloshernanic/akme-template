@@ -8,7 +8,7 @@ import pytest
 PASSWORD = "senha-que-nao-pode-aparecer"
 EXPECTED_NODES = {"Cliente": 8, "ItemPedido": 17, "Pedido": 10, "Produto": 8}
 EXPECTED_EDGES = {"contem": 17, "pertenceA": 10, "referencia": 17}
-CONCEPTS = 9
+CONCEPTS = 5  # classes do dominio da demo; as de base do akme nao viram Conceito
 TERMS = 10
 CARGA = "2026-11-12T10:00:00.000+00:00"
 

@@ -11,8 +11,11 @@ LABELS = {"clientes": "Cliente", "itens_pedido": "ItemPedido", "pedidos": "Pedid
 def test_demo_ontology_draws_concepts_and_arrows(seeded):
     sts = ontology_statements(seeded, PUBLISHED)
     texts = [s for s, _ in sts]
-    assert sum("MERGE (c:Conceito" in t for t in texts) == 9
-    assert sum(":SUBCLASSE_DE]" in t for t in texts) == 5
+    # as classes de base do akme (Entity, Metric, Relation, Rule) nao viram Conceito nem recebem SUBCLASSE_DE
+    concepts = {p["nome"]: p["props"] for t, p in sts if "MERGE (c:Conceito" in t}
+    assert sorted(concepts) == ["Cliente", "Faturamento", "ItemPedido", "Pedido", "Produto"]
+    assert sum(":SUBCLASSE_DE]" in t for t in texts) == 0
+    assert concepts["Pedido"]["tipo"] == "entidade" and concepts["Faturamento"]["tipo"] == "metrica"
     # espelho do schema.ttl: uma seta RELACAO_ONTOLOGIA por relacao, inversas incluidas (5 na demo)
     arrows = {p["rel"]: p for t, p in sts if ":RELACAO_ONTOLOGIA {nome: $rel}]" in t}
     assert sorted(arrows) == ["contem", "pertenceA", "pertenceAoPedido", "possuiPedido", "referencia"]
@@ -211,3 +214,43 @@ def test_concepts_and_terms_get_a_caption_and_arrows_say_if_published(seeded):
     assert arrows["pertenceA"]["publicada_nos_dados"] is True
     assert arrows["contem"]["publicada_nos_dados"] is False, "sem aresta de dado"
     assert not any("tipo_no_grafo" in props for props in arrows.values())
+
+
+def test_concept_says_if_it_has_data(seeded):
+    concepts = {p["nome"]: p["props"] for t, p in ontology_statements(seeded, PUBLISHED, LABELS) if "MERGE (c:Conceito" in t}
+    assert concepts["Pedido"]["publicada_nos_dados"] is True
+    assert concepts["Faturamento"]["publicada_nos_dados"] is True, "metrica com expressao sobre fonte publicada"
+    only = {p["nome"]: p["props"] for t, p in ontology_statements(seeded, PUBLISHED, {"pedidos": "Pedido"})
+            if "MERGE (c:Conceito" in t}
+    assert only["Cliente"]["publicada_nos_dados"] is False, "classe sem no de dado"
+
+
+def test_subclass_between_domain_classes_is_kept(seeded):
+    from akme.ontology import add_class, load_graph, save_graph
+
+    g = load_graph(seeded.schema_path)
+    add_class(g, "PedidoUrgente", "Pedido urgente", "Pedido com prazo curto.", "Pedido")
+    save_graph(g, seeded.schema_path)
+    sts = ontology_statements(seeded, PUBLISHED, LABELS)
+    assert [(p["de"], p["para"]) for t, p in sts if ":SUBCLASSE_DE]" in t] == [("PedidoUrgente", "Pedido")]
+    urgent = next(p["props"] for t, p in sts if "MERGE (c:Conceito" in t and p["nome"] == "PedidoUrgente")
+    assert urgent["tipo"] == "entidade" and urgent["publicada_nos_dados"] is False
+
+
+def test_root_class_used_by_a_relation_stays_as_concept(seeded):
+    """Relacao com dominio ou alcance numa classe de base: a classe entra, senao a seta sumiria sem aviso."""
+    from rdflib import OWL, RDF, RDFS, URIRef
+
+    from akme.ontology import load_content, load_graph, save_graph
+    from akme.tools.neo4j_onto import exported_concepts
+
+    g = load_graph(seeded.schema_path)
+    assert "Entity" not in exported_concepts(g, load_content(seeded))
+    pedido = next(s for s in g.subjects(RDF.type, OWL.Class) if str(s).endswith(("#Pedido", "/Pedido")))
+    entity = next(s for s in g.subjects(RDF.type, OWL.Class) if str(s).endswith(("#Entity", "/Entity")))
+    rel = URIRef(str(pedido)[:-len("Pedido")] + "afeta")
+    g.add((rel, RDF.type, OWL.ObjectProperty)); g.add((rel, RDFS.domain, pedido)); g.add((rel, RDFS.range, entity))
+    save_graph(g, seeded.schema_path)
+    assert "Entity" in exported_concepts(load_graph(seeded.schema_path), load_content(seeded))
+    sts = ontology_statements(seeded, PUBLISHED, LABELS)
+    assert "afeta" in {p["rel"] for t, p in sts if ":RELACAO_ONTOLOGIA {nome: $rel}]" in t}

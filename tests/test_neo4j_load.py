@@ -45,7 +45,7 @@ def test_every_statement_carries_project_and_round(seeded, fake):
         if "$projeto" in query:
             assert params["projeto"] == "demo"
     ontology = [p for q, p in session.calls if "Conceito" in q and "MERGE" in q]
-    assert len(ontology) == 19 + TERMS and all(p["carga"] == CARGA for p in ontology)
+    assert len(ontology) == 10 + TERMS and all(p["carga"] == CARGA for p in ontology)
 
 
 def test_node_rows_have_typed_filled_properties(seeded, fake):
@@ -182,7 +182,7 @@ def test_verify_reports_divergence(seeded, fake):
     assert result["ok"] is False
     assert "Cliente: esperado 8, encontrado 9" in result["divergences"]
     assert "contem: esperado 17, encontrado 0" in result["divergences"]
-    assert "Conceito: esperado 9, encontrado 8" in result["divergences"]
+    assert "Conceito: esperado 5, encontrado 8" in result["divergences"]
     assert "Termo: esperado 10, encontrado 3" in result["divergences"]
 
 
@@ -202,7 +202,7 @@ def test_dry_run_writes_cypher_artifact_and_does_not_connect(seeded, monkeypatch
     assert "Conceito" in text and "NAO EXECUTE" not in text
     assert "UNWIND $rows AS r MERGE (n:`Pedido` {_id: r.id})" in text
     assert "Construtora" not in text, "os dados nao vao para o artefato"
-    assert set(r) == {"target", "dry_run", "artifact", "schema", "guide", "saved_queries",
+    assert set(r) == {"target", "dry_run", "artifact", "schema", "guide", "saved_queries", "style",
                       "rows", "batches", "executed", "nodes", "relationships", "descricao",
                       "relations_not_published", "sources_skipped", "problems", "warnings"}
     schema = seeded.docs_dir / "publish" / "neo4j_schema.md"
@@ -441,7 +441,7 @@ def test_ontology_failure_skips_sync(seeded, fake):
         return original(query, parameters, **params)
 
     session.run = run
-    with pytest.raises(PublishError, match="ontologia: comando 1 de 40 falhou.*7 lote\\(s\\) ja gravado\\(s\\); nada foi apagado"):
+    with pytest.raises(PublishError, match="ontologia: comando 1 de 31 falhou.*7 lote\\(s\\) ja gravado\\(s\\); nada foi apagado"):
         neo4j_load.load(seeded, build_plan(seeded), CARGA)
     assert not any("DELETE" in q for q in session.queries())
 
@@ -578,12 +578,12 @@ def test_artifact_schema_guide_and_viewing_follow_the_option(seeded, monkeypatch
     if on:
         assert "$descricao = definicao da classe" in artifact
         assert "`_descricao` a definicao da classe (no no)" in schema
-        assert "<code>_descricao</code> traz a definicao da classe" in guide
+        assert "<code>_descricao</code> traz a definição da classe" in guide
         assert "_descricao, no painel de propriedades" in viewing
     else:
         assert "$descricao = null" in artifact and "descricao_nos_dados" in artifact
         assert "nao tem `_descricao`" in schema and "`definicao` do `Conceito`" in schema
-        assert "_descricao" not in guide and "slide A ontologia" in guide
+        assert "_descricao" not in guide and "página A ontologia" in guide
         assert "_descricao" not in viewing and "Conceito" in viewing
 
 
@@ -767,7 +767,7 @@ def test_ontology_and_schema_commands_carry_the_lock(seeded, fake):
     session = fake["session"]
     neo4j_load.load(seeded, build_plan(seeded), CARGA)
     onto = [q for q in session.queries() if ("Conceito" in q or "Termo" in q) and "MERGE" in q or "SET m.esquema" in q]
-    assert len(onto) == 19 + 2 * TERMS + 1
+    assert len(onto) == 10 + 2 * TERMS + 1
     assert all(q.startswith(neo4j_load._LOCK) and q.endswith("RETURN count(*) AS gravadas") for q in onto)
     assert all(q in session.written for q in onto)
 
@@ -906,10 +906,10 @@ def test_every_data_node_gets_a_distinguishing_name(seeded, fake):
     session = fake["session"]
     neo4j_load.load(seeded, build_plan(seeded), CARGA)
     rows = {r["id"]: r["p"] for q, p in session.calls if "MERGE (n:" in q for r in p["rows"]}
-    assert rows["1"]["name"] == "Cliente 1 SP"
+    assert rows["1"]["name"] == "Construtora Horizonte", "coluna com cara de nome: a legenda e o valor"
     assert rows["1001"]["name"] == "Pedido 1001 2026-07-03"
     assert rows["1001/CIM-50"]["name"] == "ItemPedido 1001/CIM-50 100"
-    assert rows["CIM-50"]["name"] == "Produto CIM-50 cimento"
+    assert rows["CIM-50"]["name"] == "Cimento CP II 50kg"
     items = [r["p"]["name"] for q, p in session.calls if "MERGE (n:`ItemPedido`" in q for r in p["rows"]]
     assert len(set(items)) == len(items)
 
@@ -941,7 +941,7 @@ def test_empty_source_name_gets_the_akme_caption(seeded, fake):
     rows = [r["p"] for q, p in session.calls if "MERGE (n:`Produto`" in q for r in p["rows"]]
     assert rows and all(r["name"] for r in rows)
     assert {r["name"] == "Nome da origem" for r in rows} == {True, False}
-    assert all(r["name"].startswith("Produto ") for r in rows if r["name"] != "Nome da origem")
+    assert all(r["name"] == r["ds_produto"] for r in rows if r["name"] != "Nome da origem")
 
 
 def test_marker_gets_a_caption_in_the_claim(seeded, fake):

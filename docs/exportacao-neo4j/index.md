@@ -17,7 +17,7 @@ O que a troca perdeu de fato foi o único gerador de RDF fiel (chaves, tipos e r
 Tudo em Cypher puro, pelo driver oficial, sem plugin:
 
 1. **Plano (dry-run):** lê cada fonte em blocos, confere chave, tipos e joins, conta nós e arestas esperados e lista problemas e avisos. Não conecta no banco.
-2. **Confirmação:** a pessoa lê o resumo e confirma na CLI. A carga continua só pelo humano.
+2. **Confirmação:** a pessoa lê o resumo e confirma, na aba **Exportar** da página local ou na CLI. A carga continua só pelo humano; o agente não tem como dispará-la (ver [Correções de 13/11](correcoes-13-11.md)).
 3. **Carga:** confere o destino, cria restrições e índices, grava nós, arestas e a camada de ontologia, tudo marcado com a `_carga` da rodada.
 4. **Sincronização:** apaga o que é do projeto e tem `_carga` antiga.
 5. **Conferência:** conta no banco por label e por padrão `(:Dominio)-[:relacao]->(:Alcance)`.
@@ -26,10 +26,10 @@ Tudo em Cypher puro, pelo driver oficial, sem plugin:
 
 - **Nós de dado:** o label é a classe (ex.: `Pedido`). Propriedades: uma por coluna preenchida, mais `_id` (valores da chave), `_projeto`, `_carga`, `name` (a legenda no Browser, desde a Task 11) e, só com `neo4j: {descricao_nos_dados: true}` no `akme.yml`, `_descricao` (a definição da classe; desligada por padrão desde a rodada final).
 - **Arestas de dado:** o tipo é o nome exato da relação no `schema.ttl` (ex.: `pertenceA`), do domínio para o alcance, com `_carga` e, com a mesma opção, `_descricao` (a definição da relação ou, sem ela, o rótulo).
-- **Camada `Conceito`:** espelho do `schema.ttl`, como o grafo da página do akme: um nó `:Conceito` por classe, `(:Conceito)-[:SUBCLASSE_DE]->(:Conceito)` por subclasse e uma seta `RELACAO_ONTOLOGIA` por relação (inversas incluídas), com o nome em `nome` e `publicada_nos_dados` (desde a Task 11).
+- **Camada `Conceito`:** espelho do `schema.ttl`, como o grafo da página do akme: um nó `:Conceito` por classe do domínio (as classes de base do akme, `Entity`, `Metric`, `Relation` e `Rule`, ficam de fora desde 13/11/2026), com `tipo`, `(:Conceito)-[:SUBCLASSE_DE]->(:Conceito)` por subclasse e uma seta `RELACAO_ONTOLOGIA` por relação (inversas incluídas), com o nome em `nome` e `publicada_nos_dados` (desde a Task 11).
 - **Termos:** um nó `:Termo` por termo do `content.yml`, ligado por `(:Conceito)-[:TEM_TERMO]->(:Termo)`.
 - **Esquema para o LLM:** em `docs/publish/neo4j_schema.md` e na propriedade `esquema` da marca `_AkmeProjeto`.
-- **Tutorial do projeto no Browser:** em `docs/publish/neo4j_guia.html`, seis páginas só de navegação, servido pelo `akme review` em `/neo4j/guia`. As perguntas de competência saíram do tutorial e do akme por decisão de Mateus em 12/11/2026; perguntas em português ficam com o console da Aura (caminho não testado pelo akme).
+- **Tutorial do projeto no Browser:** em `docs/publish/neo4j_guia.html`, cinco páginas só de navegação, servido pelo `akme review` em `/neo4j/guia`. Desde 13/11/2026 a primeira página abre pelo mapa das classes (e pelo grafo inteiro, até 500 registros), o "Explorar" parte do registro mais ligado, e o publish gera também `docs/publish/neo4j_estilo.grass` (cor por classe, ontologia em cinza, nome nas setas), importado pelo `:style` do Browser. As perguntas de competência saíram do tutorial e do akme por decisão de Mateus em 12/11/2026; perguntas em português ficam com o console da Aura (caminho não testado pelo akme).
 - **Restrição:** `_id` único por label, necessária para o `MERGE` ser viável.
 
 ## Referência do exportador
@@ -48,7 +48,7 @@ O código está em `akme/tools/`:
 
 **Detalhes do modelo que não estão acima:**
 
-- **Legenda `name`:** o label, até 8 caracteres de cada valor da chave e o valor da coluna de legenda do plano (a primeira coluna mapeada da fonte, na ordem do `content.yml`, que não é chave nem join), por exemplo `ItemPedido 1001/CIM-50 100`. Se a fonte tiver coluna `name`, ela vale e o akme não grava a sua (o plano avisa).
+- **Legenda `name`** (regra de 13/11/2026): o valor da coluna de legenda, decidida na etapa 5 (`caption` do `add_source`) ou, sem decisão, uma coluna de texto com cara de nome preenchida em 90% das linhas, por exemplo `Construtora Horizonte`. Sem coluna de legenda, o label, a chave (código longo cortado em 8 caracteres) e a primeira coluna mapeada que não é chave nem join, por exemplo `ItemPedido 1001/CIM-50 100`. Se a fonte tiver coluna `name`, ela vale e o akme não grava a sua (o plano avisa).
 - **Esquema do banco:** uma restrição de unicidade de `_id` por label (`akme_uniq_<Label>`), uma composta para o `Conceito` (`akme_conceito_uniq_projeto_nome`), outra para o `Termo` (`akme_termo_uniq_projeto_nome`), `akme_projeto_uniq` para a marca e um índice por coluna-alvo de join (`akme_idx_<Label>__<coluna>_<hash>`).
 - **Marca:** `(:_AkmeProjeto {projeto, name, esquema, carga_atual})`, gravada na primeira carga; `carga_atual`, `name` e `esquema` são regravados a cada carga.
 - **Nomes reservados:** os labels `Conceito`, `Termo` e `_AkmeProjeto`, as propriedades `_id`, `_projeto`, `_carga` e `_descricao` (nos dois modos da opção) e, como nome de relação, `RELACAO_ONTOLOGIA`, `SUBCLASSE_DE` e `TEM_TERMO`. Uma classe, relação ou coluna da origem com um desses nomes é problema no plano, e a carga é recusada.
@@ -128,7 +128,7 @@ As recusas de dados acontecem no dry-run, antes de conectar ao banco. As de dest
 - Decidir se a aresta sem definição, com `_descricao` ligada, deve receber o rótulo ou ficar sem a propriedade (decisão de Mateus).
 - Testar no Aura (depende de Mateus criar a instância).
 - Unificar como CSV e XLSX aparam espaços (hoje só a planilha apara).
-- Legenda `name` decidida por fonte na etapa 5; hoje é a regra automática ou a coluna `name` da origem.
+- Aviso de grafo desconectado no dry-run, correção de mappings (`update_mapping`, `remove_mapping`, `rename_class`) e perguntas de competência em Cypher como teste: ver [Correções de 13/11](correcoes-13-11.md).
 
 **Fora do Neo4j, só anotado:**
 
@@ -151,6 +151,7 @@ As recusas de dados acontecem no dry-run, antes de conectar ao banco. As de dest
 | 10 | Camada semântica legível no grafo (`_descricao`, esquema para o LLM, termos) | commitada (até `974da8a`) |
 | 11 | Tutorial curto do projeto no Neo4j Browser (só navegação), camada `Conceito` espelho do TTL e legenda `name` | commitada (até `974da8a`; escopo congelado em 12/11/2026) |
 | — | Rodada final de correções (abaixo) | aguardando commit |
+| — | [Correções de 13/11](correcoes-13-11.md): nomes reservados, legenda na etapa 5, tutorial pelo mapa das classes, estilo de cores e aba Exportar | feita em 13/11/2026 |
 
 Veja a [Task 1](task-1-adapters.md), a [Task 2](task-2-valores.md), a [Task 3](task-3-plano.md), a [Task 4](task-4-ontologia.md), a [Task 5](task-5-add-source.md), a [Task 6](task-6-carga.md), a [Task 7](task-7-troca.md), a [Task 8](task-8-docs.md), a [Task 9](task-9-aceitacao.md), a [Task 10](task-10-semantica.md) e a [Task 11](task-11-tutorial.md) para o que já mudou.
 

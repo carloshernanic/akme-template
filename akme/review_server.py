@@ -33,6 +33,7 @@ from .tools.decision_mode import mode_path, read_mode
 from .tools.export import build_export, export
 from . import __version__
 from .tools.neo4j_guide import GUIDE_FILE, GUIDE_ROUTE
+from .tools.neo4j_page import LoadRefused, export_load, export_status, reload_env
 from .tools.ontology_write import EditError, apply_reviewed, propose_edit, review_edit
 from .tools.requirements import cq_references, requirements_status
 from .tools.review_view import present
@@ -189,6 +190,15 @@ def make_handler(project: Project):
                     return self._json(200, self._chat_poll(parse_qs(url.query)))
                 if url.path == "/api/versao":
                     return self._json(200, {"akme": __version__, "recursos": list(FEATURES)})
+                if url.path == "/api/neo4j":  # tela Exportar: .env, plano do dry-run e banco (somente leitura)
+                    # le todas as fontes, regrava docs/publish e conecta no banco: so para a propria pagina. Outro
+                    # site aberto no navegador (img, fetch no-cors) chega com Sec-Fetch-Site cross-site
+                    if self.headers.get("Sec-Fetch-Site", "same-origin") not in ("same-origin", "none"):
+                        return self._json(403, {"error": "rota so para a pagina local"})
+                    try:
+                        return self._json(200, export_status(project, self.server.server_address[1]))
+                    except LoadRefused as exc:
+                        return self._json(exc.code, {"error": str(exc)} | exc.extra)
                 if url.path == "/api/sources":
                     q = parse_qs(url.query)
                     query = (q.get("q") or [""])[0]
@@ -340,9 +350,19 @@ def make_handler(project: Project):
                     return self._json(200, self._chat_send(self._body()))
                 if path == "/api/chat/permission":
                     return self._json(200, self._chat_permission(self._body()))
+                if path == "/api/neo4j/carga":
+                    # a carga e do humano, na pagina: so com a origem da propria pagina (um POST sem Origin nao e ela)
+                    if origin is None:
+                        return self._json(403, {"error": "a carga so parte da pagina local"})
+                    body = self._body()
+                    return self._json(200, export_load(project, self.server.server_address[1],
+                                                       body.get("confirmed"), body.get("removed"),
+                                                       body.get("token")))
                 return self._json(404, {"error": "rota nao encontrada"})
             except _HttpError as exc:
                 return self._json(exc.code, {"error": exc.message} | exc.extra)
+            except LoadRefused as exc:
+                return self._json(exc.code, {"error": str(exc)} | exc.extra)
             except BatchError as exc:
                 return self._json(409, {"error": str(exc), "new_errors": exc.new_errors})
             except EditError as exc:
@@ -399,6 +419,7 @@ def make_handler(project: Project):
 
 
 def start(project: Project, port: int = 8765) -> ThreadingHTTPServer:
+    reload_env(project)  # registra o que veio do .env: linha apagada depois deixa de valer sem reiniciar
     return ThreadingHTTPServer(("127.0.0.1", port), make_handler(project))
 
 
@@ -415,7 +436,7 @@ def is_running(port: int, timeout: float = 1.0) -> bool:
 
 
 # recursos que este codigo serve; um servidor que nao lista todos em /api/versao e de codigo antigo (ou de antes da rota)
-FEATURES = ("neo4j_guia", "cors_browser")
+FEATURES = ("neo4j_guia", "cors_browser", "neo4j_exportar")
 STALE = ("o servidor da pagina local esta desatualizado: pare e rode `uv run akme review` de novo "
          "(o akme nunca encerra o processo sozinho)")
 

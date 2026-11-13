@@ -112,3 +112,41 @@ def test_schema_explains_relation_names_the_ontology_layer_and_the_name_caption(
     assert "publicada_nos_dados" in how and "inversa_de" in how
     assert "`name` e a legenda" in how
     assert "UPPER" not in text and "tipo_no_grafo" not in text
+
+
+# --- auditoria de 13/11: regras sem id, conceitos sem dado, colunas de juncao, legenda ---
+
+def test_rule_without_id_starts_with_the_term(seeded):
+    content = read_yaml(seeded.content_path)
+    content["constraints"] = [{"term": "valor_total", "rule": "Nao pode ser negativo."},
+                              {"id": "R-01", "term": "uf", "severity": "error", "rule": "Duas letras."},
+                              {"rule": "Regra solta."}]
+    write_yaml(seeded.content_path, content)
+    text = llm_schema(seeded, build_plan(seeded))
+    assert "- termo valor_total: Nao pode ser negativo." in text
+    assert "- R-01 (termo uf, severidade error): Duas letras." in text
+    assert "- Regra solta." in text
+    assert "-  (" not in text and "- :" not in text
+
+
+def test_schema_lists_concepts_without_data(seeded):
+    from akme.ontology import add_class, load_graph, save_graph
+
+    assert "## Conceitos sem dados no grafo" not in llm_schema(seeded, build_plan(seeded))
+    g = load_graph(seeded.schema_path)
+    add_class(g, "SituacaoCliente", "Situacao", "Ativo, suspenso ou encerrado.", "Entity")
+    save_graph(g, seeded.schema_path)
+    text = llm_schema(seeded, build_plan(seeded))
+    block = text[text.index("## Conceitos sem dados no grafo"):]
+    assert "- `SituacaoCliente` (entidade): Ativo, suspenso ou encerrado." in block
+    assert "`Entity`" not in block and "`Faturamento`" not in block, "classe de base e metrica publicada ficam de fora"
+
+
+def test_join_column_points_to_the_edge_and_caption_is_named(seeded):
+    text = llm_schema(seeded, build_plan(seeded))
+    pedido = text[text.index("### Pedido"):text.index("### Produto")]
+    assert "coluna de juncao: repete o que a aresta `[:pertenceA]` ja diz; para chegar em `(:Cliente)`, siga a aresta" in pedido
+    cliente = text[text.index("### Cliente"):text.index("### ItemPedido")]
+    assert "- legenda (`name`): o valor de `nm_cliente`" in cliente
+    assert "coluna de juncao" not in cliente, "a chave do lado de chegada nao e repeticao"
+    assert "legenda (`name`)" not in pedido, "sem coluna de legenda sozinha, a linha nao aparece"

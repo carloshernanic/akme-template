@@ -57,7 +57,8 @@ EDITABLE: dict[EditType, list[dict[str, str]]] = {
     EditType.add_use_case: [{"key": "name", "label": "Nome", "kind": "text"}, {"key": "description", "label": "Descrição", "kind": "textarea"},
                             {"key": "actors", "label": "Atores (separados por vírgula)", "kind": "list"}],
     EditType.add_source: [{"key": "key", "label": "Chave (colunas separadas por vírgula)", "kind": "list"},
-                          {"key": "types", "label": "Tipos (coluna: tipo, separados por vírgula)", "kind": "map"}],
+                          {"key": "types", "label": "Tipos (coluna: tipo, separados por vírgula)", "kind": "map"},
+                          {"key": "caption", "label": "Legenda: coluna cujo valor aparece na bolinha do Neo4j (vazio = automática)", "kind": "text"}],
 }
 
 # tipos em que "rejeitar" nao existe: a decisao e sempre um aceite com escolha
@@ -176,7 +177,20 @@ def _source_checked(p: dict[str, Any]) -> dict[str, Any] | None:
     for col, t in (c.get("types") or {}).items():
         lines.append(f"{col}: {t.get('converted')} de {t.get('filled')} valores convertem para {TYPE_LABEL.get(t.get('kind'), t.get('kind'))}"
                      + (f", ex. {t.get('example')}" if t.get("example") else ""))
-    return {"available": True, "lines": lines, "alerts": []}
+    alerts = []
+    cap = c.get("caption")
+    if isinstance(cap, dict):
+        if cap.get("column") and cap.get("alone"):
+            origin = "decidida" if cap.get("decided") else "automática"
+            lines.append(f"legenda ({origin}): coluna {cap['column']}, preenchida em {cap.get('filled')} de {cap.get('rows')} linhas; "
+                         f"a bolinha mostra, por exemplo, \"{cap.get('example')}\"")
+            if cap.get("rows") and cap.get("filled", 0) < 0.5 * cap["rows"]:
+                alerts.append(f"a legenda {cap['column']} está vazia em {cap['rows'] - cap.get('filled', 0)} de {cap['rows']} linhas: "
+                              "nessas, a bolinha mostra a classe e a chave")
+        else:
+            lines.append(f"legenda (automática): nenhuma coluna com cara de nome; a bolinha mostra a classe e a chave, por exemplo, "
+                         f"\"{cap.get('example')}\". Para escolher uma coluna, use \"Ajustar\"")
+    return {"available": True, "lines": lines, "alerts": alerts}
 
 
 def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -251,7 +265,8 @@ def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]
             subtitle = f"vira nós {p.get('class')}" if p.get("class") else "vira nós no Neo4j"
             types = p.get("types") or {}
             fields = _fields(_field("Chave", p.get("key"), mono=True),
-                             _field("Tipos", ", ".join(f"{c}: {k}" for c, k in types.items()) or "todas as colunas ficam texto", mono=True))
+                             _field("Tipos", ", ".join(f"{c}: {k}" for c, k in types.items()) or "todas as colunas ficam texto", mono=True),
+                             _field("Legenda", p.get("caption") or "automática", mono=bool(p.get("caption"))))
     observed = _observed(p) if t == EditType.add_relation else _source_checked(p) if t == EditType.add_source else None
     alerts = list(observed["alerts"]) if observed else []
     return {

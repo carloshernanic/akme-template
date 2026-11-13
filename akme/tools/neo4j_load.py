@@ -25,11 +25,11 @@ from urllib.parse import urlsplit
 
 from ..adapters import load_adapter
 from ..adapters.base import require
-from ..ontology import classes, load_content, load_graph
+from ..ontology import load_content, load_graph
 from ..project import Project
-from .neo4j_onto import _literal, descriptions, ontology_statements, render, term_entries
+from .neo4j_onto import _literal, descriptions, exported_concepts, ontology_statements, render, term_entries
 from .neo4j_plan import EdgePlan, Plan, SourcePlan, build_plan, identifier_problems
-from .neo4j_guide import GUIDE_FILE, QUERIES_FILE, guide_html, guide_lines, saved_queries_csv
+from .neo4j_guide import GUIDE_FILE, QUERIES_FILE, STYLE_FILE, guide_html, guide_lines, saved_queries_csv, style_grass
 from .neo4j_schema import llm_schema
 from .neo4j_values import caption, convert, filled, name, node_id
 from .publish import PublishError
@@ -341,7 +341,8 @@ def _node_rows(block: list[dict[str, Any]], src: SourcePlan) -> list[dict[str, A
             continue  # chave vazia ja e problema no plano; aqui so nao vira no
         props = {col: convert(types.get(col, "string"), value) for col, value in row.items() if filled(value)}
         if not src.own_name or not filled(row.get("name")):
-            props["name"] = caption(src.label, [row[c] for c in key], row.get(src.caption) if src.caption else None)
+            props["name"] = caption(src.label, [row[c] for c in key], row.get(src.caption) if src.caption else None,
+                                    src.caption_alone)
         out.append({"id": node_id([row[c] for c in key]), "p": props})
     return out
 
@@ -556,10 +557,12 @@ def publish_neo4j(project: Project, model: dict[str, Any], dry_run: bool, plan: 
     # tutorial do projeto no Browser e consultas salvas: a cada publicacao, carga ou dry-run; depois da carga, de novo,
     # com o mapa da ontologia na forma que o banco aceita (com ou sem APOC)
     guide, queries = out.with_name(GUIDE_FILE), out.with_name(QUERIES_FILE)
+    style = out.with_name(STYLE_FILE)
+    style.write_text(style_grass(plan), encoding="utf-8")
     _write_guide(plan, guide, queries, None)
     result: dict[str, Any] = {
         "target": "neo4j", "dry_run": dry_run, "artifact": str(out), "schema": str(schema), "guide": str(guide),
-        "saved_queries": str(queries),
+        "saved_queries": str(queries), "style": str(style),
         "rows": plan.rows, "batches": batches, "descricao": plan.descricao,
         "executed": 0, "nodes": plan.nodes, "relationships": plan.relationships,
         "relations_not_published": plan.relations_not_published, "sources_skipped": plan.sources_skipped,
@@ -571,8 +574,9 @@ def publish_neo4j(project: Project, model: dict[str, Any], dry_run: bool, plan: 
     carga = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     result["carga"] = carga
     result |= load(project, plan, carga)
-    concepts = {c["name"] for c in classes(load_graph(project.schema_path))}
-    result["verification"] = verify(plan, project.name, len(concepts), len(term_entries(load_content(project), concepts)))
+    content = load_content(project)
+    concepts = exported_concepts(load_graph(project.schema_path), content)
+    result["verification"] = verify(plan, project.name, len(concepts), len(term_entries(content, concepts)))
     if not result["verification"]["ok"]:
         raise PublishError("carga executada, mas o banco diverge do previsto: " + "; ".join(result["verification"]["divergences"]))
     _write_guide(plan, guide, queries, has_apoc())

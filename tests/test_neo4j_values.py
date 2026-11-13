@@ -77,10 +77,30 @@ def test_caption_uses_label_short_key_and_extra_value():
     from akme.tools.neo4j_values import caption
     assert caption("Pedido", ["1001"], "2026-07-03") == "Pedido 1001 2026-07-03"
     assert caption("ItemPedido", ["e481f51cbdc54678b7cc49136f2d6af7", "1"], "29.99") == "ItemPedido e481f51c/1 29.99"
-    assert caption("Cliente", ["Sao Paulo/SP"], None) == "Cliente Sao Paul"
+    assert caption("Cliente", ["Sao Paulo/SP"], None) == "Cliente Sao Paulo/SP", "chave que e texto nao e cortada"
+    assert caption("Curso", ["Engenharia de Computação"], "EC") == "Curso Engenharia de Computação EC"
     assert caption("Cliente", ["1"], "") == "Cliente 1"
     assert caption("Avaliacao", ["x"], "texto   com\nquebra " + "a" * 60) == "Avaliacao x " + ("texto com quebra " + "a" * 60)[:40]
     assert caption("Produto", ["1"], 0) == "Produto 1 0"
+
+
+def test_caption_alone_is_the_value_and_falls_back_to_label_and_key():
+    from akme.tools.neo4j_values import caption
+    assert caption("Projeto", ["P01"], "Plataforma DIGEST", alone=True) == "Plataforma DIGEST"
+    assert caption("Projeto", ["P01"], "  Plataforma \n DIGEST ", alone=True) == "Plataforma DIGEST"
+    assert caption("Projeto", ["P01"], "", alone=True) == "Projeto P01", "linha sem o valor: classe e chave"
+    assert caption("Projeto", ["P01"], None, alone=True) == "Projeto P01"
+    assert caption("Projeto", ["P01"], "x" * 80, alone=True) == "x" * 60
+
+
+def test_reserved_problem_names_the_reason_and_the_way_out():
+    from akme.tools.neo4j_values import reserved_problem
+    assert "ConceitoRubrica" in reserved_problem("class", "Conceito")
+    assert reserved_problem("class", "ConceitoRubrica") is None
+    assert "lowerCamelCase" in reserved_problem("relation", "TEM_TERMO")
+    assert reserved_problem("relation", "temTermo") is None
+    assert "Renomeie a coluna na origem" in reserved_problem("column", "_id")
+    assert reserved_problem("column", "id") is None
 
 
 # --- rodada final: caractere invisivel em nome de fonte, coluna ou relacao ---
@@ -103,3 +123,8 @@ def test_invisible_hint_names_the_character_and_says_what_to_do():
     hint = invisible_hint(["﻿product_category_name"])
     assert "<U+FEFF>" in hint and "BOM" in hint and "invisivel" in hint
     assert "﻿" not in hint and "sem esse caractere" in hint
+
+
+def test_caption_alone_with_only_spaces_falls_back_to_label_and_key():
+    from akme.tools.neo4j_values import caption
+    assert caption("Cliente", [123], "   ", alone=True) == "Cliente 123"

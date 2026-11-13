@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from akme.adapters.local_folder import LocalFolderAdapter
-from akme.ontology import load_content
+from akme.ontology import load_content, save_content
 from akme.project import Project, read_yaml, write_yaml
 from akme.tools import neo4j_plan
 from akme.tools import ontology_write
@@ -323,7 +323,8 @@ def test_reserved_column_name_is_refused(seeded):
     path = seeded.root / "data" / "clientes.csv"
     header, *rows = path.read_text(encoding="utf-8").splitlines()
     path.write_text("\n".join([header + ",_id", *[r + ",x" for r in rows]]) + "\n", encoding="utf-8")
-    assert "clientes._id usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+    assert any(p.startswith("fonte clientes: a coluna _id tem um nome reservado") and "Renomeie a coluna na origem" in p
+               for p in build_plan(seeded).problems)
 
 
 def test_reserved_class_name_is_refused(seeded):
@@ -333,14 +334,14 @@ def test_reserved_class_name_is_refused(seeded):
     g = load_graph(seeded.schema_path)
     g.add((base_ns(g)["Conceito"], RDF.type, OWL.Class))
     save_graph(g, seeded.schema_path)
-    assert "classe Conceito usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+    assert any(p.startswith("o nome de classe Conceito e reservado") for p in build_plan(seeded).problems)
 
 
 def test_reserved_descricao_column_is_refused(seeded):
     path = seeded.root / "data" / "clientes.csv"
     header, *rows = path.read_text(encoding="utf-8").splitlines()
     path.write_text("\n".join([header + ",_descricao", *[r + ",x" for r in rows]]) + "\n", encoding="utf-8")
-    assert "clientes._descricao usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+    assert any(p.startswith("fonte clientes: a coluna _descricao tem um nome reservado") for p in build_plan(seeded).problems)
 
 
 def test_reserved_termo_class_name_is_refused(seeded):
@@ -350,7 +351,7 @@ def test_reserved_termo_class_name_is_refused(seeded):
     g = load_graph(seeded.schema_path)
     g.add((base_ns(g)["Termo"], RDF.type, OWL.Class))
     save_graph(g, seeded.schema_path)
-    assert "classe Termo usa nome reservado do akme no Neo4j" in build_plan(seeded).problems
+    assert any(p.startswith("o nome de classe Termo e reservado") for p in build_plan(seeded).problems)
 
 
 # --- revisao final ---
@@ -414,14 +415,67 @@ def test_names_that_only_differ_in_case_are_not_a_problem(seeded):
     assert not any("pertence_a" in x for x in p.problems), "o tipo e o nome exato: pertenceA e pertence_a nao colidem"
 
 
-def test_caption_column_is_the_first_mapped_non_key_non_join_column(seeded):
+def test_caption_prefers_a_name_like_column_and_falls_back_to_the_first_mapped_one(seeded):
     sources = {s.source: s for s in build_plan(seeded).sources}
-    # content.yml: uf antes de cliente_ativo (clientes); data_pedido antes de status (pedidos)
-    assert sources["clientes"].caption == "uf"
-    assert sources["pedidos"].caption == "dt_pedido"
-    assert sources["produtos"].caption == "categoria"
-    assert sources["itens_pedido"].caption == "qt_itens"
+    # coluna com cara de nome (nm_, ds_), bem preenchida: a legenda e so o valor dela
+    assert (sources["clientes"].caption, sources["clientes"].caption_alone) == ("nm_cliente", True)
+    assert (sources["produtos"].caption, sources["produtos"].caption_alone) == ("ds_produto", True)
+    # sem coluna com cara de nome: a primeira mapeada que nao e chave nem join completa "Label chave"
+    assert (sources["pedidos"].caption, sources["pedidos"].caption_alone) == ("dt_pedido", False)
+    assert (sources["itens_pedido"].caption, sources["itens_pedido"].caption_alone) == ("qt_itens", False)
     assert not any(s.own_name for s in sources.values())
+
+
+def _present(**counts):
+    from collections import Counter
+    return Counter(counts)
+
+
+def test_caption_choice_skips_sparse_columns_and_identifiers():
+    from akme.tools.neo4j_plan import caption_choice
+
+    maps = [{"source": "projetos", "column": "tipo", "term": "tipo_projeto"},
+            {"source": "projetos", "column": "projeto_id", "term": "codigo_projeto"},
+            {"source": "projetos", "column": "projeto", "term": "nome_projeto"}]
+    cols = ["projeto_id", "projeto", "tipo", "orientador"]
+    joins = {("projetos", "orientador")}
+    # o termo nome_projeto da a cara de nome a coluna `projeto`; `tipo`, preenchida em 1 de 31, nao vira legenda
+    assert caption_choice(maps, "projetos", ["projeto_id"], joins, cols, {},
+                          _present(projeto_id=31, projeto=31, tipo=1, orientador=31), 31) == ("projeto", True)
+    # coluna com cara de nome mas quase vazia nao serve; a mapeada pouco preenchida tambem nao completa a legenda
+    sparse = [{"source": "t", "column": "apelido_nome", "term": "apelido"}, {"source": "t", "column": "tipo", "term": "tipo"}]
+    assert caption_choice(sparse, "t", ["id"], set(), ["id", "apelido_nome", "tipo"], {},
+                          _present(id=10, apelido_nome=2, tipo=3), 10) == (None, False)
+    # a chave que e o proprio nome vale como legenda; identificador (cd_, id_) e numero nao
+    named = [{"source": "e", "column": "estudante", "term": "nome_estudante"}]
+    assert caption_choice(named, "e", ["estudante"], set(), ["estudante"], {}, _present(estudante=5), 5) == ("estudante", True)
+    assert caption_choice([], "c", ["cd_nome"], set(), ["cd_nome", "nm_total"], {"nm_total": "float"},
+                          _present(cd_nome=5, nm_total=5), 5) == (None, False)
+
+
+def test_caption_decided_in_step_5_wins_and_a_missing_column_is_a_problem(seeded):
+    content = load_content(seeded)
+    for entry in content["sources"]:
+        if entry["source"] == "pedidos":
+            entry["caption"] = "status"
+        if entry["source"] == "produtos":
+            entry["caption"] = "nao_existe"
+    save_content(seeded, content)
+    plan = build_plan(seeded)
+    sources = {s.source: s for s in plan.sources}
+    assert (sources["pedidos"].caption, sources["pedidos"].caption_alone) == ("status", True)
+    assert "etapa 5: a legenda de produtos cita coluna inexistente: nao_existe" in plan.problems
+
+
+def test_template_project_name_is_a_warning(seeded):
+    assert not any("akme-template" in w for w in build_plan(seeded).warnings)
+    config = seeded.root / "akme.yml"
+    text = config.read_text(encoding="utf-8")
+    import re as _re
+    config.write_text(_re.sub(r"(?m)^project:.*$", "project: akme-template", text), encoding="utf-8")
+    from akme.project import Project
+    plan = build_plan(Project(seeded.root))
+    assert any("ainda se chama akme-template" in w and "antes da primeira carga" in w for w in plan.warnings)
 
 
 def test_source_with_name_column_keeps_it_and_warns(seeded):
@@ -479,3 +533,30 @@ def test_old_keys_next_to_the_new_option_are_still_refused(seeded):
     write_yaml(seeded.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": True, "keys": {"pedidos": "id_pedido"}}})
     plan = build_plan(Project(seeded.root))
     assert any("akme.yml" in x and "keys" in x and "etapa 5" in x for x in plan.problems)
+
+
+def test_caption_choice_needs_a_column_that_tells_records_apart():
+    """Coluna com cara de nome que repete demais (cidade do cliente, categoria do produto) nao vira legenda sozinha."""
+    from akme.tools.neo4j_plan import caption_choice
+
+    cols = ["id_cliente", "nm_cidade", "uf"]
+    args = ([], "clientes", ["id_cliente"], set(), cols, {}, _present(id_cliente=100, nm_cidade=100, uf=100), 100)
+    assert caption_choice(*args, distinct={"nm_cidade": 0.05}) == (None, False)
+    assert caption_choice(*args, distinct={"nm_cidade": 0.97}) == ("nm_cidade", True)
+    assert caption_choice(*args) == ("nm_cidade", True), "sem a medida, vale a regra antiga"
+    # mapeada e repetitiva: completa `Label chave`, nao substitui
+    maps = [{"source": "clientes", "column": "nm_cidade", "term": "cidade"}]
+    assert caption_choice(maps, *args[1:], distinct={"nm_cidade": 0.05}) == ("nm_cidade", False)
+    # a decisao da etapa 5 vale sempre
+    assert caption_choice(*args, declared="nm_cidade", distinct={"nm_cidade": 0.05}) == ("nm_cidade", True)
+
+
+def test_scan_measures_distinct_values_with_bounded_memory(seeded, monkeypatch):
+    monkeypatch.setattr(neo4j_plan, "DISTINCT_CAP", 5)
+    plan = build_plan(seeded)
+    assert not plan.problems
+    data = seeded.root / "data" / "clientes.csv"
+    rows = ["id_cliente,nm_cliente,cnpj,uf,dt_cadastro,fl_ativo"] + [f"{i},Loja,1,SP,2026-01-01,1" for i in range(1, 41)]
+    data.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    src = next(s for s in build_plan(seeded).sources if s.source == "clientes")
+    assert (src.caption, src.caption_alone) != ("nm_cliente", True), "40 clientes com o mesmo nome: nao distingue"
