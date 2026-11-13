@@ -324,8 +324,10 @@ dialog.dlg::backdrop { background: oklch(20.64% 0.0205 271.56 / 0.5); }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
 /* toast */
-.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; padding: 10px 14px; background: var(--fill-active); color: var(--text-inverse); font-size: 14px; line-height: 20px; box-shadow: var(--elevation-1); display: flex; gap: 12px; align-items: center; max-width: calc(100% - 32px); }
+.toast { position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 50; padding: 10px 14px; background: var(--fill-active); color: var(--text-inverse); font-size: 14px; line-height: 20px; box-shadow: var(--elevation-1); display: flex; gap: 12px; align-items: center; max-width: calc(100% - 32px); }
 .toast .btn { min-height: 28px; padding: 2px 8px; background: var(--fill-active-inverse); color: var(--text-primary); }
+/* o fechar e um icone: sem o fundo claro dos outros botoes, ficava um quadrado branco vazio */
+.toast .btn-ghost { background: transparent; color: inherit; }
 
 /* ---------- layout ---------- */
 .app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100dvh; }
@@ -589,6 +591,11 @@ body.chat-open .e1-foot { right: var(--chat-w); }
 .chat-hint[hidden], .chat-error[hidden] { display: none; }
 .chat-form { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--border-divider); }
 .chat-form .btn { align-self: flex-end; }
+/* aba Ontologia com a conversa aberta: o grafo usa a largura toda e o detalhe vem embaixo, so com classe escolhida (item 13) */
+body.chat-open .workspace { grid-template-columns: minmax(0, 1fr); }
+body.chat-open .panel { position: static; }
+body.chat-open .panel.is-empty { display: none; }
+.graph-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 @media (max-width: 1100px) {
   body.chat-open .main { margin-right: 0; }
   body.chat-open .rv-bar { right: 0; }
@@ -747,7 +754,13 @@ dialog.e1-dlg::backdrop { background: oklch(20.64% 0.0205 271.56 / 0.35); backdr
 .e1-line.rej .i { color: var(--text-error); }
 .e1-line.rej .q { color: var(--text-secondary); }
 .e1-line .q { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.e1-line .m { font-size: 13px; color: var(--text-secondary); flex: 0 0 auto; }
+/* a decisao quebra linha e encolhe: com texto longo ela espremia a pergunta ate uma letra por linha (B1) */
+.e1-line { flex-wrap: wrap; row-gap: 2px; }
+.e1-line > .lnk, .e1-line .i { flex: 0 0 auto; }
+.e1-line .q { flex: 1 1 16rem; }
+.e1-line .m { font-size: 13px; color: var(--text-secondary); flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+/* linha decidida de uma alteracao: o que muda, sem abrir o cartao */
+.ou-chg { display: block; font-size: 13px; line-height: 18px; color: var(--text-secondary); margin-top: 2px; }
 .e1-more { margin-top: 28px; }
 .e1-more > summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); padding: 6px 0; }
 .e1-more > summary:hover { color: var(--text-primary); }
@@ -847,10 +860,6 @@ dialog.e1-save { max-width: 44rem; }
 .ou-edit { display: flex; flex-direction: column; gap: 12px; }
 .ou-edit .field { display: flex; flex-direction: column; gap: 6px; }
 .ou .input.miss, .ou .textarea.miss, .e1-dlg .e1-opts.miss, .e1-dlg .e1-srcs.miss, .e1-dlg .seg.miss, .e1-dlg .select.miss { border-color: var(--status-warning); outline: 1px dashed var(--status-warning); outline-offset: 4px; }
-.ou .e1-line > .lnk { flex: 0 0 auto; }
-.ou .e1-line { flex-wrap: wrap; row-gap: 2px; }
-.ou .e1-line .q { flex: 1 1 16rem; }
-.ou .e1-line .m { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .ou-dlg-ctx { font-size: 15px; line-height: 22px; padding: 10px 14px; background: var(--fill-ui-1); border-left: 3px solid var(--border-secondary); }
 .ou .e1-more .e1-sub { margin-top: 16px; }
 .ou .e1-more .e1-line + .e1-line { margin-top: 2px; }

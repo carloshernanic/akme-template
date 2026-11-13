@@ -6,7 +6,8 @@
   "use strict";
 
   // ordem dos grupos: primeiro o que constroi a ontologia (etapas 2 a 5), depois alteracoes de requisitos
-  const GROUP_ORDER = ["class", "relation", "term", "mapping", "constraint", "precedence", "source", "cq", "gap", "div", "uc", "glossary", "other"];
+  // alteracoes de pergunta, lacuna e divergencia sao da etapa 1 e travam as seguintes: vem primeiro
+  const GROUP_ORDER = ["cq", "gap", "div", "uc", "glossary", "class", "relation", "term", "mapping", "constraint", "precedence", "source", "other"];
   const ONTO_GROUPS = new Set(["class", "relation", "term", "mapping", "constraint", "precedence", "source"]);
   const GROUP_LABEL = {
     class: "Classes", relation: "Relações", term: "Termos", mapping: "Mapeamentos", constraint: "Restrições",
@@ -35,7 +36,7 @@
   // campos de texto corrido: aparecem como frase, nao como etiqueta e valor
   const PROSE = new Set(["Comentário", "Definição", "Regra", "Motivo", "Significado", "Descrição", "Valor", "Nota", "Hipótese da IA"]);
   const MULT_SHORT = { "muitos para um": ["n", "1"], "um para muitos": ["1", "n"], "um para um": ["1", "1"], "muitos para muitos": ["n", "n"] };
-  const VIEW_ACTS = new Set(["det", "check"]);
+  const VIEW_ACTS = new Set(["det", "check", "ask"]);
 
   const O = { el: null, ctx: {}, M: null, wired: null, saving: false, showApplied: false };
 
@@ -73,6 +74,7 @@
     return { title: pl.name || pl.question || pl.topic || pl.id || p.id, subtitle: "", group: "other", fields: [], evidence: [],
       observed: null, alerts: [], editable: [], rejectable: true, requirement_id: p.requirement_id || "", rationale: p.rationale || "" };
   }
+  const stepText = (t) => (window.AkmeChannel ? window.AkmeChannel.step(t) : t || "");
   const originLow = (by) => (!by || by === "agent" || by === "IA" ? "proposta pela IA" : "proposta por " + by);
 
   // ---------- modelo ----------
@@ -125,7 +127,9 @@
       M.items.push(it); M.byId[p.id] = it;
     }
     const gi = (it) => { const i = GROUP_ORDER.indexOf(it.v.group); return i < 0 ? GROUP_ORDER.length : i; };
-    M.items.sort((a, b) => gi(a) - gi(b));
+    // dentro do grupo, na ordem em que a IA propos: proposta nova entra no fim, nao acima do que se esta decidindo
+    const at = (it) => String(it.p.created_at || "");
+    M.items.sort((a, b) => gi(a) - gi(b) || at(a).localeCompare(at(b)));
     if (O.showApplied) { M.apOpen = true; O.showApplied = false; }
     return M;
   }
@@ -276,10 +280,17 @@
       ${v.rationale ? `<p class="p secondary"><b>Justificativa da IA:</b> ${esc(v.rationale)}</p>` : ""}
       ${canEdit ? `<div><button type="button" class="lnk" data-o="edit" data-id="${id}">${it.editing ? "pronto" : "ajustar texto"}</button></div>` : ""}</div>`;
   }
+  // "Situação: Aprovada → Reservada para o teste": o que a alteracao muda, sem abrir o cartao
+  function changeText(it) {
+    if (!/^update_/.test(it.p.type)) return "";
+    const pl = it.p.payload || {}, cur = it.p.current || {};
+    return Object.keys(pl).filter((k) => k !== "id" && k !== "evidence")
+      .map((k) => `${FIELD_L[k] || k}: ${cut(fmt(k, cur[k]), 50)} → ${cut(fmt(k, pl[k]), 70)}`).join("; ");
+  }
   function line(it) {
-    const ok = it.dec === "ok", adj = ok && Object.keys(diffOf(it)).length;
+    const ok = it.dec === "ok", adj = ok && Object.keys(diffOf(it)).length, tag = kindTag(it), chg = changeText(it);
     return `<div class="e1-line ${ok ? "ok" : "rej"}" data-ou="${esc(it.id)}"><span class="i" aria-hidden="true">${ok ? "✓" : "✕"}</span>
-      <span class="q">${esc(titleText(it))}</span><span class="m">${esc(ok ? (adj ? "aceita com ajuste" : "aceita") : reasonOf(it))}</span>
+      <span class="q">${tag ? `<span class="ou-tag">${esc(tag)}</span> ` : ""}${esc(titleText(it))}${chg ? `<span class="ou-chg">${esc(chg)}</span>` : ""}</span><span class="m">${esc(ok ? (adj ? "aceita com ajuste" : "aceita") : reasonOf(it))}</span>
       <button type="button" class="lnk" data-o="open" data-id="${esc(it.id)}" aria-label="Rever: ${esc(titleText(it))}">rever</button></div>`;
   }
   function card(it) {
@@ -300,11 +311,18 @@
         <h3 class="cq-q">${titleHtml(it)}</h3>
         <div class="cq-sig">${tag ? `<span class="ou-tag">${esc(tag)}</span>` : ""}${srcLine(it)}
           <button type="button" class="lnk" data-o="det" data-id="${id}" aria-expanded="${it.det}" aria-controls="ou-det-${id}">${it.det ? "esconder detalhes" : "ver detalhes"}</button>
-          ${adj ? '<span class="mark">ajustada por você</span>' : ""}</div>
+          ${askBtn(it)}${adj ? '<span class="mark">ajustada por você</span>' : ""}</div>
         ${gist(it)}${alerts}
         ${it.det ? details(it) : ""}
       </div>
       <div class="cq-decide"><div class="big">${big("ok", "✓ Aceitar", "bok")}${v.rejectable !== false ? big("rej", "✕ Rejeitar", "brej") : ""}</div>${after}${close}</div></article>`;
+  }
+
+  // abre a Conversa com o item citado, para a resposta do agente ficar ligada a ele
+  const askRef = (it) => { const pl = it.p.payload || {}; return pl.id || pl.name || pl.source || it.id; };
+  function askBtn(it) {
+    const ch = window.AkmeChannel;
+    return ch && ch.available() && !isAuto() ? `<button type="button" class="lnk" data-o="ask" data-id="${esc(it.id)}">Comentar com a IA</button>` : "";
   }
 
   // ---------- alteracoes do revisor (perguntas, lacunas e divergencias ja aplicadas, pergunta nova) ----------
@@ -341,7 +359,7 @@
       bt("acq", q.id, "Alterar") + bt("rcq", q.id, "Excluir"), q.id)).join("");
     const gapRows = gaps.map((g) => row(g.question, GAP_L[g.decision] || g.decision || "", bt("agap", g.id, "Alterar"), g.id)).join("");
     const divRows = divs.map((d) => row(d.topic, d.decision === "precedence" ? `Vale ${d.winner || "?"}` : DIV_L[d.decision] || d.decision || "", bt("adiv", d.id, "Alterar"), d.id)).join("");
-    return `<details class="e1-more ou-ap-wrap" data-od="ap"${M.apOpen ? " open" : ""}><summary><b>Já aplicadas</b> <span class="ou-ap-n">${total}</span><span class="ou-ap-hint">perguntas, lacunas e divergências que você pode alterar</span></summary>
+    return `<details class="e1-more ou-ap-wrap" data-od="ap"${M.apOpen ? " open" : ""}><summary><b>Já aplicadas</b> <span class="ou-ap-n">${total}</span><span class="ou-ap-hint">${esc([plural(cqs.length, "pergunta", "perguntas"), plural(gaps.length, "lacuna", "lacunas"), plural(divs.length, "divergência", "divergências")].join(" · "))}; dá para alterar cada uma</span></summary>
       ${cqRows ? `<h3 class="e1-sub">Perguntas</h3>${cqRows}` : ""}${gapRows ? `<h3 class="e1-sub">Lacunas</h3>${gapRows}` : ""}${divRows ? `<h3 class="e1-sub">Divergências</h3>${divRows}` : ""}
       <p class="p secondary">A alteração vira uma proposta sua e entra junto quando você salvar.</p></details>`;
   }
@@ -370,7 +388,7 @@
     const srcHtml = srcs.length
       ? `<ul class="ou-src">${srcs.map(([p, n]) => { const i = p.lastIndexOf("/"); return `<li><span class="ou-src-f"><b class="mono">${esc(p.slice(i + 1))}</b>${i > 0 ? `<span class="mono">${esc(p.slice(0, i + 1))}</span>` : ""}</span><span class="ou-ap-meta">${plural(n, "citação", "citações")}</span></li>`; }).join("")}</ul>`
       : '<ul class="ou-src"><li><span class="ou-src-f">Nenhuma fonte citada ainda.</span></li></ul>';
-    return `<details class="e1-more ou-ap-wrap" data-od="ctx"${M.ctxOpen ? " open" : ""}><summary><b>Caso de uso e fontes</b><span class="ou-ap-hint">o que já foi definido na etapa 1 e de onde a IA tirou as propostas</span></summary>
+    return `<details class="e1-more ou-ap-wrap" data-od="ctx"${M.ctxOpen ? " open" : ""}><summary><b>Caso de uso e fontes</b><span class="ou-ap-hint">${esc([ucs.length ? ucs.map((u) => u.name).join(", ") : r.no_use_case ? "sem caso de uso" : "nenhum caso de uso", plural(srcs.length, "fonte citada", "fontes citadas")].join(" · "))}</span></summary>
       <h3 class="e1-sub">Caso de uso</h3>${ucHtml}
       ${about ? `<h3 class="e1-sub">Sobre o projeto</h3>${about}` : ""}
       <h3 class="e1-sub">Fontes citadas <span class="ou-n">${srcs.length}</span></h3>${srcHtml}</details>`;
@@ -392,7 +410,7 @@
     const own = M.own.length ? `<h3 class="e1-sub">Suas alterações <span class="ou-n">${M.own.length}</span></h3><div class="e1-cqs">${M.own.map(ownLine).join("")}</div>` : "";
     const st = M.stage || {};
     const nada = !M.items.length && !M.own.length
-      ? `<div class="e1-empty"><b>Nada a decidir</b><span>${esc([st.label, st.next_step].filter(Boolean).join(". ") || "Quando o agente propuser algo, aparece aqui.")}</span></div>` : "";
+      ? `<div class="e1-empty"><b>Nada a decidir</b><span>${esc([st.label, stepText(st.next_step)].filter(Boolean).join(". ") || "Quando o agente propuser algo, aparece aqui.")}</span></div>` : "";
     const aviso = ns && can ? `<div class="unsaved" role="status"><span><b>${plural(ns, "decisão ainda não salva", "decisões ainda não salvas")}.</b> Só entram na ontologia depois de conferir e salvar.</span>
       <button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : "";
     return `${bar}${aviso}${nada}${groups}${own}${appliedSection(M)}${contextSection(M)}`;
@@ -432,6 +450,7 @@
     switch (act) {
       case "det": it.det = !it.det; return render(`[data-o="det"][data-id="${id}"]`);
       case "check": return checkQuote(b);
+      case "ask": return window.AkmeChannel && window.AkmeChannel.ask(`[${askRef(it)}] `);
       case "dec": {
         it.dec = b.dataset.v;
         if (it.dec === "ok") { it.open = false; return render(focusAfter(id)); }
@@ -790,7 +809,7 @@
       try { localStorage.removeItem(draftKey(M.project)); } catch (e) { /* sem armazenamento */ }
       d.querySelector("form").innerHTML = `<h2 class="h3-semibold" id="ou-save-t">Salvo e aplicado</h2>
         <div class="e1-empty"><b>${plural(n, "decisão entrou", "decisões entraram")} na ontologia</b>
-          <span>${nr ? plural(nr, "rejeição ficou registrada", "rejeições ficaram registradas") + " no changelog. " : ""}${held ? plural(held, "proposta ficou", "propostas ficaram") + " esperando a etapa 1 fechar. " : ""}Volte para o chat: o agente segue para o próximo passo.${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
+          <span>${nr ? plural(nr, "rejeição ficou registrada", "rejeições ficaram registradas") + " no changelog. " : ""}${held ? plural(held, "proposta ficou", "propostas ficaram") + " esperando a etapa 1 fechar. " : ""}${window.AkmeChannel ? window.AkmeChannel.after() : "Volte para o chat: o agente segue para o próximo passo."}${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
         <div class="dlg-actions"><button type="button" class="btn" data-s="done">Fechar</button></div>`;
       d.querySelector('[data-s="done"]').focus();
     } catch (e) {

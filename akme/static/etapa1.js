@@ -339,7 +339,7 @@
   }
   // modo automatico (a main marca o body): a IA decide e aplica; aqui so se acompanha
   const isAuto = () => document.body.dataset.decisionMode === "auto";
-  const VIEW_ACTS = new Set(["go", "back", "next", "outras", "cq-det", "gd-det", "gd-more"]);
+  const VIEW_ACTS = new Set(["go", "back", "next", "outras", "cq-det", "gd-det", "gd-more", "gd-ask"]);
 
   // ---------- tela 3: lacunas e divergencias ----------
   function needOf(c) {
@@ -372,6 +372,11 @@
   function gdClose(c) {
     return gdDone(c) && needOf(c) ? `<div><button type="button" class="btn btn-outline btn-sm" data-e1="gd-close" data-id="${esc(c.edit_id)}">concluir</button></div>` : "";
   }
+  // abre a Conversa com o item citado ([L-03]), para a resposta do agente ficar ligada a ele
+  function askBtn(c) {
+    const ch = window.AkmeChannel;
+    return ch && ch.available() && !isAuto() ? `<button type="button" class="lnk" data-e1="gd-ask" data-id="${esc(c.edit_id)}">Comentar com a IA</button>` : "";
+  }
   function gapCard(c) {
     if (gdDone(c) && !c.open) return gdLine(c);
     const pl = c.payload, id = esc(c.edit_id);
@@ -382,7 +387,7 @@
     return `<article class="rv-card cq-lean${gdDone(c) ? " st-ok" : ""}" data-gd="${id}">
       <div class="cq-body"><h3 class="cq-q">${esc(pl.question)}</h3>
         <div class="cq-sig"><span class="e1-why">● ${esc(pl.reason || "os dados não respondem")}</span>
-          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button></div>${det}</div>
+          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button>${askBtn(c)}</div>${det}</div>
       <div class="cq-decide"><div class="e1-opts" role="group" aria-label="O que fazer com esta lacuna">${GAP_OPTS.map(([v, l]) => `<button type="button" data-e1="gd-set" data-id="${id}" data-v="${v}" aria-pressed="${c.choice === v}">${esc(l)}</button>`).join("")}</div>
         ${sug ? `<span class="choice-help">A IA sugere ${esc(sug)}.</span>` : ""}${openNote(c)}${needField(c)}${gdClose(c)}</div></article>`;
   }
@@ -395,11 +400,12 @@
     const more = c.more || other;
     const det = c.det ? `<div class="cq-det" id="e1-det-${id}"><p class="eyebrow">${esc([pl.id, "proposta pela IA"].filter(Boolean).join(" · "))}</p>
       ${pl.reason ? `<p class="p"><b>Por que a IA sugere:</b> ${esc(pl.reason)}</p>` : ""}
+      ${pl.hypothesis ? `<p class="p"><b>Hipótese da IA:</b> ${esc(pl.hypothesis)}</p>` : ""}
       ${c.rationale ? `<p class="p secondary"><b>Justificativa da IA:</b> ${esc(c.rationale)}</p>` : ""}</div>` : "";
     return `<article class="rv-card cq-lean${gdDone(c) ? " st-ok" : ""}" data-gd="${id}">
       <div class="cq-body"><h3 class="cq-q">${esc(divTitle(pl))}</h3>
         <div class="cq-sig">${sug ? `<span>A IA sugere <b>${esc(pl.winner)}</b></span>` : ""}
-          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button></div>${det}</div>
+          <button type="button" class="lnk" data-e1="gd-det" data-id="${id}" aria-expanded="${c.det}" aria-controls="e1-det-${id}">${c.det ? "esconder detalhes" : "ver detalhes"}</button>${askBtn(c)}</div>${det}</div>
       <div class="cq-decide"><div class="e1-srcs">${srcs.map((x, i) => `<button type="button" class="e1-src" data-e1="dv-win" data-id="${id}" data-i="${i}" aria-pressed="${c.choice === "precedence" && c.winner === lab(x, i)}">
           <span class="l">${esc(lab(x, i))}</span>${x.quote ? `<span class="qt">“${esc(x.quote)}”</span>` : ""}${x.path ? `<span class="pa">${esc(x.path)}${x.locator ? " · " + esc(x.locator) : ""}</span>` : ""}</button>`).join("")}</div>
         ${other ? "" : `<div><button type="button" class="lnk" data-e1="gd-more" data-id="${id}" aria-expanded="${more}">${more ? "esconder outras opções" : "nenhuma das duas? outras opções"}</button></div>`}
@@ -625,6 +631,7 @@
       case "back": return goStep(prevStep(M));
       case "next": return onNext();
       case "save": return trySave();
+      case "gd-ask": return it && window.AkmeChannel && window.AkmeChannel.ask(`[${(it.payload || {}).id || it.edit_id}] `);
       case "outras": if (E.ctx.onOutras) E.ctx.onOutras(); return;
       case "uc": it.sel = !it.sel; if (it.sel && M.noUc) M.noUc = null; return render(`[data-e1="uc"][data-id="${b.dataset.id}"]`);
       case "draft-on": return openDraft(null, b);
@@ -954,7 +961,7 @@
       clearDraft(E.M.project);
       d.querySelector("form").innerHTML = `<h2 class="h3-semibold" id="e1-save-t">Etapa 1 salva e aplicada</h2>
         <div class="e1-empty"><b>${(out.applied || []).length} ${(out.applied || []).length === 1 ? "decisão entrou" : "decisões entraram"} na ontologia</b>
-          <span>Volte para o chat: o agente segue para o próximo passo.${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
+          <span>${window.AkmeChannel ? window.AkmeChannel.after() : "Volte para o chat: o agente segue para o próximo passo."}${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
         <div class="dlg-actions"><button type="button" class="btn" data-s="done">Fechar</button></div>`;
       d.querySelector('[data-s="done"]').focus();
     } catch (e) {
