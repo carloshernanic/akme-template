@@ -71,6 +71,8 @@ O `:guide` não abriu no primeiro teste porque o Browser rodava na porta 17474 e
 
 **Regra que mudou, com aval de Mateus:** a carga continua só do humano, mas agora pelo botão da página ou pela CLI. O agente não tem tool para ela, e o `SKILL.md` o proíbe de chamar a rota. A rota `POST /api/neo4j/carga` recusa pedido que não venha da própria página (sem `Origin` ou de outra origem) e só aceita uma carga por vez. A senha nunca passa pela página: da senha, o servidor só diz se está preenchida e se tem tamanho suficiente.
 
+**Sem Docker: Neo4j Desktop.** O passo 1 abre com a escolha entre **Docker** e **Neo4j Desktop** (lembrada no navegador); com o Desktop, as instruções são criar a instância em **Instances** › **Create**, esperar **RUNNING** e colar as mesmas linhas no `.env`, e os erros falam da instância em vez do contêiner. O passo 4 tem um roteiro por caminho, com a mesma escolha (trocável ali, em **Ver pelo**): Browser com login e `:guide`; Desktop com **Query**, `CALL db.schema.visualization()` e uma consulta de registros, e o tutorial do Browser recolhido como opcional. Testado por Mateus em 13/11/2026 com o Desktop (instância 2026.10.2): conexão, carga e consulta, sem mudar o servidor.
+
 Código: `akme/tools/neo4j_page.py` (estado e carga), rotas `GET /api/neo4j` e `POST /api/neo4j/carga` em `akme/review_server.py`, tela em `akme/static/exportar.js`.
 
 ## Verificação
@@ -94,10 +96,26 @@ Uma revisão automática do diff apontou nove pontos no código, todos corrigido
 - **Classe de base usada por uma relação** continua virando `Conceito`, para a seta não sumir.
 - **Exemplo de legenda na revisão** não mistura mais valores de linhas diferentes.
 
+## Corrigir o que já foi aplicado
+
+No Olist (11/11), um termo foi mapeado para a tabela errada e a tabela de produtos virou duas classes; o agente não tinha como corrigir. No capstone (13/11), trocar o nome da classe `Conceito` exigiu editar arquivos à mão. Três tipos de edição resolvem isso, pela mesma revisão e aprovação humana de qualquer outra proposta, com registro no `changelog.yml` do antes e do depois:
+
+| Tipo | O que faz | Campos |
+|---|---|---|
+| `update_mapping` | Troca um mapping aplicado | `term`, `source` e `column` de hoje, mais `set` com o que muda (`term`, `source`, `column`, `role`, `expression`, `note`) |
+| `remove_mapping` | Apaga um mapping aplicado | `term`, `source`, `column` e `reason` |
+| `rename_class` | Troca o nome de uma classe | `name`, `new_name` e, se quiser, `label` |
+
+- **A correção vale para o mapping que a pessoa viu.** A proposta guarda o mapping de antes; se ele mudar até a aprovação, a aplicação recusa e pede uma proposta nova.
+- **As recusas do `add_mapping` continuam valendo** no resultado: coluna com nome reservado, métrica sem expressão SQL, mapping repetido, termo que não existe.
+- **`rename_class` troca o nome em tudo que cita a classe:** `schema.ttl` (inclusive subclasses, domínio e alcance de relações), termos, contratos de relação, conceitos das perguntas de competência e propostas pendentes. As classes de base do akme e os nomes reservados do Neo4j são recusados.
+- **O `validate` avisa antes da etapa 5** (`source_classes`) quando uma tabela recebe termos de mais de uma classe, dizendo quais termos puxam cada classe. Antes, isso só aparecia como problema do plano de carga.
+- **No Neo4j, a correção chega na carga seguinte:** ela sincroniza o banco com a origem, então nós e propriedades do nome antigo saem.
+
 ## O que ficou aberto
 
 - **Grafo desconectado sem aviso próprio.** A aba Exportar já lista as classes sem ligação; falta contar pedaços e nós isolados no dry-run e pôr a regra na etapa 3 do `SKILL.md`.
-- **Mappings não se corrigem.** Faltam `update_mapping`, `remove_mapping` e `rename_class`.
+- **Renomear relação** (`rename_relation`) não existe; por enquanto só classe.
 - **Perguntas de competência em Cypher** como teste depois da carga, e a decisão de voltar com elas como consultas salvas.
 - **Tutorial abrir sozinho.** Depende de o contêiner ter sido criado pelo comando da página (que já inclui a linha).
 - **Refazer o teste do Olist** e testar o gerador de Cypher do console da Aura.

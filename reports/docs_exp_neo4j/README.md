@@ -109,6 +109,8 @@ grep '^AKME_NEO4J' .env | awk -F= '{print $1, ($2=="" ? "VAZIA" : "ok")}'
 
 ### 1.4 Subir o Neo4j e conferir
 
+Sem Docker? Use o Neo4j Desktop: veja "Sem Docker: Neo4j Desktop", na seção da aba Exportar, e pule este passo.
+
 ```bash
 set -a; . ./.env; set +a
 NEO4J_AUTH="neo4j/$AKME_NEO4J_PASSWORD" docker run -d --name akme-neo4j \
@@ -185,12 +187,28 @@ E uma terceira, que decide se o grafo se lê ou não:
 
 Desde 13/11/2026 a página local faz o caminho inteiro. Rode `uv run akme review`, abra o endereço que ele mostra e clique na aba **Exportar**. São quatro passos na mesma tela:
 
-1. **Banco:** diz o que falta no `.env`, mostra as linhas para colar e o comando do Docker que cria o Neo4j (já com as portas do seu `.env` e o tutorial abrindo sozinho). Depois de salvar o `.env`, clique em **Conferir de novo**: a página lê o arquivo outra vez e testa a conexão. A senha fica só no `.env`; a página nunca a mostra nem a pede.
+1. **Banco:** primeiro, escolha **Docker** (um comando no terminal) ou **Neo4j Desktop** (aplicativo, sem terminal); a página lembra a escolha, e ela vale até o passo 4. Conectado, o passo diz por qual caminho quando sabe (contêiner do akme, escolha guardada ou banco local de fora). Depois, diz o que falta no `.env`, mostra as linhas para colar e, no Docker, o comando que cria o Neo4j (já com as portas do seu `.env` e o tutorial abrindo sozinho). Depois de salvar o `.env`, clique em **Conferir de novo**: a página lê o arquivo outra vez e testa a conexão. A senha fica só no `.env`; a página nunca a mostra nem a pede.
 2. **O que vai para o grafo:** a prévia do dry-run: registros por classe, ligações, o que já está no banco, avisos e os problemas que bloqueiam a carga. Classe sem nenhuma ligação sai marcada "sem ligações".
 3. **Carregar:** o botão **Carregar no Neo4j**, liberado depois de marcar "Entendi que a carga altera o banco e não tem como desfazer". Se a carga for apagar mais de 20% de alguma classe, a página pede o número de registros removidos, como a CLI. As recusas são as mesmas da CLI (problema no plano, banco de outro projeto).
-4. **Ver o grafo:** o item opcional "Perguntas em português, pelo console da Aura" diz se o banco tem o APOC, mostra o comando que recria o contêiner com ele (o grafo e a senha ficam no volume) e os dados para conectar o console ao banco local. Antes dele: o link do Neo4j Browser, o usuário e a senha para entrar, o comando do tutorial pronto para copiar e o arquivo de consultas para baixar. Se o Browser não responder no endereço esperado, a página avisa e diz qual linha pôr no `.env` (`AKME_NEO4J_BROWSER_URL`); sem ela o tutorial não abre e o Browser não mostra erro.
+4. **Ver o grafo:** um roteiro por caminho, com a mesma escolha do passo 1. No topo, **Ver pelo: Neo4j Browser | Neo4j Desktop** troca o roteiro ali mesmo (por exemplo, carregou no Desktop e quer o tutorial no Browser). Sem escolha guardada, a página usa o Browser quando o banco é o contêiner do akme e o Desktop quando é outro banco local.
+   - **Neo4j Browser** (caminho do Docker): o link do Browser, o usuário e a senha para entrar e o comando do tutorial (`:guide`) pronto para copiar. Se o Browser não responder no endereço esperado, a página avisa e diz qual linha pôr no `.env` (`AKME_NEO4J_BROWSER_URL`); sem ela o tutorial não abre e o Browser não mostra erro.
+   - **Neo4j Desktop:** abrir **Query** com a instância **RUNNING**, rodar `CALL db.schema.visualization()` (mapa das classes) e `MATCH p=()-[]->() RETURN p LIMIT 25` (registros). O tutorial guiado do akme fica recolhido como opcional, porque só abre no Browser.
+   - Nos dois, opcionais: "Perguntas em português, pelo console da Aura" (diz se o banco tem o APOC, como instalá-lo e os dados para conectar o console ao banco local) e o arquivo de consultas prontas para baixar.
 
 A carga pelo botão é a mesma da CLI. Só quem está na página consegue dispará-la: o agente não tem tool nem rota para isso. As Partes 1 a 4 abaixo continuam valendo para quem prefere o terminal e explicam cada passo em detalhe.
+
+### Sem Docker: Neo4j Desktop
+
+O akme só precisa de um Neo4j respondendo no endereço, usuário e senha do `.env`; não importa quem o roda. Testado em 13/11/2026 por Mateus com o Neo4j Desktop (instância 2026.10.2): conexão, carga pelo botão e consulta no **Query** do Desktop.
+
+1. Baixe e abra o Neo4j Desktop: https://neo4j.com/download/.
+2. Em **Instances**, clique em **Create** e crie uma instância local. Senha com 8 caracteres ou mais, só letras e números. Espere ela ficar **RUNNING** (em **Local instances**).
+3. Cole no `.env` as mesmas linhas que a aba mostra, com a senha que você criou. O Desktop mostra o endereço em **Connection URI** (`neo4j://127.0.0.1:7687`); se a porta for outra, use a dele.
+4. Na aba Exportar, escolha **Neo4j Desktop** e clique em **Conferir de novo**.
+
+Se o contêiner do Docker estiver ligado, ele ocupa as mesmas portas: pare antes com `docker stop akme-neo4j`.
+
+Com a escolha Desktop, os erros do passo 1 falam da instância, não de contêiner: nada respondendo é instância fora de **RUNNING** ou porta diferente da do `.env`; senha recusada é a que foi criada com a instância. No passo 4, o roteiro é o do Desktop: em **Query**, `CALL db.schema.visualization()` mostra o mapa das classes e `MATCH p=()-[]->() RETURN p LIMIT 25` mostra registros. Depois da carga, o painel **Database information** do Query pode mostrar a contagem antiga até você clicar no ícone de atualizar. O tutorial (`:guide`) só abre no Neo4j Browser, em `http://localhost:7474`; ele aparece recolhido no roteiro, e **Ver pelo** troca para o roteiro do Browser. No teste, a instância já tinha o APOC, mas não sabemos se vem sempre: o passo 4 da aba diz se o banco tem.
 
 ## Parte 3. Exportar
 
@@ -214,7 +232,7 @@ O dry-run devolve:
 | `problems` | Se não estiver vazio, a carga será recusada. Cada item diz o que corrigir |
 | `warnings` | A carga acontece, mas leia: por exemplo, linhas sem par numa relação ficam sem aresta |
 
-Se aparecer um problema que exige mudar a ontologia (por exemplo, "fonte X com mais de uma classe"), volte ao agente no chat e mostre a mensagem.
+Se aparecer um problema que exige mudar a ontologia (por exemplo, "fonte X com mais de uma classe"), volte ao agente no chat e mostre a mensagem: ele propõe a correção (`update_mapping` ou `remove_mapping` para um mapping na tabela errada, `rename_class` para um nome de classe) e você aprova na página, como qualquer outra proposta.
 
 ### 3.2 Carregar
 
@@ -478,7 +496,7 @@ Se você seguiu uma versão antiga deste guia, pode apagar também a pasta `.neo
 | `o nome de classe Conceito e reservado: ...` (ou `Termo`; relação `TEM_TERMO`, `SUBCLASSE_DE`, `RELACAO_ONTOLOGIA`; coluna `_id`, `_projeto`, `_carga`, `_descricao`) | O akme usa esses nomes no Neo4j para guardar a ontologia. A proposta é recusada já na etapa 2 ou 3; numa ontologia antiga, o `akme validate` avisa e a carga recusa | Classe ou relação: peça ao agente outro nome, com uma palavra do domínio (`ConceitoRubrica`). Coluna: renomeie na origem |
 | `etapa 5: a legenda de X cita coluna inexistente: ...` | A coluna escolhida como legenda saiu da tabela ou mudou de nome | Refaça a decisão da tabela na etapa 5 (Parte 2) |
 | Aviso `o projeto ainda se chama akme-template` | O `project` do `akme.yml` é o que vem no template, e o grafo fica marcado com esse nome | Antes da primeira carga, troque `project` no `akme.yml` pelo nome do cliente. Depois da primeira carga, só limpando o banco (seção 3.4) |
-| `fonte X com mais de uma classe` | Termos de classes diferentes mapeados para a mesma tabela | Mostre a mensagem ao agente; a correção é na ontologia |
+| `fonte X com mais de uma classe` | Termos de classes diferentes mapeados para a mesma tabela | Mostre a mensagem ao agente: ele propõe `update_mapping` ou `remove_mapping` e você aprova na página |
 | `o bloco neo4j do akme.yml nao le mais keys` (ou `types`, `sources`) | Configuração antiga, de antes da etapa 5 | Apague essas chaves do bloco `neo4j` do `akme.yml` (ele só aceita `descricao_nos_dados`) e faça a Parte 2 |
 | `neo4j.descricao_nos_dados no akme.yml deve ser true ou false` | Valor como `sim` ou `"true"` entre aspas | Escreva `true` ou `false`, sem aspas |
 | `... nao existe nos dados: X.<U+FEFF>coluna; o nome tem caractere invisivel: ...` (ou `coluna inexistente em X: <U+FEFF>...`) | O nome na ontologia ou na proposta tem um caractere que não aparece na tela (BOM do início de um CSV, espaço de largura zero, espaço não separável), marcado como `<U+...>` | Mostre a mensagem ao agente: a correção é reescrever o nome sem o caractere, por proposta na página de revisão |

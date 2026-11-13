@@ -966,6 +966,20 @@ dialog.e1-save { max-width: 44rem; }
 .ex-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .ex-field { display: flex; flex-direction: column; gap: 4px; max-width: 16rem; }
 .ex .callout .b code, .ex .p code { font-size: 13px; }
+/* passo 1: Docker ou Neo4j Desktop; o escolhido ganha borda cheia e o ponto preenchido */
+.ex-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 34rem; }
+.ex-pick-c { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px 10px 40px; text-align: left; background: var(--surface-primary); box-shadow: inset 0 0 0 1px var(--border-tertiary); color: var(--text-primary); }
+.ex-pick-c::before { content: ""; position: absolute; left: 14px; top: 14px; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--border-secondary); }
+.ex-pick-c:hover { box-shadow: inset 0 0 0 1px var(--border-primary); }
+.ex-pick-c[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--border-active); }
+.ex-pick-c[aria-pressed="true"]::before { box-shadow: inset 0 0 0 5px var(--border-active); }
+.ex-pick-c b { font-size: 15px; line-height: 22px; font-weight: 600; }
+.ex-pick-c span { font-size: 13px; line-height: 18px; color: var(--text-secondary); }
+/* troca compacta de roteiro no passo 4 (mesma escolha do passo 1) */
+.ex-via { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.ex-via-l { font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+.ex-via .seg > button { flex: 0 0 auto; white-space: nowrap; padding: 4px 12px; min-height: 28px; }
+@media (max-width: 480px) { .ex-pick { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) {
   .ex-tables { grid-template-columns: minmax(0, 1fr); }
   .ex-code { flex-direction: column; }
