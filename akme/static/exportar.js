@@ -219,12 +219,27 @@
     const addr = st.setup.bolt_port && st.setup.bolt_port !== 7687 && st.env.destination
       ? field("Endereço", `<code>${esc(st.env.destination)}</code>`, st.env.destination) : "";
     const file = (path) => `publish/${esc(path.split("/").pop())}`;
+    // console da Aura: gerador de Cypher a partir de texto, ligado ao banco local; so funciona com o APOC
+    let aura = "";
+    if (v.aura_url) {
+      const apoc = v.apoc === true
+        ? `<p class="p"><span class="badge badge-sm badge-outline badge-success">APOC instalado</span> O banco está pronto para o gerador.</p>`
+        : `${callout("atencao", I.warn, v.apoc === false ? "Este banco não tem o APOC" : "Não deu para conferir o APOC", "O gerador de perguntas só funciona com ele. Recrie o contêiner com o comando abaixo: o grafo e a senha ficam guardados, nada se perde.")}
+           ${v.container_ours ? code(st.setup.recreate, "o comando que recria o banco com o APOC") : `<p class="p secondary">O seu contêiner não é o <code>akme-neo4j</code>: recrie-o com o mesmo nome, portas e volume, acrescentando a linha <code>--env NEO4J_PLUGINS='["apoc"]'</code>.</p>`}`;
+      aura = `<details class="ex-details"><summary>Escrever a pergunta e receber a consulta pronta</summary>
+        ${apoc}
+        <p class="p">Abra <a href="https://console.neo4j.io" target="_blank" rel="noopener">console.neo4j.io</a>, entre em <b>Query</b> e, em <b>Connect</b>, aba <b>Self-managed</b>, use:</p>
+        <div class="ex-login">${field("Endereço", `<code>${esc(v.aura_url)}</code>`, v.aura_url)}${field("Usuário", `<code>${esc(v.user)}</code>`, v.user)}${field("Senha", `a do seu <code>.env</code>`)}</div>
+        <p class="p secondary">Antes de usar com dado de cliente, combine com ele: a pergunta e o esquema vão para a nuvem da Neo4j. Confira a consulta que o gerador propõe; o akme testou a conexão, não o gerador.</p>
+      </details>`;
+    }
     return step(4, "Ver o grafo", badge("success", "disponível"),
       `${silent}
        ${seq([
          ["Abra o Neo4j Browser", `<div><a class="btn ex-go" href="${esc(v.browser_url)}" target="_blank" rel="noopener">Abrir o Neo4j Browser</a></div>`],
          ["Entre com", `<div class="ex-login">${addr}${field("Usuário", `<code>${esc(v.user)}</code>`, v.user)}${field("Senha", `a do seu <code>.env</code> <span class="ex-v-sub">(<code>AKME_NEO4J_PASSWORD</code>)</span>`)}</div>`],
          ["Rode o tutorial: cole no campo do topo e aperte <b>Run</b>", `${code(v.guide_command, "o comando do tutorial")}<p class="p secondary">Deixe esta página aberta: é ela que entrega o tutorial.</p>`],
+         ...(aura ? [["Perguntas em português, pelo console da Aura", aura, true]] : []),
          ["Consultas prontas", `<p class="p">No Browser: <b>Queries</b> › <b>Upload</b>.</p><div><a class="btn btn-outline btn-sm" href="${file(v.files.queries)}" download>Baixar as consultas</a></div>`, true],
        ])}`);
   }

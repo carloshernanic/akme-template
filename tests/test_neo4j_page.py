@@ -24,6 +24,7 @@ def no_env(monkeypatch):
     monkeypatch.setattr(neo4j_page, "browser_answers", lambda url, timeout=1.5: True)
     monkeypatch.setattr(neo4j_page, "container_state", lambda: {
         "docker": True, "name": "akme-neo4j", "exists": False, "status": None, "reason": None})
+    monkeypatch.setattr(neo4j_page, "container_serves", lambda bolt: False)
 
 
 @pytest.fixture
@@ -69,6 +70,9 @@ def test_status_without_env_says_what_is_missing_and_still_previews(seeded, no_e
     docker = "\n".join(st["setup"]["docker"])
     assert "--publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687" in docker
     assert "guide http://127.0.0.1:8765/neo4j/guia" in docker and "$AKME_NEO4J_PASSWORD" in docker
+    assert """--env NEO4J_PLUGINS='["apoc"]'""" in docker, "o banco ja nasce com o APOC (gerador do console da Aura)"
+    recreate = st["setup"]["recreate"]
+    assert recreate[1] == "docker rm -f akme-neo4j" and "docker volume rm" not in "\n".join(recreate), "o volume fica"
 
 
 def test_setup_follows_the_ports_of_the_env(no_env, monkeypatch):
@@ -285,6 +289,11 @@ def test_container_state_reads_docker_without_leaking_the_log(monkeypatch):
     assert neo4j_page.container_state()["exists"] is False
     answers["version"] = None
     assert neo4j_page.container_state()["docker"] is False
+    # o comando de recriar so vale quando o akme-neo4j e quem atende na porta do .env
+    answers["port"] = "127.0.0.1:7687\n"
+    assert neo4j_page.container_serves(7687) is True and neo4j_page.container_serves(17687) is False
+    answers["port"] = None
+    assert neo4j_page.container_serves(7687) is False
 
 
 def test_load_refuses_when_the_preview_is_no_longer_what_the_human_saw(seeded, env, monkeypatch):
@@ -340,3 +349,21 @@ def test_status_keeps_the_guide_of_a_loaded_database(seeded, env, monkeypatch):
     neo4j_page.export_status(seeded, 8765)
     guide = (seeded.docs_dir / "publish" / "neo4j_guia.html").read_text(encoding="utf-8")
     assert "apoc.create" not in guide, "banco sem APOC: a conferencia nao devolve o guia a forma generica"
+
+
+def test_viewing_says_whether_the_database_has_apoc_and_how_to_reach_it_from_aura(seeded, no_env, monkeypatch):
+    profile(seeded)
+    monkeypatch.setenv("AKME_NEO4J_URI", "bolt://127.0.0.1:17687")
+    monkeypatch.setenv("AKME_NEO4J_USER", "neo4j")
+    monkeypatch.setenv("AKME_NEO4J_PASSWORD", PASSWORD)
+    _state(monkeypatch)
+    monkeypatch.setattr(neo4j_load, "has_apoc", lambda: False)
+    viewing = neo4j_page.export_status(seeded, 8765)["viewing"]
+    assert viewing["apoc"] is False and viewing["aura_url"] == "neo4j://127.0.0.1:17687"
+
+    def boom():
+        raise RuntimeError("sem conexao")
+    monkeypatch.setattr(neo4j_load, "has_apoc", boom)
+    assert neo4j_page.export_status(seeded, 8765)["viewing"]["apoc"] is None
+    monkeypatch.setenv("AKME_NEO4J_URI", "neo4j+s://abc.databases.neo4j.io")
+    assert neo4j_page.export_status(seeded, 8765)["viewing"]["aura_url"] == "", "banco na nuvem: sem conexao rapida local"

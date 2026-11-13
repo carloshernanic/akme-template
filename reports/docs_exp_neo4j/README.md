@@ -115,8 +115,11 @@ NEO4J_AUTH="neo4j/$AKME_NEO4J_PASSWORD" docker run -d --name akme-neo4j \
   --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
   --env NEO4J_AUTH --volume=akme-neo4j-data:/data \
   --env NEO4J_browser_post__connect__cmd='guide http://127.0.0.1:8765/neo4j/guia' \
+  --env NEO4J_PLUGINS='["apoc"]' \
   neo4j:2026.10.1
 ```
+
+A linha `NEO4J_PLUGINS` instala o APOC, um plugin oficial que o Docker baixa ao subir. Ele é exigido pelo gerador de perguntas do console da Aura (seção 4.2) e não grava nada no grafo; sem internet na primeira subida, tire a linha.
 
 A linha `NEO4J_browser_post__connect__cmd` é opcional: com ela, o Neo4j Browser abre sozinho o tutorial do projeto a cada conexão (Parte 4). O tutorial só abre com o `akme review` ligado; sem ele, o Browser mostra um erro no painel do guia e segue normal.
 
@@ -185,7 +188,7 @@ Desde 13/11/2026 a página local faz o caminho inteiro. Rode `uv run akme review
 1. **Banco:** diz o que falta no `.env`, mostra as linhas para colar e o comando do Docker que cria o Neo4j (já com as portas do seu `.env` e o tutorial abrindo sozinho). Depois de salvar o `.env`, clique em **Conferir de novo**: a página lê o arquivo outra vez e testa a conexão. A senha fica só no `.env`; a página nunca a mostra nem a pede.
 2. **O que vai para o grafo:** a prévia do dry-run: registros por classe, ligações, o que já está no banco, avisos e os problemas que bloqueiam a carga. Classe sem nenhuma ligação sai marcada "sem ligações".
 3. **Carregar:** o botão **Carregar no Neo4j**, liberado depois de marcar "Entendi que a carga altera o banco e não tem como desfazer". Se a carga for apagar mais de 20% de alguma classe, a página pede o número de registros removidos, como a CLI. As recusas são as mesmas da CLI (problema no plano, banco de outro projeto).
-4. **Ver o grafo:** o link do Neo4j Browser, o usuário e a senha para entrar, o comando do tutorial pronto para copiar e o arquivo de consultas para baixar. Se o Browser não responder no endereço esperado, a página avisa e diz qual linha pôr no `.env` (`AKME_NEO4J_BROWSER_URL`); sem ela o tutorial não abre e o Browser não mostra erro.
+4. **Ver o grafo:** o item opcional "Perguntas em português, pelo console da Aura" diz se o banco tem o APOC, mostra o comando que recria o contêiner com ele (o grafo e a senha ficam no volume) e os dados para conectar o console ao banco local. Antes dele: o link do Neo4j Browser, o usuário e a senha para entrar, o comando do tutorial pronto para copiar e o arquivo de consultas para baixar. Se o Browser não responder no endereço esperado, a página avisa e diz qual linha pôr no `.env` (`AKME_NEO4J_BROWSER_URL`); sem ela o tutorial não abre e o Browser não mostra erro.
 
 A carga pelo botão é a mesma da CLI. Só quem está na página consegue dispará-la: o agente não tem tool nem rota para isso. As Partes 1 a 4 abaixo continuam valendo para quem prefere o terminal e explicam cada passo em detalhe.
 

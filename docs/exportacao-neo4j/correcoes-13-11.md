@@ -67,6 +67,8 @@ O `:guide` não abriu no primeiro teste porque o Browser rodava na porta 17474 e
 3. **Carregar.** O botão só libera depois de marcar "Entendi que a carga altera o banco e não tem como desfazer". Remoção de mais de 20% de uma classe pede o número digitado. As recusas são as mesmas da CLI.
 4. **Ver o grafo.** O link do Browser, o usuário e a senha para entrar e o comando do tutorial para copiar. Se o Browser não responde no endereço esperado, a página avisa e mostra a linha do `.env`.
 
+**APOC e console da Aura no mesmo caminho.** O comando do Docker que a página mostra já cria o banco com o APOC (`NEO4J_PLUGINS='["apoc"]'`), exigido pelo gerador de Cypher do console da Aura. No passo 4, o item opcional "Perguntas em português, pelo console da Aura" diz se o banco tem o plugin, dá o comando que recria o contêiner com ele sem perder o grafo e mostra endereço, usuário e senha para a conexão rápida do console. Conferido num Neo4j descartável: o contêiner sobe com a linha e `apoc.meta.schema` responde. O gerador em si continua não testado pelo akme.
+
 **Regra que mudou, com aval de Mateus:** a carga continua só do humano, mas agora pelo botão da página ou pela CLI. O agente não tem tool para ela, e o `SKILL.md` o proíbe de chamar a rota. A rota `POST /api/neo4j/carga` recusa pedido que não venha da própria página (sem `Origin` ou de outra origem) e só aceita uma carga por vez. A senha nunca passa pela página: da senha, o servidor só diz se está preenchida e se tem tamanho suficiente.
 
 Código: `akme/tools/neo4j_page.py` (estado e carga), rotas `GET /api/neo4j` e `POST /api/neo4j/carga` em `akme/review_server.py`, tela em `akme/static/exportar.js`.

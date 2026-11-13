@@ -111,8 +111,13 @@ def setup_lines(review_port: int) -> dict[str, Any]:
               f"  --publish=127.0.0.1:{http}:7474 --publish=127.0.0.1:{bolt}:7687 \\",
               f"  --env NEO4J_AUTH --volume={CONTAINER}-data:/data \\",
               f"  --env NEO4J_browser_post__connect__cmd='guide http://127.0.0.1:{review_port}{GUIDE_ROUTE}' \\",
+              # APOC: plugin oficial que o Docker baixa ao subir; o gerador de Cypher do console da Aura exige, e o
+              # mapa da ontologia do tutorial desenha as setas com o nome. Nao grava nada no grafo
+              "  --env NEO4J_PLUGINS='[\"apoc\"]' \\",
               f"  {IMAGE}"]
-    return {"env": env, "docker": docker, "http_port": http, "bolt_port": bolt}
+    # banco criado antes (sem APOC): recriar o conteiner com o mesmo volume; grafo e senha ficam no volume
+    recreate = [docker[0], f"docker rm -f {CONTAINER}", *docker[1:]]
+    return {"env": env, "docker": docker, "recreate": recreate, "http_port": http, "bolt_port": bolt}
 
 
 def _docker(*args: str) -> str | None:
@@ -214,9 +219,30 @@ def _rewrite_guide(project: Project, plan: Any) -> None:
         pass
 
 
+def container_serves(bolt: int) -> bool:
+    """O conteiner akme-neo4j (o do comando da tela) e quem atende nesta porta Bolt? So entao o comando de recriar
+    da tela vale; para outro conteiner (outro nome, outro volume) a tela so diz qual linha acrescentar."""
+    published = _docker("port", CONTAINER, "7687/tcp")
+    return bool(published) and any(line.strip().endswith(f":{bolt}") for line in published.splitlines())
+
+
+def _apoc() -> bool | None:
+    """O banco tem o APOC? None quando nao deu para perguntar."""
+    try:
+        return neo4j_load.has_apoc()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _viewing(review_port: int) -> dict[str, Any]:
     url = neo4j_load.browser_url()
+    uri = os.environ.get("AKME_NEO4J_URI", "").strip()
+    local = urlsplit(uri).hostname in ("127.0.0.1", "localhost")
+    bolt = _port(uri, DEFAULT_BOLT)
     return {"browser_url": url, "browser_answers": browser_answers(url),
+            # console da Aura (perguntas em portugues): conexao rapida a um banco local, que exige o APOC
+            "apoc": _apoc(), "aura_url": f"neo4j://127.0.0.1:{bolt}" if local else "",
+            "container_ours": container_serves(bolt) if local else False,
             "guide_command": f":guide http://127.0.0.1:{review_port}{GUIDE_ROUTE}",
             "user": os.environ.get("AKME_NEO4J_USER", ""),
             "files": {"guide": f"docs/publish/{GUIDE_FILE}", "style": f"docs/publish/{STYLE_FILE}",
