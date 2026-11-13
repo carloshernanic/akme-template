@@ -9,12 +9,13 @@ import yaml
 from ..adapters import AdapterError
 from ..models import (
     ADDITIVITY, CONTENT_SECTION, CQ_STATUSES, CQ_TYPES, DIVERGENCE_DECISIONS, EVIDENCE_KINDS, GAP_DECISIONS,
-    APPLY_STAGES, EXPORT_TYPES, METRIC_FIELDS, MULTIPLICITIES, ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit,
+    APPLY_STAGES, EXPORT_TYPES, MAPPING_FIELDS, METRIC_FIELDS, MULTIPLICITIES, ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit,
     EditType, Review, now_iso,
 )
 from ..ontology import (
-    add_class, add_relation, class_names, is_metric_class, load_content, load_graph, save_content, save_graph,
+    ROOT_CLASSES, add_class, add_relation, class_names, is_metric_class, load_content, load_graph, save_content, save_graph,
 )
+from ..ontology import rename_class as rename_class_in_graph
 from ..project import Project, read_yaml, remove_file, write_yaml
 from .contracts import check_join_shape, contradictions, observe_join
 from .neo4j_values import reserved_problem
@@ -152,6 +153,10 @@ def _validate_payload(project: Project, edit_type: EditType, payload: dict[str, 
         _check_metric_term(project, p)
     elif edit_type == EditType.add_mapping:
         _check_metric_mapping(project, p)
+    elif edit_type in (EditType.update_mapping, EditType.remove_mapping):
+        p = _checked_mapping_change(project, edit_type, p)
+    elif edit_type == EditType.rename_class:
+        p = _checked_rename(project, p)
     elif edit_type == EditType.add_source:
         if any(e.type == EditType.add_source and e.payload.get("source") == p["source"] for e in list_pending(project)):
             raise EditError(f"a fonte {p['source']} ja tem proposta pendente; decida ou rejeite a anterior")
@@ -225,6 +230,152 @@ def _check_metric_mapping(project: Project, p: dict[str, Any]) -> None:
         raise EditError(f"o termo {p['term']} e uma metrica; o mapping deve ter role metric")
     if not str(p.get("expression") or "").strip():
         raise EditError("mapping de metrica exige expression SQL explicita (sem SUM implicito)")
+
+
+def _mapping_key(m: dict[str, Any]) -> tuple[str, str, str]:
+    return str(m.get("term")), str(m.get("source")), str(m.get("column"))
+
+
+def _applied_mapping(content: dict[str, Any], p: dict[str, Any]) -> int:
+    """Posicao do mapping aplicado que (term, source, column) aponta. Recusa quando nao ha, mostrando os do termo."""
+    found = [i for i, m in enumerate(content["mappings"]) if _mapping_key(m) == _mapping_key(p)]
+    if len(found) == 1:
+        return found[0]
+    if found:
+        raise EditError(f"ha {len(found)} mappings iguais de {p['term']} em {p['source']}.{p['column']}; corrija o content.yml")
+    same = [f"{m.get('source')}.{m.get('column')}" for m in content["mappings"] if m.get("term") == p["term"]]
+    raise EditError(f"mapping aplicado nao encontrado: {p['term']} em {p['source']}.{p['column']}. "
+                    + (f"Mappings do termo: {', '.join(same)}" if same else "O termo nao tem mapping aplicado"))
+
+
+def _changed_mapping(project: Project, content: dict[str, Any], current: dict[str, Any], changes: Any) -> dict[str, Any]:
+    """O mapping depois da troca, com as mesmas recusas do add_mapping. Valor vazio apaga role, expression ou note."""
+    if not isinstance(changes, dict) or not changes:
+        raise EditError("set deve ser um objeto com o que muda no mapping")
+    unknown = sorted(set(changes) - set(MAPPING_FIELDS))
+    if unknown:
+        raise EditError(f"set nao aceita: {', '.join(unknown)}. Opcoes: {', '.join(MAPPING_FIELDS)}")
+    after = dict(current)
+    for key, value in changes.items():
+        if value in (None, ""):
+            if key in ("term", "source", "column"):
+                raise EditError(f"set.{key} nao pode ficar vazio; para apagar o mapping use remove_mapping")
+            after.pop(key, None)
+        else:
+            after[key] = value
+    if after == current:
+        raise EditError("set nao muda nada no mapping")
+    if after["term"] not in {t.get("name") for t in content["terms"]}:
+        raise EditError(f"termo nao encontrado: {after['term']}")
+    problem = reserved_problem("column", str(after["column"]))
+    if problem:
+        raise EditError(problem)
+    if _mapping_key(after) != _mapping_key(current) and any(_mapping_key(m) == _mapping_key(after) for m in content["mappings"]):
+        raise EditError(f"ja existe o mapping de {after['term']} em {after['source']}.{after['column']}")
+    _check_metric_mapping(project, after)
+    return after
+
+
+def _checked_mapping_change(project: Project, edit_type: EditType, p: dict[str, Any]) -> dict[str, Any]:
+    content = load_content(project)
+    current = dict(content["mappings"][_applied_mapping(content, p)])
+    for e in list_pending(project):
+        if e.type in (EditType.update_mapping, EditType.remove_mapping) and _mapping_key(e.payload) == _mapping_key(p):
+            raise EditError(f"esse mapping ja tem correcao pendente ({e.id}); decida ou rejeite a anterior")
+    p["before"] = current
+    if edit_type == EditType.update_mapping:
+        p["after"] = _changed_mapping(project, content, current, p["set"])
+    return p
+
+
+def _checked_rename(project: Project, p: dict[str, Any]) -> dict[str, Any]:
+    name, new_name = str(p["name"]), str(p["new_name"])
+    names = class_names(load_graph(project.schema_path))
+    if name in ROOT_CLASSES:
+        raise EditError(f"{name} e classe de base do akme e nao pode ser renomeada")
+    if name not in names:
+        raise EditError(f"classe nao encontrada no schema.ttl: {name}")
+    if not new_name.isidentifier():
+        raise EditError(f"nome de classe invalido: {new_name}. Use PascalCase, sem espaco nem pontuacao")
+    if new_name in names:
+        raise EditError(f"ja existe a classe {new_name}")
+    problem = reserved_problem("class", new_name)
+    if problem:
+        raise EditError(problem)
+    for e in list_pending(project):
+        if e.type == EditType.rename_class and (e.payload.get("name") == name or e.payload.get("new_name") == new_name):
+            raise EditError(f"ja ha uma troca de nome pendente para {name} ou {new_name} ({e.id})")
+        if e.type == EditType.add_class and e.payload.get("name") == new_name:
+            raise EditError(f"ha uma proposta pendente que cria a classe {new_name} ({e.id})")
+    return p
+
+
+# onde o nome de uma classe aparece numa proposta pendente, por tipo
+_CLASS_FIELDS = {EditType.add_term: ("class",), EditType.add_relation: ("domain", "range"), EditType.add_class: ("subclass_of",)}
+_CONCEPT_TYPES = (EditType.add_competency_question, EditType.update_competency_question)
+
+
+def _apply_rename(project: Project, p: dict[str, Any]) -> dict[str, Any]:
+    """Troca o nome no schema.ttl e em tudo que o cita: termos, contratos, conceitos das CQs e propostas pendentes."""
+    name, new_name = p["name"], p["new_name"]
+    _checked_rename_target(project, name, new_name)
+    g = load_graph(project.schema_path)
+    counts = {"schema_triples": rename_class_in_graph(g, name, new_name, p.get("label"))}
+    content = load_content(project)
+    swap = lambda value: new_name if value == name else value  # noqa: E731
+    counts["terms"] = sum(1 for t in content["terms"] if t.get("class") == name)
+    for t in content["terms"]:
+        t["class"] = swap(t.get("class"))
+    counts["relation_contracts"] = 0
+    for c in content["relation_contracts"]:
+        if name in (c.get("domain"), c.get("range")):
+            counts["relation_contracts"] += 1
+            c["domain"], c["range"] = swap(c.get("domain")), swap(c.get("range"))
+    counts["competency_questions"] = 0
+    for cq in content["requirements"]["competency_questions"]:
+        if isinstance(cq.get("concepts"), list) and name in cq["concepts"]:
+            counts["competency_questions"] += 1
+            cq["concepts"] = [swap(c) for c in cq["concepts"]]
+    counts["pending"] = 0
+    for e in list_pending(project):
+        before = dict(e.payload)
+        for field in _CLASS_FIELDS.get(e.type, ()):
+            if e.payload.get(field) == name:
+                e.payload[field] = new_name
+        if e.type in _CONCEPT_TYPES and isinstance(e.payload.get("concepts"), list):
+            e.payload["concepts"] = [swap(c) for c in e.payload["concepts"]]
+        if e.payload != before:
+            counts["pending"] += 1
+            write_yaml(_pending_path(project, e.id), e.model_dump(mode="json"))
+    save_graph(g, project.schema_path)
+    save_content(project, content)
+    return {"renamed": counts}
+
+
+def _checked_rename_target(project: Project, name: str, new_name: str) -> None:
+    names = class_names(load_graph(project.schema_path))
+    if name not in names:
+        raise EditError(f"classe nao encontrada no schema.ttl: {name} (mudou depois da proposta)")
+    if new_name in names:
+        raise EditError(f"ja existe a classe {new_name} (criada depois da proposta)")
+
+
+def _apply_mapping_change(project: Project, edit: Edit) -> dict[str, Any]:
+    """Troca ou apaga o mapping aplicado. Recusa se ele mudou depois da proposta: a decisao foi sobre o `before`."""
+    p = edit.payload
+    content = load_content(project)
+    index = _applied_mapping(content, p)
+    current = content["mappings"][index]
+    if p.get("before") is not None and current != p["before"]:
+        raise EditError(f"o mapping de {p['term']} mudou depois da proposta; rejeite esta e proponha de novo")
+    if edit.type == EditType.remove_mapping:
+        del content["mappings"][index]
+        save_content(project, content)
+        return {"before": current}
+    after = _changed_mapping(project, content, dict(current), p["set"])
+    content["mappings"][index] = after
+    save_content(project, content)
+    return {"before": current, "after": after}
 
 
 def _check_graph_refs(project: Project, edit_type: EditType, payload: dict[str, Any]) -> None:
@@ -402,6 +553,10 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
             k: p[k] for k in ("domain", "range", "inverse_of", "multiplicity", "join", "no_join_reason",
                               "override_reason", "observed") if p.get(k) is not None})
         save_content(project, content)
+    elif edit.type in (EditType.update_mapping, EditType.remove_mapping):
+        extra = _apply_mapping_change(project, edit)
+    elif edit.type == EditType.rename_class:
+        extra = _apply_rename(project, p)
     elif edit.type == EditType.add_source:
         content = load_content(project)
         decided = {k: v for k, v in p.items() if k not in ("checked", "class") and not (k == "caption" and not v)}
@@ -466,6 +621,7 @@ _REVIEW_KEYS = {
     EditType.add_constraint: {"rule"},
     EditType.add_precedence: {"reason"},
     EditType.add_source: {"key", "types", "caption"},
+    EditType.remove_mapping: {"reason"},
 }
 _REVIEW_CHOICES = {"type": CQ_TYPES, "status": CQ_STATUSES, "priority": PRIORITIES}
 

@@ -209,3 +209,33 @@ def test_guide_route_still_checks_the_host(server):
     with pytest.raises(urllib.error.HTTPError) as e:
         urllib.request.urlopen(req)
     assert e.value.code == 403
+
+
+def test_data_lists_profiled_columns_and_reviewer_corrects_mappings(server):
+    from akme.ontology import load_content
+    from akme.tools.profile import profile
+
+    base, project = server
+    assert _get(base + "/api/data")["source_columns"] == {}
+    profile(project)
+    cols = _get(base + "/api/data")["source_columns"]
+    m = load_content(project)["mappings"][0]
+    assert m["column"] in cols[m["source"]]
+    other = next(c for c in cols[m["source"]] if c != m["column"])
+    key = {"term": m["term"], "source": m["source"], "column": m["column"]}
+    code, out = _post(base + "/api/propose", {"type": "update_mapping", "reviewer": "ana", "payload": key | {"set": {"note": "conferido"}}})
+    assert code == 200 and out["proposed_by"] == "ana" and out["review"]["decision"] == "accept"
+    # a segunda correcao do mesmo mapping volta com o motivo, e nada fica orfao em pending/
+    n = len(ontology_write.list_pending(project))
+    code, out = _post(base + "/api/propose", {"type": "remove_mapping", "reviewer": "ana", "payload": key | {"reason": "x"}})
+    assert code == 400 and "correcao pendente" in out["error"]
+    assert len(ontology_write.list_pending(project)) == n
+    # trocar para uma coluna em que o termo ja esta mapeado: o erro do servidor chega para a pagina mostrar
+    m2 = load_content(project)["mappings"][1]
+    col2 = next(c for c in cols[m2["source"]] if c != m2["column"])
+    extra = {k: v for k, v in m2.items() if k not in ("column", "note")} | {"column": col2}
+    ontology_write.apply_edit(project, ontology_write.propose_edit(project, "add_mapping", extra).id, "tester")
+    code, out = _post(base + "/api/propose", {"type": "update_mapping", "reviewer": "ana",
+                                              "payload": {"term": m2["term"], "source": m2["source"], "column": m2["column"], "set": {"column": col2}}})
+    assert code == 400 and "ja existe o mapping" in out["error"]
+    assert len(ontology_write.list_pending(project)) == n

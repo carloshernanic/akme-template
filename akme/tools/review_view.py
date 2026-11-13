@@ -21,6 +21,7 @@ GROUP = {
     EditType.add_class: "class", EditType.add_relation: "relation", EditType.add_term: "term",
     EditType.add_mapping: "mapping", EditType.add_constraint: "constraint", EditType.add_precedence: "precedence",
     EditType.add_source: "source",
+    EditType.update_mapping: "mapping", EditType.remove_mapping: "mapping", EditType.rename_class: "class",
 }
 
 GROUP_LABEL = {
@@ -44,6 +45,14 @@ CQ_TYPE_LABEL = {
     "tempo_estado": "Tempo e estado", "regras_restricoes": "Regras e restrições",
 }
 
+_MAPPING_LABEL = {"term": "Termo", "source": "Tabela", "column": "Coluna", "role": "Papel",
+                  "expression": "Expressão SQL", "note": "Nota"}
+
+
+def _shown(value: Any) -> str:
+    return "(vazio)" if value in (None, "") else str(value)
+
+
 # campos que o revisor pode ajustar antes de aceitar, por tipo (rotulo e forma do campo)
 EDITABLE: dict[EditType, list[dict[str, str]]] = {
     EditType.add_class: [{"key": "label", "label": "Rótulo", "kind": "text"}, {"key": "comment", "label": "Comentário", "kind": "textarea"}],
@@ -56,6 +65,7 @@ EDITABLE: dict[EditType, list[dict[str, str]]] = {
     EditType.add_requirement: [{"key": "value", "label": "Valor", "kind": "textarea"}],
     EditType.add_use_case: [{"key": "name", "label": "Nome", "kind": "text"}, {"key": "description", "label": "Descrição", "kind": "textarea"},
                             {"key": "actors", "label": "Atores (separados por vírgula)", "kind": "list"}],
+    EditType.remove_mapping: [{"key": "reason", "label": "Motivo", "kind": "textarea"}],
     EditType.add_source: [{"key": "key", "label": "Chave (colunas separadas por vírgula)", "kind": "list"},
                           {"key": "types", "label": "Tipos (coluna: tipo, separados por vírgula)", "kind": "map"},
                           {"key": "caption", "label": "Legenda: coluna cujo valor aparece na bolinha do Neo4j (vazio = automática)", "kind": "text"}],
@@ -226,6 +236,18 @@ def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]
             _field("Papel", ROLE_LABEL.get(p.get("role"), p.get("role"))),
             _field("Expressão SQL", p.get("expression"), mono=True), _field("Nota", p.get("note")),
         )
+    elif t == EditType.update_mapping:
+        before, after = p.get("before") or p, p.get("after") or {}
+        title, subtitle = f"Corrigir o mapping de {p.get('term')}", f"hoje em {p.get('source')}.{p.get('column')}"
+        fields = _fields(*[_field(_MAPPING_LABEL[k], f"{_shown(before.get(k))} → {_shown(after.get(k))}", mono=k != "note")
+                           for k in _MAPPING_LABEL if before.get(k) != after.get(k)])
+    elif t == EditType.remove_mapping:
+        title, subtitle = f"Remover o mapping de {p.get('term')}", f"{p.get('source')}.{p.get('column')}"
+        fields = _fields(_field("Motivo", p.get("reason")))
+    elif t == EditType.rename_class:
+        title, subtitle = f"Renomear a classe {p.get('name')}", f"passa a se chamar {p.get('new_name')}"
+        fields = _fields(_field("Rótulo novo", p.get("label")),
+                         _field("O que muda", "o nome no schema.ttl e em tudo que cita a classe: termos, relações, perguntas e propostas pendentes"))
     elif t == EditType.add_constraint:
         title, subtitle = f"Restrição sobre {p.get('term')}", _s(p.get("id"))
         fields = _fields(_field("Regra", p.get("rule")), _field("Severidade", SEVERITY_LABEL.get(p.get("severity"), p.get("severity"))))

@@ -127,6 +127,20 @@ def add_class(g: Graph, name: str, label: str, comment: str, subclass_of: str = 
     return c
 
 
+def rename_class(g: Graph, name: str, new_name: str, label: str | None = None) -> int:
+    """Troca o IRI da classe em todas as triplas (sujeito e objeto). Devolve quantas triplas mudaram."""
+    ns = base_ns(g)
+    old, new = ns[name], ns[new_name]
+    touched = [(s, p, o) for s, p, o in g if s == old or o == old]
+    for s, p, o in touched:
+        g.remove((s, p, o))
+        g.add((new if s == old else s, p, new if o == old else o))
+    if label:
+        g.remove((new, RDFS.label, None))
+        g.add((new, RDFS.label, Literal(label, lang="pt")))
+    return len(touched)
+
+
 def add_relation(g: Graph, name: str, domain: str, range_: str, label: str,
                  comment: str = "", inverse_of: str | None = None, multiplicity: str | None = None) -> URIRef:
     ns = base_ns(g)

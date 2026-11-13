@@ -69,6 +69,28 @@ def _check_mappings(content: dict[str, Any], project: Project, findings: list[Fi
             "ratio": round(done / total, 3) if total else 0.0, "by_source": by_source}
 
 
+def _check_source_classes(g: Graph, content: dict[str, Any], findings: list[Finding]) -> None:
+    """Cada tabela vira uma classe no grafo. Termos de classes diferentes na mesma tabela quase sempre sao um
+    mapping apontando para a tabela errada; avisa aqui, na etapa 3, o que a carga no Neo4j recusaria na etapa 5."""
+    term_class = {t["name"]: t.get("class") for t in content["terms"]}
+    by_source: dict[str, dict[str, list[str]]] = {}
+    for c in content["relation_contracts"]:
+        if c.get("join"):
+            for side, cls in (("from", c.get("domain")), ("to", c.get("range"))):
+                by_source.setdefault(c["join"][side]["source"], {}).setdefault(cls, []).append(f"relacao {c.get('relation')}")
+    for m in content["mappings"]:
+        cls = term_class.get(m.get("term"))
+        if cls and m.get("role") != "metric" and not is_metric_class(g, cls):
+            by_source.setdefault(m.get("source"), {}).setdefault(cls, []).append(f"termo {m.get('term')}")
+    for source, options in sorted(by_source.items()):
+        if len(options) < 2:
+            continue
+        parts = "; ".join(f"{cls} ({', '.join(sorted(set(who)))})" for cls, who in sorted(options.items()))
+        findings.append(Finding(level="warning", check="source_classes", subject=source,
+                                message=f"a tabela {source} recebe termos de mais de uma classe: {parts}. Cada tabela vira "
+                                        "uma classe; corrija com update_mapping ou remove_mapping"))
+
+
 def _check_relation_contracts(g: Graph, content: dict[str, Any], project: Project, findings: list[Finding],
                               check_data: bool = True) -> None:
     contracts = content["relation_contracts"]
@@ -278,6 +300,7 @@ def validate(project: Project, oops: bool = False, check_data: bool = True) -> V
         _check_relation_contracts(g, content, project, findings, check_data)
         _check_metrics(g, content, findings)
         _check_reserved_names(g, content, findings)
+        _check_source_classes(g, content, findings)
         if oops:
             oops_result = oops_scan(project.schema_path.read_text(encoding="utf-8"))
             pitfalls += oops_result.get("pitfalls", [])

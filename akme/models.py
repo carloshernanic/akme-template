@@ -25,6 +25,9 @@ class EditType(str, Enum):
     update_gap = "update_gap"
     update_divergence = "update_divergence"
     add_source = "add_source"
+    update_mapping = "update_mapping"
+    remove_mapping = "remove_mapping"
+    rename_class = "rename_class"
 
 
 # Vocabularios da revisao de requisitos
@@ -49,7 +52,10 @@ STAGE1_TYPES = frozenset({
 ONTOLOGY_TYPES = frozenset({
     EditType.add_class, EditType.add_relation, EditType.add_term,
     EditType.add_mapping, EditType.add_constraint, EditType.add_precedence,
+    EditType.update_mapping, EditType.remove_mapping, EditType.rename_class,
 })
+# Correcoes do que ja foi aplicado: mudam ou apagam um item em vez de acrescentar
+MAPPING_FIELDS = ("term", "source", "column", "role", "expression", "note")
 
 # Etapa 5 (publicar): chave e tipos de cada fonte, decididos so quando o alvo e o Neo4j
 EXPORT_TYPES = frozenset({EditType.add_source})
@@ -60,6 +66,7 @@ EDIT_STAGE: dict[EditType, int] = {t: 1 for t in STAGE1_TYPES} | {
     EditType.add_class: 2, EditType.add_relation: 2, EditType.add_term: 2,
     EditType.add_mapping: 3, EditType.add_constraint: 3, EditType.add_precedence: 3,
     EditType.add_source: 5,
+    EditType.rename_class: 2, EditType.update_mapping: 3, EditType.remove_mapping: 3,
 }
 APPLY_STAGES = ("requirements", "ontology", "export", "all")
 
@@ -90,6 +97,9 @@ REQUIRED_FIELDS: dict[EditType, list[str]] = {
     EditType.update_gap: ["id", "decision"],
     EditType.update_divergence: ["id", "decision"],
     EditType.add_source: ["source"],
+    EditType.update_mapping: ["term", "source", "column", "set"],
+    EditType.remove_mapping: ["term", "source", "column", "reason"],
+    EditType.rename_class: ["name", "new_name"],
 }
 
 

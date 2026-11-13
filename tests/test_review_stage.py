@@ -50,6 +50,10 @@ def test_present_covers_every_edit_type():
         EditType.update_gap: {"id": "L-01", "decision": "drop"},
         EditType.add_divergence: {"id": "D-01", "topic": "t", "sources": [], "hypothesis": "h"},
         EditType.update_divergence: {"id": "D-01", "decision": "dismiss"},
+        EditType.update_mapping: {"term": "t", "source": "s", "column": "c", "set": {"column": "d"},
+                                  "before": {"term": "t", "source": "s", "column": "c"}, "after": {"term": "t", "source": "s", "column": "d"}},
+        EditType.remove_mapping: {"term": "t", "source": "s", "column": "c", "reason": "tabela errada"},
+        EditType.rename_class: {"name": "A", "new_name": "B"},
     }
     assert set(samples) == set(EditType)
     for t, payload in samples.items():

@@ -35,10 +35,15 @@
     decision: "Decisão", note: "Nota", winner: "Fonte que vale", reason: "Motivo", use_cases: "Casos de uso" };
   // campos de texto corrido: aparecem como frase, nao como etiqueta e valor
   const PROSE = new Set(["Comentário", "Definição", "Regra", "Motivo", "Significado", "Descrição", "Valor", "Nota", "Hipótese da IA"]);
+  // campos de um mapping, na ordem em que aparecem no antes e depois das correcoes
+  const MAP_L = { term: "Termo", source: "Tabela", column: "Coluna", role: "Papel", expression: "Expressão SQL", note: "Nota" };
+  const ROLE_L = { dimension: "dimensão", metric: "métrica", key: "chave" };
+  const MAP_TYPES = new Set(["update_mapping", "remove_mapping"]);
+  const mapKey = (m) => [m.term, m.source, m.column].map((x) => String(x ?? "")).join("|");
   const MULT_SHORT = { "muitos para um": ["n", "1"], "um para muitos": ["1", "n"], "um para um": ["1", "1"], "muitos para muitos": ["n", "n"] };
   const VIEW_ACTS = new Set(["det", "check", "ask"]);
 
-  const O = { el: null, ctx: {}, M: null, wired: null, saving: false, showApplied: false };
+  const O = { el: null, ctx: {}, M: null, wired: null, saving: false, showApplied: false, notice: "" };
 
   // ---------- utilidades ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -115,6 +120,10 @@
     const draft = prev ? {} : readDraft(project), dItems = draft.items || {};
     const M = { items: [], byId: {}, own: prev ? prev.own : Array.isArray(draft.own) ? draft.own : [], apOpen: prev ? prev.apOpen : false, ctxOpen: prev ? prev.ctxOpen : false, project };
     M.req = (data && data.requirements) || {};
+    // mappings ja aplicados e colunas de cada tabela do profile: base da lista "Mapeamentos aplicados"
+    M.maps = ((data && data.mappings) || []).slice().sort((a, b) => mapKey(a).localeCompare(mapKey(b)));
+    M.cols = (data && data.source_columns) || {};
+    M.mapOpen = prev ? prev.mapOpen : false;
     M.stage = (data && data.stage) || {};
     for (const p of (data && data.pending) || []) {
       if (!covers(p)) continue;
@@ -183,7 +192,8 @@
     const pl = it.p.payload || {}, t = it.p.type;
     if (t === "add_class" || t === "add_relation") return labelOf(it) || it.v.title;
     if (t === "add_term") return `${pl.name} (termo de ${pl.class})`;
-    if (t === "add_mapping") return `${pl.term} → ${pl.source}.${pl.column}`;
+    if (t === "add_mapping" || MAP_TYPES.has(t)) return `${pl.term} → ${pl.source}.${pl.column}`;
+    if (t === "rename_class") return `${pl.name} → ${pl.new_name}`;
     return it.v.title;
   }
   function titleHtml(it) {
@@ -193,7 +203,8 @@
       return `${esc(lab || v.title)}${pl.name && lab && lab !== pl.name ? ` <span class="ou-ident mono">${esc(pl.name)}</span>` : ""}`;
     }
     if (t === "add_term") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">termo de ${esc(pl.class)}</span>`;
-    if (t === "add_mapping") return `<span class="mono">${esc(pl.term)}</span> <span class="ou-ident">→ ${esc(pl.source)}.${esc(pl.column)}</span>`;
+    if (t === "add_mapping" || MAP_TYPES.has(t)) return `<span class="mono">${esc(pl.term)}</span> <span class="ou-ident">→ ${esc(pl.source)}.${esc(pl.column)}</span>`;
+    if (t === "rename_class") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">→</span> <span class="mono">${esc(pl.new_name)}</span>`;
     if (/^(update|remove)_/.test(t)) return esc(v.title);
     return `${esc(v.title)}${v.subtitle ? ` <span class="ou-ident">${esc(v.subtitle)}</span>` : ""}`;
   }
@@ -204,6 +215,9 @@
     if (t === "remove_competency_question") return `exclusão da pergunta ${id}`;
     if (t === "update_gap") return `alteração da lacuna ${id}`;
     if (t === "update_divergence") return `alteração da divergência ${id}`;
+    if (t === "update_mapping") return "correção de mapeamento";
+    if (t === "remove_mapping") return "remoção de mapeamento";
+    if (t === "rename_class") return "renomear classe";
     return "";
   }
   function srcLine(it) {
@@ -231,10 +245,25 @@
     return `<div class="ou-diff"><table class="diff"><thead><tr><th>campo</th><th>antes</th><th>depois</th></tr></thead><tbody>${ks.map((k) =>
       `<tr><td>${esc(FIELD_L[k] || k)}</td><td class="secondary">${esc(fmt(k, cur ? cur[k] : undefined))}</td><td>${esc(fmt(k, pl[k]))}</td></tr>`).join("")}</tbody></table></div>`;
   }
+  // so o que muda num mapping: [campo, antes, depois], sem os campos iguais
+  function mapChanges(pl) {
+    const b = pl.before || {}, a = pl.after || {};
+    const show = (k, v) => (v === undefined || v === null || v === "" ? "—" : k === "role" ? ROLE_L[v] || String(v) : String(v));
+    return Object.keys(MAP_L).filter((k) => String(b[k] ?? "") !== String(a[k] ?? "")).map((k) => [k, show(k, b[k]), show(k, a[k])]);
+  }
+  function mapDiff(pl) {
+    const rows = mapChanges(pl);
+    if (!rows.length) return "";
+    return `<div class="ou-diff"><table class="diff"><thead><tr><th>o que muda</th><th>antes</th><th>depois</th></tr></thead><tbody>${rows.map(([k, b, a]) =>
+      `<tr><td>${esc(MAP_L[k])}</td><td class="secondary${k === "note" ? "" : " mono"}">${esc(b)}</td><td${k === "note" ? "" : ' class="mono"'}>${esc(a)}</td></tr>`).join("")}</tbody></table></div>`;
+  }
   // o essencial fica sempre a vista: o desenho da relacao, o antes e depois ou a frase principal
   function gist(it) {
     const t = it.p.type, pl = it.p.payload || {};
     if (t === "add_relation") return relDiagram(it);
+    if (t === "update_mapping") return mapDiff(pl);
+    if (t === "remove_mapping") return `<p class="ou-gist"><b>Motivo da remoção:</b> ${esc(reasonOrPl(it))}</p>`;
+    if (t === "rename_class") return `${pl.label ? `<p class="ou-gist">Rótulo: ${esc(pl.label)}</p>` : ""}<p class="p secondary">O nome muda também nos termos, relações e perguntas que citam a classe.</p>`;
     if (/^update_/.test(t)) return diffTable(it.p.current, pl);
     if (t === "remove_competency_question") return `<p class="ou-gist"><b>Motivo da exclusão:</b> ${esc(pl.reason || "—")}</p>`;
     const f = (it.v.fields || []).find((x) => PROSE.has(x.label));
@@ -270,7 +299,7 @@
     if (t === "add_relation") shown.add("Multiplicidade");
     const gistField = (v.fields || []).find((x) => PROSE.has(x.label));
     if (gistField && t !== "add_relation") shown.add(gistField.label);
-    const meta = /^(update|remove)_/.test(t) ? [] : (v.fields || []).filter((f) => !shown.has(f.label) && !(it.editing && (v.editable || []).some((e) => e.label === f.label)));
+    const meta = /^(update|remove|rename)_/.test(t) ? [] : (v.fields || []).filter((f) => !shown.has(f.label) && !(it.editing && (v.editable || []).some((e) => e.label === f.label)));
     const metaHtml = meta.length ? `<dl class="meta">${meta.map((f) => `<div><dt>${esc(f.label)}</dt><dd${f.mono ? ' class="mono"' : ""}>${esc(f.value)}</dd></div>`).join("")}</dl>` : "";
     const obs = v.observed ? `<div><p class="field-label">O que o dado mostra</p><ul class="obs">${(v.observed.available ? v.observed.lines : [`Não foi possível ler o dado: ${v.observed.reason}`]).map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>` : "";
     const canEdit = (v.editable || []).length && it.dec !== "rej" && !isAuto();
@@ -282,11 +311,14 @@
   }
   // "Situação: Aprovada → Reservada para o teste": o que a alteracao muda, sem abrir o cartao
   function changeText(it) {
+    if (it.p.type === "update_mapping") return mapChanges(it.p.payload || {}).map(([k, b, a]) => `${MAP_L[k]}: ${cut(b, 50)} → ${cut(a, 70)}`).join("; ");
+    if (it.p.type === "remove_mapping") return "Motivo: " + cut(reasonOrPl(it), 80);
     if (!/^update_/.test(it.p.type)) return "";
     const pl = it.p.payload || {}, cur = it.p.current || {};
     return Object.keys(pl).filter((k) => k !== "id" && k !== "evidence")
       .map((k) => `${FIELD_L[k] || k}: ${cut(fmt(k, cur[k]), 50)} → ${cut(fmt(k, pl[k]), 70)}`).join("; ");
   }
+  const reasonOrPl = (it) => ("reason" in it.vals ? it.vals.reason : (it.p.payload || {}).reason) || "—";
   function line(it) {
     const ok = it.dec === "ok", adj = ok && Object.keys(diffOf(it)).length, tag = kindTag(it), chg = changeText(it);
     return `<div class="e1-line ${ok ? "ok" : "rej"}" data-ou="${esc(it.id)}"><span class="i" aria-hidden="true">${ok ? "✓" : "✕"}</span>
@@ -363,6 +395,24 @@
       ${cqRows ? `<h3 class="e1-sub">Perguntas</h3>${cqRows}` : ""}${gapRows ? `<h3 class="e1-sub">Lacunas</h3>${gapRows}` : ""}${divRows ? `<h3 class="e1-sub">Divergências</h3>${divRows}` : ""}
       <p class="p secondary">A alteração vira uma proposta sua e entra junto quando você salvar.</p></details>`;
   }
+  // mapeamentos aplicados: lista recolhida, uma linha por mapping, com Alterar e Remover
+  function mapBusy(M, key) {
+    return M.items.some((it) => MAP_TYPES.has(it.p.type) && mapKey(it.p.payload || {}) === key) ? "correção pendente acima" : "";
+  }
+  function mapSection(M) {
+    const maps = M.maps;
+    if (!maps.length) return "";
+    const can = !isAuto() && !!O.ctx.api, nt = new Set(maps.map((m) => m.source)).size;
+    const bt = (o, key, label) => `<button type="button" class="btn btn-outline ou-ap-btn" data-o="${o}" data-ref="${esc(key)}">${label}</button>`;
+    const rows = maps.map((m) => {
+      const key = mapKey(m), busy = mapBusy(M, key);
+      const acts = busy ? `<span class="m">${esc(busy)}</span>` : can ? `<span class="ou-ap-acts">${bt("amap", key, "Alterar")}${bt("rmap", key, "Remover")}</span>` : "";
+      return `<div class="e1-line ok ou-ap"><span class="i" aria-hidden="true">✓</span><span class="q"><span class="mono">${esc(m.term)}</span> <span class="ou-ident">→ <span class="mono">${esc(m.source)}.${esc(m.column)}</span></span></span>
+        <span class="ou-ap-meta">${esc(ROLE_L[m.role] || m.role || "")}</span>${acts}</div>`;
+    }).join("");
+    return `<details class="e1-more ou-ap-wrap" data-od="map"${M.mapOpen ? " open" : ""}><summary><b>Mapeamentos aplicados</b> <span class="ou-ap-n">${maps.length}</span><span class="ou-ap-hint">${esc(plural(nt, "tabela", "tabelas"))}; dá para corrigir ou remover cada um</span></summary>
+      ${rows}<p class="p secondary">A correção vira uma proposta sua na fila acima e só entra na ontologia quando você conferir e salvar.</p></details>`;
+  }
   function sourcesRead(M) {
     const counts = new Map(), add = (path) => { if (path) counts.set(path, (counts.get(path) || 0) + 1); };
     const r = M.req;
@@ -413,7 +463,7 @@
       ? `<div class="e1-empty"><b>Nada a decidir</b><span>${esc([st.label, stepText(st.next_step)].filter(Boolean).join(". ") || "Quando o agente propuser algo, aparece aqui.")}</span></div>` : "";
     const aviso = ns && can ? `<div class="unsaved" role="status"><span><b>${plural(ns, "decisão ainda não salva", "decisões ainda não salvas")}.</b> Só entram na ontologia depois de conferir e salvar.</span>
       <button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : "";
-    return `${bar}${aviso}${nada}${groups}${own}${appliedSection(M)}${contextSection(M)}`;
+    return `${bar}${aviso}${nada}${groups}${own}${appliedSection(M)}${mapSection(M)}${contextSection(M)}`;
   }
   function render(focusSel) {
     if (!O.el || !O.M) return;
@@ -423,6 +473,7 @@
       <section class="e1-screen" data-screen="outras">${screenHtml(M)}</section>
       ${any && !auto ? `<div class="e1-foot"><span class="e1-msg" id="ou-msg" role="status" aria-live="polite"></span><button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : ""}</div>`;
     if (focusSel) { const t = $(focusSel, O.el); if (t) t.focus({ preventScroll: true }); }
+    if (O.notice) msg(O.notice);
     writeDraft(M);
     if (O.ctx.onCount) O.ctx.onCount(remainingOf(M));
   }
@@ -444,6 +495,7 @@
   function onClick(e) {
     const b = e.target.closest("[data-o]");
     if (!b || !O.el.contains(b) || b.disabled || !O.M) return;
+    O.notice = "";
     const M = O.M, act = b.dataset.o, id = b.dataset.id, it = id ? M.byId[id] : null;
     if (isAuto() && !VIEW_ACTS.has(act)) return;
     if (id && !it) return;
@@ -472,7 +524,7 @@
       case "all": M.items.forEach((x) => { if (!x.dec) { x.dec = "ok"; x.open = false; } }); return render('[data-o="save"]');
       case "save": return onSave();
       case "ncq": return openDlg("ncq", { from: '[data-o="ncq"]' });
-      case "acq": case "rcq": case "agap": case "adiv": return openDlg(act, { ref: b.dataset.ref, from: `[data-o="${act}"][data-ref="${b.dataset.ref}"]` });
+      case "acq": case "rcq": case "agap": case "adiv": case "amap": case "rmap": return openDlg(act, { ref: b.dataset.ref, from: `[data-o="${act}"][data-ref="${b.dataset.ref}"]` });
       case "own-edit": { const i = Number(b.dataset.i), o = M.own[i]; if (o) openDlg(o.kind, { i, ref: o.id, from: `[data-o="own-edit"][data-i="${i}"]` }); return; }
       case "own-del": M.own.splice(Number(b.dataset.i), 1); return render('[data-o="save"]');
     }
@@ -501,6 +553,7 @@
     if (!d || !d.dataset || !d.dataset.od || !O.M) return;
     if (d.dataset.od === "ap") O.M.apOpen = d.open;
     if (d.dataset.od === "ctx") O.M.ctxOpen = d.open;
+    if (d.dataset.od === "map") O.M.mapOpen = d.open;
   }
   async function checkQuote(b) {
     const out = b.nextElementSibling, q = b.dataset.q || "", api = O.ctx.api;
@@ -534,7 +587,13 @@
       syncDlg();
     });
     d.addEventListener("input", () => syncDlg());
-    d.addEventListener("change", () => syncDlg());
+    d.addEventListener("change", (e) => {
+      if (e.target && e.target.id === "ou-d-src") {
+        const cur = findApplied("amap", D.ref), src = e.target.value;
+        d0("#ou-d-colf").innerHTML = colField(src, cur && src === cur.source ? cur.column : "");
+      }
+      syncDlg();
+    });
     return d;
   }
   // etiquetas "obrigatorio" somem quando o campo e preenchido
@@ -579,7 +638,22 @@
     if (kind === "acq" || kind === "rcq") return (r.competency_questions || []).find((q) => q.id === ref);
     if (kind === "agap") return (r.gaps || []).find((g) => g.id === ref);
     if (kind === "adiv") return (r.divergences || []).find((x) => x.id === ref);
+    if (kind === "amap" || kind === "rmap") return O.M.maps.find((m) => mapKey(m) === ref);
     return null;
+  }
+  // tabela e coluna do formulario de mapping: so o que o profile conhece, mais o valor atual
+  function tableOpts(curSrc) {
+    const ts = Object.keys(O.M.cols);
+    if (curSrc && !ts.includes(curSrc)) ts.unshift(curSrc);
+    return ts.map((t) => `<option value="${esc(t)}"${t === curSrc ? " selected" : ""}>${esc(t)}</option>`).join("");
+  }
+  function colField(src, curCol) {
+    const cs = (O.M.cols[src] || []).slice();
+    const lab = `<label class="field-label" for="ou-d-col">Coluna ${tagReq("ou-d-col")}</label>`;
+    // tabela sem profile: coluna escrita a mao (o servidor confere o nome)
+    if (!cs.length) return `${lab}<input id="ou-d-col" class="input" type="text" autocomplete="off" value="${esc(curCol || "")}">`;
+    if (curCol && !cs.includes(curCol)) cs.unshift(curCol);
+    return `${lab}<select id="ou-d-col" class="select">${curCol ? "" : '<option value="">escolha</option>'}${cs.map((c) => `<option value="${esc(c)}"${c === curCol ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>`;
   }
   const divLab = (x, k) => x.label || "Fonte " + String.fromCharCode(65 + k);
   function openDlg(kind, opts) {
@@ -593,7 +667,25 @@
     const whyField = (val) => `<span class="choice-help" data-open-note hidden>Em aberto, a etapa 1 volta a ficar aberta até esta decisão.</span>
       <div class="field"><label class="field-label" for="ou-d-why">Por quê? <span class="req" data-need="why">obrigatório</span><span class="opt" hidden>opcional</span></label>
         <textarea id="ou-d-why" class="textarea" rows="2">${esc(val)}</textarea></div>`;
-    if (kind === "ncq") {
+    // correcao de mapping vai direto ao servidor: o nome de quem propoe e pedido aqui quando a pagina nao sabe
+    const who = (O.ctx.reviewer || readName() || "").trim();
+    const nameField = `<div class="field"${who ? " hidden" : ""}><label class="field-label" for="ou-d-who">Seu nome ${tagReq("ou-d-who")}</label>
+      <input id="ou-d-who" class="input" type="text" autocomplete="name" value="${esc(who)}" placeholder="quem propõe a correção"></div>`;
+    const mapCtx = (m) => `<p class="ou-dlg-ctx"><span class="mono">${esc(m.term)}</span> → <span class="mono">${esc(m.source)}.${esc(m.column)}</span>${m.role ? ` · ${esc(ROLE_L[m.role] || m.role)}` : ""}</p>`;
+    if (kind === "amap") {
+      title = "Corrigir mapeamento"; ok = "Propor correção";
+      body = `${mapCtx(cur)}<div class="e1-dlg-2">
+          <div class="field"><label class="field-label" for="ou-d-src">Tabela</label><select id="ou-d-src" class="select">${tableOpts(cur.source)}</select></div>
+          <div class="field" id="ou-d-colf">${colField(cur.source, cur.column)}</div></div>
+        ${cur.role === "metric" ? `<div class="field"><label class="field-label" for="ou-d-expr">Expressão SQL ${tagReq("ou-d-expr")}</label>
+          <textarea id="ou-d-expr" class="textarea" rows="2">${esc(cur.expression || "")}</textarea></div>` : ""}
+        <div class="field"><label class="field-label" for="ou-d-note">Nota <span class="opt">opcional</span></label>
+          <textarea id="ou-d-note" class="textarea" rows="2">${esc(cur.note || "")}</textarea></div>${nameField}`;
+    } else if (kind === "rmap") {
+      title = "Remover mapeamento"; ok = "Propor remoção";
+      body = `${mapCtx(cur)}<div class="field"><label class="field-label" for="ou-d-why">Motivo da remoção ${tagReq("ou-d-why")}</label>
+        <textarea id="ou-d-why" class="textarea" rows="2"></textarea></div>${nameField}`;
+    } else if (kind === "ncq") {
       const o = prev || { q: "", uc: "", type: "", concepts: [], prio: "" };
       D.prio = o.prio; title = i === null ? "Nova pergunta" : "Editar pergunta";
       body = cqForm(o, true);
@@ -649,6 +741,7 @@
     const M = O.M, k = D.kind, val = (sel) => { const el = d0(sel); return el ? el.value.trim() : ""; };
     // o servidor pode ter mudado com a janela aberta: o item alterado precisa continuar na ontologia
     if (k !== "ncq" && !findApplied(k, D.ref)) { d0("#ou-dlg-msg").textContent = "Esse item não está mais na ontologia. Cancele e confira a lista."; return; }
+    if (k === "amap" || k === "rmap") return mapSubmit();
     let o = null;
     if (k === "ncq" || k === "acq") {
       const q = val("#ou-d-q"), type = val("#ou-d-type"), concepts = splitList(val("#ou-d-c"));
@@ -685,6 +778,54 @@
     if (i === null) { M.own.push(o); i = M.own.length - 1; } else M.own[i] = o;
     render();
     closeDlg(`[data-o="own-edit"][data-i="${i}"]`);
+  }
+
+  // correcao de mapping: vira proposta na hora (o servidor confere e, se recusar, o motivo aparece na janela)
+  async function mapSubmit() {
+    const k = D.kind, cur = findApplied(k, D.ref), api = O.ctx.api;
+    const val = (sel) => { const el = d0(sel); return el ? el.value.trim() : ""; };
+    const say = (h) => { d0("#ou-dlg-msg").innerHTML = h; };
+    const who = val("#ou-d-who"), falta = [];
+    let type = "", payload = { term: cur.term, source: cur.source, column: cur.column };
+    if (k === "amap") {
+      const set = {}, src = val("#ou-d-src"), col = val("#ou-d-col"), note = val("#ou-d-note");
+      if (!col) falta.push(["#ou-d-col", "a coluna"]);
+      if (cur.role === "metric" && !val("#ou-d-expr")) falta.push(["#ou-d-expr", "a expressão SQL (métrica exige)"]);
+      if (src !== cur.source) set.source = src;
+      if (col !== String(cur.column || "")) set.column = col;
+      if (cur.role === "metric" && val("#ou-d-expr") !== String(cur.expression || "").trim()) set.expression = val("#ou-d-expr");
+      if (note !== String(cur.note || "").trim()) set.note = note;
+      if (!who) falta.push(["#ou-d-who", "seu nome"]);
+      if (falta.length) return dlgFail(falta);
+      if (!Object.keys(set).length) { say("Nada mudou. Altere algum campo ou cancele."); return; }
+      type = "update_mapping"; payload.set = set;
+    } else {
+      const reason = val("#ou-d-why");
+      if (!reason) falta.push(["#ou-d-why", "o motivo"]);
+      if (!who) falta.push(["#ou-d-who", "seu nome"]);
+      if (falta.length) return dlgFail(falta);
+      type = "remove_mapping"; payload.reason = reason;
+    }
+    if (!api) { say("Esta página está só para leitura: abra com <code>akme review</code> para propor."); return; }
+    const btns = document.querySelectorAll("#ou-dlg button");
+    btns.forEach((b) => { b.disabled = true; });
+    say("Enviando…");
+    // enquanto envia e recarrega, o poll nao anuncia a propria correcao como "proposta nova do agente"
+    const busy = (v) => { if (O.ctx.setBusy) O.ctx.setBusy(v); };
+    busy(true);
+    try {
+      await api.post("/api/propose", { type, payload, reviewer: who });
+    } catch (e) {
+      busy(false);
+      btns.forEach((b) => { b.disabled = false; });
+      say(`<b>O servidor recusou:</b> ${esc(e.message || String(e))}`);
+      return;
+    }
+    try { localStorage.setItem("akme-reviewer", who); } catch (e) { /* sem armazenamento: segue */ }
+    closeDlg('[data-o="save"]');
+    try { if (O.ctx.refresh) await O.ctx.refresh(); } finally { busy(false); }
+    O.notice = `<b>${type === "update_mapping" ? "Correção" : "Remoção"} proposta.</b> Está na fila, em Mapeamentos; entra na ontologia quando você conferir e salvar.`;
+    msg(O.notice);
   }
 
   // ---------- conferir e salvar ----------

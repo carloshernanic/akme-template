@@ -4,7 +4,7 @@ Rotas de leitura: /api/status, /api/stage, /api/pending, /api/requirements, /api
 /api/events, /api/round, /api/chat, e /neo4j/guia (o tutorial do projeto no Neo4j Browser, gerado pelo `publish --target
 neo4j`, unica rota com CORS, so para as origens do Neo4j Browser: o Browser busca o guia de outra origem, por
 `:guide <url>`), e /api/versao (versao do akme e recursos deste servidor: a CLI reconhece um servidor de codigo antigo). Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
-cria ou altera um requisito), /api/apply (aplica em lote as decididas, com nome de quem aprova), /api/chat
+cria ou altera um requisito, ou corrige um mapping aplicado), /api/apply (aplica em lote as decididas, com nome de quem aprova), /api/chat
 (mensagem do consultor para o agente, pelo canal) e /api/chat/permission (permitir ou negar uma tool).
 """
 from __future__ import annotations
@@ -31,6 +31,7 @@ from .tools.batch import BatchError
 from .tools.connect import find_in_sources
 from .tools.decision_mode import mode_path, read_mode
 from .tools.export import build_export, export
+from .tools.profile import load_profile
 from . import __version__
 from .tools.neo4j_guide import GUIDE_FILE, GUIDE_ROUTE
 from .tools.neo4j_page import LoadRefused, export_load, export_status, reload_env
@@ -43,6 +44,8 @@ from .tools.stage import current_stage
 PROPOSE_TYPES = {
     "add_competency_question", "update_competency_question", "remove_competency_question",
     "update_gap", "update_divergence", "add_use_case", "add_requirement",
+    # correcao de mapping ja aplicado, feita pelo revisor na lista "Mappings aplicados"
+    "update_mapping", "remove_mapping",
 }
 CQ_TYPES_WITH_REFS = {"update_competency_question", "remove_competency_question"}
 EVENTS_MAX_WAIT = 25.0
@@ -54,6 +57,12 @@ def _current(content: dict[str, Any], key: str, item_id: Any) -> dict[str, Any] 
         if item.get("id") == item_id:
             return item
     return None
+
+
+def _source_columns(project: Project) -> dict[str, list[str]]:
+    """Colunas de cada tabela do profile ({tabela: [coluna, ...]}): o formulario de corrigir mapping oferece so essas."""
+    prof = load_profile(project)
+    return {s.name: [c.name for c in s.columns] for s in prof.sources} if prof else {}
 
 
 def _pending_view(project: Project) -> list[dict[str, Any]]:
@@ -183,6 +192,7 @@ def make_handler(project: Project):
                     data["stage"] = current_stage(project)
                     data["round"] = read_round(project) or {}
                     data["token"] = state_token(project)
+                    data["source_columns"] = _source_columns(project)
                     return self._json(200, data)
                 if url.path == "/api/events":
                     return self._json(200, self._events(parse_qs(url.query)))

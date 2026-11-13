@@ -128,7 +128,7 @@ As recusas de dados acontecem no dry-run, antes de conectar ao banco. As de dest
 - Decidir se a aresta sem definição, com `_descricao` ligada, deve receber o rótulo ou ficar sem a propriedade (decisão de Mateus).
 - Testar no Aura (depende de Mateus criar a instância).
 - Unificar como CSV e XLSX aparam espaços (hoje só a planilha apara).
-- Aviso de grafo desconectado no dry-run, correção de mappings (`update_mapping`, `remove_mapping`, `rename_class`) e perguntas de competência em Cypher como teste: ver [Correções de 13/11](correcoes-13-11.md).
+- Aviso de grafo desconectado no dry-run e perguntas de competência em Cypher como teste: ver [Correções de 13/11](correcoes-13-11.md).
 
 **Fora do Neo4j, só anotado:**
 

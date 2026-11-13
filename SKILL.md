@@ -121,11 +121,12 @@ Saida: classes e relacoes em `schema.ttl`, termos em `content.yml`.
 
 ### 3. Codificar (LOT: implementacao, codificacao)
 
-Tools: `propose_edit` com `add_mapping`, `add_constraint`, `add_precedence`; `validate`; `open_review`, `wait_for_review`, `list_pending`, `apply_reviewed`, `apply_edit`, `stage`.
+Tools: `propose_edit` com `add_mapping`, `update_mapping`, `remove_mapping`, `add_constraint`, `add_precedence`; `validate`; `open_review`, `wait_for_review`, `list_pending`, `apply_reviewed`, `apply_edit`, `stage`.
 
 1. Para cada termo, proponha o mapping para `tabela.coluna` do `profile`. Metricas levam `role: metric` e `expression` SQL explicita; nao existe `SUM` implicito. Uma metrica no grao da fonte do lado `one` de uma relacao nao pode ser somada depois de juntar com o lado `many` (fanout): o `publish` registra isso em `do_not_sum_after_join_with`.
 2. Proponha `add_constraint` para regras implicitas achadas nos documentos (ex: faturamento so com status FATURADO) e `add_precedence` quando duas fontes divergem sobre o mesmo conceito, dizendo qual prevalece e por que.
 3. Rode `validate`. Corrija o que for erro antes de pedir aprovacao.
+4. Para corrigir um mapping ja aplicado, nunca edite o `content.yml` a mao: proponha `update_mapping` (`term`, `source` e `column` atuais, mais `set` com o que muda) ou `remove_mapping` (com `reason`). O `validate` avisa (`source_classes`) quando uma tabela recebe termos de mais de uma classe: cada tabela vira uma classe no grafo, entao quase sempre e um mapping na tabela errada. Para trocar o nome de uma classe ja aplicada, proponha `rename_class` (`name`, `new_name`): o nome muda no `schema.ttl` e em tudo que cita a classe. As tres passam pela mesma revisao e aprovacao humana.
 
 **Pare e pergunte:** chame `open_review`, aponte a URL e chame `wait_for_review`; os mappings, restricoes e precedencias aparecem na pagina com a evidencia de cada um. O humano aceita, rejeita com motivo ou pede ajuste, e aplica. Com `applied`, resuma e siga para a etapa 4.
 
