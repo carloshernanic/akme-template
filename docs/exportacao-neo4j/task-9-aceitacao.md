@@ -1,52 +1,81 @@
 # Task 9: aceitação real (demo, Olist e Postgres)
 
-As Tasks 1 a 8 foram testadas com bancos falsos, a demo pequena e um Neo4j descartável. Esta tarefa roda o exportador em condições reais: o Olist inteiro (446.873 linhas), um banco carregado pela exportação antiga, um Postgres de verdade e as perguntas de competência respondidas no grafo. Nenhum código do produto mudou. Foram criados dois arquivos de apoio e um teste:
+As Tasks 1 a 8 foram testadas com bancos falsos, a demo pequena e um Neo4j descartável. Esta tarefa roda o exportador em condições reais: a demo, o Olist inteiro (446.873 linhas), um banco carregado pela exportação antiga, um Postgres de verdade e as perguntas de competência respondidas no grafo.
+
+A aceitação foi feita primeiro no commit `d791dff` e **repetida na rodada final de 12/11/2026, sobre o código final** (o `974da8a` mais as correções da rodada: `_descricao` opcional, mensagem do caractere invisível e fixture da suíte). Os números desta página são os da rodada final, os mesmos usados no guia, na [visão geral](index.md) e em [Uso real do grafo](uso-do-grafo.md). Só o passo 4 (banco da exportação antiga) não foi repetido: é da execução de `d791dff`.
+
+**O que é reproduzível e o que é registro:**
+
+- **A aceitação oficial, reproduzível, é a da demo** (`examples/local_demo`): dados, ontologia, gabarito, verificador e perguntas estão no repositório, e qualquer pessoa repete os passos 1, 5, 5a e 5b com os comandos desta página.
+- **O Olist é um registro de execução.** Os dados (`examples/olist/`) e a ontologia do Olist (`ontology/` da raiz) **não estão no repositório**, e a carga usou **uma cópia com três correções** que a ontologia da raiz não tem (mapping de `categoria_produto`, `U+FEFF` no contrato `pertenceACategoria` e `add_source` da tabela de tradução; seção 2). Os números do Olist mostram que o exportador aguenta a escala, mas não dá para refazê-los só com o que está commitado.
+
+Arquivos de apoio:
 
 | Arquivo | Para que serve |
 |---|---|
 | `examples/local_demo/amostra_valores.py` | Sorteia linhas da origem e confere, célula a célula, valor e tipo no Neo4j. Serve para qualquer projeto |
+| `examples/local_demo/verificar_neo4j.py` | Confere o grafo da demo contra os CSVs e o gabarito (54 verificações). Lê o modo da `_descricao` do `akme.yml` da pasta atual |
 | `examples/local_demo/perguntas_neo4j.cypher` | As perguntas do gabarito da demo escritas em Cypher, com um comentário por pergunta |
+| `examples/olist_perguntas_neo4j.cypher` | As três perguntas de competência do Olist em Cypher, para rodar de novo; o pedido da CQ-008 entra por parâmetro (`$pedido`), sem valor de linha no arquivo |
 | `tests/test_neo4j_integration.py::test_real_competency_questions` | Carrega a demo, roda cada consulta do arquivo e compara com o `gabarito.json`. Pulado sem `AKME_NEO4J_TEST_*` |
+| `tests/test_neo4j_integration.py::test_real_load_from_postgres` | Carga completa da demo a partir de um Postgres real, com contagens, verificador e amostra. Pulado sem `AKME_PG_TEST_DSN` |
 
 ## O que cada passo prova
 
 | Passo | O que prova | Por que importa |
 |---|---|---|
-| 1. Demo em banco vazio, duas cargas | A carga grava o previsto, a conferência confirma e repetir não duplica nem apaga | É o caminho do primeiro uso, e a segunda carga é o uso de todo dia |
+| 1. Demo em banco vazio, duas cargas, sincronização | A carga grava o previsto, a conferência confirma, repetir não duplica nem apaga, e linha apagada na origem some do grafo | É o caminho do primeiro uso, e a segunda carga é o uso de todo dia |
 | 2. Olist completo | O exportador lê tabelas acima do antigo teto de 100 mil linhas, em blocos, e grava um nó por linha e uma aresta por par do join | Era o bloqueio que motivou a troca: o `olist_order_items_dataset` tem 112.650 linhas |
 | 3. Sincronização no Olist | Linhas apagadas na origem somem do grafo, com as arestas delas, e nada mais | Sem isso, o grafo fica com dado que o cliente já apagou |
 | 4. Banco da exportação antiga | O akme reconhece um banco do n10s e recusa antes de gravar | Quem seguiu o guia antigo tem esse banco; misturar os dois modelos corromperia o grafo |
-| 5. Postgres real | A leitura em blocos funciona com cursor do lado do servidor, não só com o cursor falso dos testes | O cliente real está num banco, não em CSV |
+| 5. Postgres real | A carga completa funciona a partir de um banco, com cursor do lado do servidor, não só com CSV e com o cursor falso dos testes | O cliente real está num banco, não em CSV |
 | 5a. Fidelidade de valores | Cada nó sorteado é igual à conversão da carga (`convert` e `node_id`) aplicada à linha da origem: mesmo valor, mesmo tipo, sem propriedade a mais ou a menos. Se o próprio `convert` está certo, quem prova é `tests/test_neo4j_values.py` | Contar nós não prova que os valores chegaram ao banco como a carga os montou |
 | 5b. Perguntas de competência | As perguntas do negócio têm a mesma resposta no grafo e nos CSVs | É o uso final: um LLM ou uma pessoa consultando o grafo |
 
 ## Ambiente
 
-- Mac com Apple M5, 24 GB de memória, macOS 26.3.1; Docker 29.2.0.
-- Neo4j 2026.10.1 Community, descartável (`akme-neo4j-t6`, porta 27687), sem plugin. Os contêineres de Mateus (`akme-neo4j` e `akme-neo4j-teste`) não foram usados.
+- Mac com Apple M5, 24 GB de memória, macOS 26.3.1; Docker 29.2.0, com 7,65 GiB para a VM.
+- Neo4j 2026.10.1 Community. Demo e Postgres: contêiner descartável próprio, sem plugin, heap de 1 GB e page cache de 256 MB, criado vazio para cada medida e removido no fim. Olist: o contêiner `akme-neo4j-t6` (portas 27474 e 27687), recriado vazio com APOC e heap de 1 GB, que ficou carregado no fim. Os contêineres `akme-neo4j` e `akme-neo4j-teste` não foram usados.
+- Postgres 16.15 (`postgres:16`), descartável, em `127.0.0.1`.
 - Python 3.12.13, driver `neo4j` 6.4.1, `psycopg` 3.3.6, uv 0.11.14.
-- Código no commit `d791dff` da branch `feat/exportacao-neo4j-cypher`.
-- Senhas geradas na hora, guardadas fora do repositório e passadas por variável de ambiente. Os comandos abaixo usam `$AKME_NEO4J_PASSWORD`.
+- Senhas geradas na hora, guardadas em arquivos `chmod 600` fora do repositório e passadas por variável de ambiente. Os comandos abaixo usam `$AKME_NEO4J_PASSWORD`.
+- **Como medir:** tempo e memória com `/usr/bin/time -l` sobre o executável `akme` do ambiente do projeto (sem o `uv run` na frente), que dá o tempo total e a memória residente máxima do processo (RSS); MB aqui é 10⁶ bytes. Disco com `du -sk /data/databases/neo4j` dentro do contêiner, depois de reiniciá-lo (o reinício força o checkpoint; o Community não tem `db.checkpoint()`), em MiB. Cada medida é de uma execução.
+
+## Números do estado final
+
+Estes são os números que os outros documentos citam. `_descricao` desligada é o padrão (seção "`_descricao` ligada e desligada").
+
+| Base | Nós (de dado) | Arestas (de dado) | Dry-run | 1ª carga, banco vazio | Banco, `_descricao` desligada | Banco, `_descricao` ligada |
+|---|---:|---:|---|---|---:|---:|
+| Demo | 63 (43) | 64 (44) | 0,39 s, 51 MB | 3,18 s, 85 MB | 1,5 MiB | 1,5 MiB |
+| Olist | 446.917 (446.873) | 568.996 (568.943) | 2,24 s, 144 MB | 34,1 s, 356 MB | 443,2 MiB | 507,2 MiB (+14%) |
+
+Além dos dados, o banco tem a camada de ontologia: na demo, 9 `Conceito`, 10 `Termo` e a marca; no Olist, 18 `Conceito`, 25 `Termo`, a marca, 14 setas `RELACAO_ONTOLOGIA` (7 relações e 7 inversas), 14 `SUBCLASSE_DE` e 25 `TEM_TERMO`.
 
 ## 1. Demo em banco vazio
 
-Cópia temporária do repositório (`git archive HEAD`), com `akme init --demo` e `akme demo`, que aplica as decisões `add_source` do `seed_edits.yml`. Banco limpo antes (nós, restrições e índices).
+Cópia temporária do repositório (`git archive HEAD`, com o código da rodada final por cima), com `akme init --demo` e `akme demo`, que aplica as decisões `add_source` do `seed_edits.yml`. Banco descartável recém-criado.
 
 ```bash
 akme init --demo && akme demo
-echo y | akme publish --target neo4j --no-dry-run   # duas vezes
+akme publish --target neo4j                          # dry-run
+echo y | akme publish --target neo4j --no-dry-run    # duas vezes
 uv run --extra neo4j python examples/local_demo/verificar_neo4j.py
+uv run --extra neo4j python examples/local_demo/amostra_valores.py akme.yml --n 200 --seed 42
 ```
 
 | Conferência | Resultado |
 |---|---|
-| 1ª carga | `banco: vazio`, 7 lotes, `removed` 0 nós e 0 arestas, `verification.ok` |
-| 2ª carga | `banco: projeto local_demo, sera atualizado`, `banco 8 -> origem 8` em cada label, `removed` 0/0, `verification.ok` |
-| `verificar_neo4j.py` | 45 de 45 OK, 216 células comparadas, saída 0 |
+| Dry-run | 43 linhas, 7 lotes, `problems` vazio; 0,39 s, 51 MB |
+| 1ª carga | `banco: vazio`, 7 lotes, `removed` 0 nós e 0 arestas, `verification.ok`; 3,18 s, 85 MB |
+| 2ª carga | `banco: projeto local_demo, sera atualizado`, `banco 8 -> origem 8` em cada label, `removed` 0/0, `verification.ok`; 0,79 s, 85 MB |
+| `verificar_neo4j.py` | 54 de 54 OK, 216 células comparadas, saída 0 |
+| `amostra_valores.py` | 43 linhas (todas), 256 células (213 da origem e 43 legendas `name`), 0 divergências |
+| Sincronização, numa cópia sem o pedido 1010 e sem o cliente 7 | Prévia: `Cliente: banco 8 -> origem 7`, `Pedido: banco 10 -> origem 9`, `contem` e `pertenceA` com 1 a menos. `removed` 2 nós e 2 arestas (o `contem` e o `pertenceA` do pedido; o cliente 7 não tem pedido), `verification.ok`, uma `_carga` só no banco |
 
-## 2. Olist completo
+## 2. Olist completo (registro de execução)
 
-### A cópia e as correções
+### A cópia e as três correções
 
 O Olist de Mateus está na raiz, sem commit (`examples/olist/` e a `ontology/` da raiz). Para não mexer nele, tudo rodou numa cópia temporária fora do repositório: os 9 CSVs, a pasta `ontology/` inteira e um `akme.yml` novo.
 
@@ -70,7 +99,11 @@ Um terceiro problema só aparece depois de corrigir esses dois, porque a relaç�
 relacao pertenceACategoria: coluna do join nao existe nos dados: product_category_name_translation.﻿product_category_name
 ```
 
-O nome da coluna nessa mensagem começa com um caractere invisível, o `U+FEFF`.
+O nome da coluna nessa mensagem começa com um caractere invisível, o `U+FEFF`. Na Task 9, a mensagem saía assim, com o caractere escondido, e quem lia via `product_category_name` dos dois lados. Desde a rodada final, ela mostra o caractere e diz o que fazer:
+
+```text
+relacao pertenceACategoria: coluna do join nao existe nos dados: product_category_name_translation.<U+FEFF>product_category_name; o nome tem caractere invisivel: <U+FEFF> (BOM, marca de inicio de arquivo). Costuma vir do inicio de um CSV ou de um copiar e colar: reescreva o nome sem esse caractere onde ele foi digitado (contrato ou fonte no content.yml, por proposta na pagina de revisao, ou a proposta do add_source)
+```
 
 As três correções, **só na cópia**:
 
@@ -110,8 +143,8 @@ Geolocalização e pagamentos continuam fora, como a etapa 5 de Mateus decidiu.
 ### Dry-run, carga e conferência
 
 ```bash
-uv run akme publish --target neo4j                     # dry-run
-echo y | uv run akme publish --target neo4j --no-dry-run
+akme publish --target neo4j                     # dry-run
+echo y | akme publish --target neo4j --no-dry-run
 ```
 
 O dry-run, com as correções: 7 fontes no escopo, 2 excluídas, `problems` vazio, 205 lotes previstos. Os avisos:
@@ -147,33 +180,53 @@ Dois números pedem explicação:
 - **Avaliações:** o `wc -l` do CSV dá 104.720 linhas, porque há comentários com quebra de linha dentro das aspas. São 99.224 registros. `review_id` sozinho não é chave: há 98.410 valores distintos. Por isso a etapa 5 de Mateus aprovou o par (`review_id`, `order_id`), único nos 99.224. A regra C-001 (uma avaliação por pedido) é aplicada na consulta, não na carga, para não perder dado.
 - **`pertenceACategoria`:** 32.328 e não 32.951, porque 610 produtos não têm categoria e 13 têm categoria sem tradução (`pc_gamer` e `portateis_cozinha_e_preparadores_de_alimentos`).
 
-A carga terminou com `banco: vazio`, 205 de 205 lotes, `removed` 0/0 e `verification.ok`. O banco ficou com 446.892 nós: 446.873 de dados, 18 `Conceito` e a marca do projeto, todos com a mesma `_carga`.
+A carga terminou com `banco: vazio`, 205 de 205 lotes, `removed` 0/0 e `verification.ok`. O banco ficou com 446.917 nós (446.873 de dados, 18 `Conceito`, 25 `Termo` e a marca do projeto) e 568.996 arestas, todos com a mesma `_carga`. A segunda carga achou `banco N -> origem N` em todos os labels e tipos de aresta e terminou com `removed` 0/0.
 
 ### Tempo e memória
 
-Medidos com `/usr/bin/time -l`, que dá o tempo total e a memória máxima do processo (RSS).
-
-| Medida | Tempo | Memória máxima |
+| Medida | Tempo | Memória máxima (RSS) |
 |---|---|---|
-| Dry-run, lendo 446.873 linhas | 2,2 s | 144 MB |
-| 1ª carga, banco vazio | 31,4 s | 224 MB |
-| 2ª carga, com sincronização | 29,7 s | 212 MB |
-| Amostra de valores (5a) | 2,7 s | 160 MB |
+| Dry-run, lendo 446.873 linhas | 2,24 s | 144 MB |
+| 1ª carga, banco vazio | 34,1 s | 356 MB |
+| 2ª carga, por cima, `removed` 0/0 | 35,7 s | 413 MB |
+| Carga da sincronização (passo 3) | 32,6 s | 421 MB |
+| 1ª carga com `_descricao` ligada, banco vazio | 34,8 s | 432 MB |
+| Amostra de valores (5a) | 2,8 s | 171 MB |
 
-O contêiner do Neo4j ficou com 1,193 GiB de memória depois das cargas (`docker stats`).
+O contêiner do Neo4j ficou com 1,28 GiB de memória no fim (`docker stats`). Na execução de `d791dff`, a 1ª carga tinha levado 31,4 s com 224 MB. A memória do processo varia bastante de uma execução para outra (de 224 a 432 MB entre as rodadas registradas), e cresce com o tamanho dos blocos de texto que o driver monta; o tempo fica entre 31 e 36 s.
+
+### `_descricao` ligada e desligada
+
+Desde a rodada final, `_descricao` (a definição da classe ou da relação em cada nó e aresta de dado) é **desligada por padrão**. Liga-se no `akme.yml`:
+
+```yaml
+neo4j:
+  descricao_nos_dados: true
+```
+
+Desligada, a definição continua no `Conceito` (`definicao`), no esquema para o LLM e no tutorial; a propriedade fica ausente nos dados, e uma carga desligada por cima de uma ligada a apaga (o `SET` recebe `null`). `_descricao` continua nome reservado nos dois modos.
+
+| Olist, banco vazio | Banco | Arquivo de strings | Tempo da carga |
+|---|---:|---:|---:|
+| Desligada (padrão) | 443,2 MiB | 192 MiB | 34,1 s |
+| Ligada | 507,2 MiB | 256 MiB | 34,8 s |
+
+Ligada, o banco ficou **64 MiB (+14%) maior** numa base nova. O arquivo de strings do Neo4j cresce em degraus de 64 MiB, então a diferença real está entre um e dois degraus. Na Task 10, regravando por cima de uma carga anterior, a mesma opção tinha custado +123 MB (+43%). Os dois números medem a mesma coisa em condições diferentes: a base nova é o custo de uma carga limpa; a regravação é o que acontece no uso de todo dia, porque o Community não reaproveita logo o espaço liberado. Foi esse custo, para um ganho que serve só a quem clica no nó no Browser (o LLM não lê a propriedade, ver a [Task 10](task-10-semantica.md)), que levou Mateus a desligá-la por padrão. Na demo, os dois modos dão 1,5 MiB, porque o banco é pequeno demais para sair do tamanho inicial dos arquivos. O tempo de carga quase não muda.
 
 ## 3. Sincronização no Olist
 
-10 avaliações apagadas do CSV da cópia: os 10 primeiros registros de uma linha só, sem comentário, para não tocar em registro com quebra de linha. Um script conferiu que o CSV ficou com 99.214 registros e que os outros continuaram iguais. Antes da carga, as 10 tinham 10 nós e 10 arestas no banco.
+Numa segunda cópia, 10 avaliações apagadas do CSV: os 10 primeiros registros de uma linha só, sem comentário e sem título, para não tocar em registro com quebra de linha. Um script conferiu que o CSV ficou com 99.214 registros e que os outros continuaram iguais. Antes da carga, as 10 tinham 10 nós e 10 arestas no banco.
 
 | Conferência | Resultado |
 |---|---|
-| Resumo antes de confirmar | `Avaliacao: banco 99224 -> origem 99214`; os outros labels iguais |
+| Resumo antes de confirmar | `Avaliacao: banco 99224 -> origem 99214, pelo menos 10 serao removidos`; `refereSeAoPedido` com 10 a menos; os outros iguais |
 | `removed` | 10 nós e 10 arestas, as `refereSeAoPedido` dessas avaliações |
 | `verification` | `ok`, sem divergências |
 | Banco depois | 99.214 avaliações; nenhuma das 10; uma `_carga` só |
 
-## 4. Banco da exportação antiga
+Depois, a cópia original foi carregada de novo (`removed` 0/0, as 10 avaliações de volta), e é esse o estado em que o `akme-neo4j-t6` ficou.
+
+## 4. Banco da exportação antiga (Task 9, não repetido)
 
 Contêiner descartável `akme-neo4j-t9-legado` (Neo4j 2026.10.1, portas 37474 e 37687), com o jar do n10s 2025.06.1 montado só para leitura. A versão antiga do akme (commit `ec40d71`) rodou numa `git worktree` temporária e carregou a demo pelo n10s: 59 nós (`Resource`, `Class`, `Relationship`, `_GraphConfig` e os dados), 59 arestas e a restrição `n10s_unique_uri`.
 
@@ -188,20 +241,24 @@ Parou antes da pergunta de confirmação, com saída 1. Nós, arestas, restriç�
 
 ## 5. Postgres real
 
-Contêiner descartável `akme-pg-t9` (`postgres:16`, PostgreSQL 16.15, porta 25432), com `olist_order_items_dataset` carregada por `COPY`, todas as colunas como texto: 112.650 linhas.
+Contêiner descartável (`postgres:16`, PostgreSQL 16.15), com as quatro tabelas da demo num schema próprio, todas as colunas como texto, carregadas por `COPY` (célula vazia vira `NULL`). O `akme.yml` da cópia da demo trocou o adapter:
 
-```bash
-AKME_PG_TEST_DSN=postgresql://postgres:$SENHA@127.0.0.1:25432/postgres \
-  uv run --extra postgres pytest tests/test_adapters_iter_rows.py -q
+```yaml
+adapter: postgres
+postgres:
+  dsn: env:AKME_PG_TEST_DSN
+  schema: demo
 ```
 
 | Conferência | Resultado |
 |---|---|
-| `tests/test_adapters_iter_rows.py`, com o teste real | 9 de 9 |
-| `iter_rows(batch=5000)` | 112.650 linhas em 23 blocos (22 de 5.000 e 1 de 2.650), em 0,28 s |
-| `scan_source` com a chave (`order_id`, `order_item_id`) | 112.650 linhas completas, 0 repetidas, 0 valores inválidos em `price` e `freight_value` como `float` |
+| Carga completa pela CLI, banco Neo4j vazio | 43 linhas, 7 lotes, `banco: vazio`, `removed` 0/0, `verification.ok`; 4,61 s, 90 MB |
+| `verificar_neo4j.py` (contra os CSVs da demo) | 54 de 54 OK, saída 0 |
+| `amostra_valores.py` (lê do Postgres) | 43 linhas, 256 células, 0 divergências |
+| 2ª carga | `removed` 0/0 |
+| `test_real_load_from_postgres` | passou (cria o schema `akme_demo_it`, carrega, confere, recarrega e apaga o schema) |
 
-O contêiner foi removido com o volume no fim.
+Na Task 9, o mesmo Postgres tinha sido testado só na leitura, com o `olist_order_items_dataset` (112.650 linhas): `iter_rows(batch=5000)` leu 23 blocos em 0,28 s, e o `scan_source` com a chave (`order_id`, `order_item_id`) achou 0 repetidas e 0 valores inválidos.
 
 ## 5a. Fidelidade de valores
 
@@ -213,20 +270,20 @@ Como o script funciona:
 
 1. Monta o plano (`build_plan`) para saber a classe, a chave e os tipos de cada fonte, como a carga.
 2. Lê cada fonte inteira pelo adapter do projeto e sorteia até 200 linhas com a chave completa, por amostragem de reservatório com semente fixa.
-3. Converte cada célula preenchida com `convert`, pelo tipo aprovado (texto se não declarado).
+3. Converte cada célula preenchida com `convert`, pelo tipo aprovado (texto se não declarado), e calcula a legenda `name` pela mesma regra da carga.
 4. Busca o nó por label e `_id`, no projeto.
-5. Compara campo a campo: o mesmo valor e o mesmo tipo Python, e nenhuma propriedade a mais ou a menos além de `_id`, `_projeto` e `_carga`. Duas linhas sorteadas com o mesmo `_id` contam como divergência, e não são juntadas.
+5. Compara campo a campo: o mesmo valor e o mesmo tipo Python, e nenhuma propriedade a mais ou a menos além de `_id`, `_projeto` e `_carga` (e `_descricao`, só com a opção ligada; desligada, uma `_descricao` no nó conta como propriedade a mais). Duas linhas sorteadas com o mesmo `_id` contam como divergência, e não são juntadas.
 
 As datas voltam do driver como `neo4j.time.Date`; o script chama `to_native()`, que dá um `datetime.date`, antes de comparar. A saída mostra só contagens e nomes de coluna, nunca valores das linhas.
 
 | Projeto | Fontes | Linhas | Células | Divergências |
 |---|---|---|---|---|
-| Demo | 4 | 43 (todas) | 213 | 0 |
-| Olist | 7 | 1.271 | 7.838 | 0 |
+| Demo | 4 | 43 (todas) | 256 | 0 |
+| Olist | 7 | 1.271 | 9.109 | 0 |
 
-No Olist, nenhuma coluna é `date`: as datas têm hora e ficaram texto na etapa 5. A conversão de datas é exercitada na demo (`dt_cadastro`, `dt_pedido`).
+As células incluem a legenda `name` (uma por nó), que não existia na execução de `d791dff` (213 e 7.838 células). No Olist, nenhuma coluna é `date`: as datas têm hora e ficaram texto na etapa 5. A conversão de datas é exercitada na demo (`dt_cadastro`, `dt_pedido`).
 
-**O script acha erro quando há erro.** Com a demo carregada, o banco foi adulterado à mão: uma data virou texto, um preço ganhou um centavo e um nó ganhou uma propriedade a mais. O script achou as 3 divergências (`tipo:dt_cadastro`, `valor:vl_unitario`, `a mais:extra`). Uma carga nova desfez as três, porque cada nó é regravado inteiro com os valores da origem.
+**O script acha erro quando há erro** (execução de `d791dff`). Com a demo carregada, o banco foi adulterado à mão: uma data virou texto, um preço ganhou um centavo e um nó ganhou uma propriedade a mais. O script achou as 3 divergências (`tipo:dt_cadastro`, `valor:vl_unitario`, `a mais:extra`). Uma carga nova desfez as três, porque cada nó é regravado inteiro com os valores da origem.
 
 ## 5b. Perguntas de competência
 
@@ -250,91 +307,54 @@ As 11 batem. As duas perguntas de `examples/local_demo/questions.yml` não têm 
 - **CQ-002**, clientes ativos sem compra nos últimos 90 dias: a resposta depende de uma data de referência que o oráculo não fixa.
 - **CQ-003**, ticket médio por categoria: o grafo responde, mas o `oracle.py` não calcula esse número para comparar.
 
-### Olist
+### Olist (registro de execução)
 
-As três perguntas reservadas de `validation/questions.yml` (a da raiz, que não foi alterada), respondidas por Cypher no Olist carregado, antes do passo 3. As consultas aplicam as regras da ontologia:
+As três perguntas reservadas de `validation/questions.yml` (a da raiz, que não foi alterada) estão em `examples/olist_perguntas_neo4j.cypher`. Na rodada final, o arquivo rodou no Olist carregado pelo código final, e cada resposta foi comparada com a mesma conta feita em pandas sobre os CSVs da cópia, sem o akme. As consultas aplicam as regras da ontologia:
 
 - C-001: uma avaliação por pedido, a de `review_answer_timestamp` mais recente;
 - C-002: cada pedido conta uma vez por categoria ou vendedor, nunca uma vez por item;
 - C-003: atraso só para pedido `delivered` com data de entrega.
 
-```cypher
-// CQ-006: pior nota media por categoria, entre as com 30 ou mais pedidos avaliados
-MATCH (a:Avaliacao)-[:refereSeAoPedido]->(p:Pedido)
-WITH p, a ORDER BY a.review_answer_timestamp DESC, a.review_id DESC
-WITH p, head(collect(a)) AS a
-MATCH (p)-[:contemItem]->(:ItemPedido)-[:referenteAoProduto]->(pr:Produto)
-OPTIONAL MATCH (pr)-[:pertenceACategoria]->(c:CategoriaProduto)
-WITH DISTINCT coalesce(c.product_category_name, pr.product_category_name, 'sem categoria') AS categoria, p, a
-WITH categoria, avg(toFloat(a.review_score)) AS media, count(*) AS pedidos
-WHERE pedidos >= 30
-RETURN categoria, round(media, 2) AS media, pedidos ORDER BY media ASC LIMIT 3;
-
-// CQ-007: pior nota media por vendedor, entre os com 30 ou mais pedidos avaliados
-MATCH (a:Avaliacao)-[:refereSeAoPedido]->(p:Pedido)
-WITH p, a ORDER BY a.review_answer_timestamp DESC, a.review_id DESC
-WITH p, head(collect(a)) AS a
-MATCH (p)-[:contemItem]->(:ItemPedido)-[:vendidoPor]->(v:Vendedor)
-WITH DISTINCT v, p, a
-WITH v.seller_id AS vendedor, avg(toFloat(a.review_score)) AS media, count(*) AS pedidos
-WHERE pedidos >= 30
-RETURN vendedor, round(media, 2) AS media, pedidos ORDER BY media ASC LIMIT 1;
-
-// CQ-008: atraso do pedido, por dia; as datas ficaram texto, entao a consulta corta a hora
-MATCH (p:Pedido {order_id: '88c588c116fd06fb8e48dd83af88ec4a'})
-WITH p, date(left(p.order_delivered_customer_date, 10)) AS entregue,
-        date(left(p.order_estimated_delivery_date, 10)) AS estimado
-RETURN p.order_status AS status, entregue, estimado,
-       CASE WHEN p.order_status = 'delivered' AND p.order_delivered_customer_date IS NOT NULL
-            THEN duration.inDays(estimado, entregue).days END AS atraso_dias;
-```
-
-| Pergunta | Esperado | Grafo | Resultado |
+| Pergunta | Grafo | Grafo = pandas | Bate com a resposta reservada |
 |---|---|---|---|
-| CQ-006 | `moveis_escritorio` | `moveis_escritorio`, 3,62 em 1.263 pedidos; depois `fashion_roupa_feminina` 3,69 e `fashion_roupa_masculina` 3,70 | bate |
-| CQ-007 | `1ca7077d890b907f89be8c954a02686a` | o mesmo vendedor, 2,33 em 114 pedidos | bate |
-| CQ-008 | atrasou 10 dias (entregue em 2017-12-22, estimado para 2017-12-12) | `delivered`, entregue 2017-12-22, estimado 2017-12-12, 10 dias | bate |
+| CQ-006, pior nota média por categoria | `moveis_escritorio`, 3,62 em 1.263 pedidos; depois `fashion_roupa_feminina` 3,69 (39) e `fashion_roupa_masculina` 3,70 (111) | sim | sim |
+| CQ-007, pior nota média por vendedor | o vendedor da resposta reservada, 2,33 em 114 pedidos | sim | sim |
+| CQ-008, atraso do pedido da pergunta | `delivered`, 10 dias de atraso | sim | sim |
 
-As três batem, com os mesmos números que o changelog registrou quando as respostas foram reservadas a partir dos CSVs. O corte de 30 ou mais pedidos avaliados não está no texto da pergunta: veio da justificativa registrada no changelog. Sem o corte, a pior categoria seria `seguros_e_servicos`, com 2 pedidos. A consulta da CQ-006 não depende da aresta `pertenceACategoria`: o `coalesce` cai para a propriedade `product_category_name` do `Produto` quando a aresta falta. A dependência real é outra: sem a correção 1, a carga nem acontece, porque o dry-run recusa a ontologia da raiz, e não há grafo para consultar.
+O identificador do vendedor e o do pedido estão em `validation/questions.yml`; esta página não os repete. O corte de 30 ou mais pedidos avaliados não está no texto da pergunta: veio da justificativa registrada no changelog. Sem o corte, a pior categoria seria `seguros_e_servicos`, com 2 pedidos. A consulta da CQ-006 não depende da aresta `pertenceACategoria`: o `coalesce` cai para a propriedade `product_category_name` do `Produto` quando a aresta falta. A dependência real é outra: sem a correção 1, a carga nem acontece, porque o dry-run recusa a ontologia da raiz, e não há grafo para consultar.
 
 ## O que falhou ou surpreendeu
 
-- **O `U+FEFF` aparece em etapas.** Na ontologia da raiz, o dry-run mostra 2 problemas; o terceiro só aparece depois. E a mensagem desse terceiro traz o caractere invisível sem marcá-lo: quem lê vê `product_category_name` nos dois lados e pode não entender a diferença. Fica como sugestão para o primeiro uso de Mateus: a mensagem poderia escrever o `U+FEFF` de forma visível.
-- **Memória bem abaixo do que o guia avisava.** A versão anterior do guia dizia que o driver podia passar de 1 GB numa tabela de centenas de milhares de linhas com texto acentuado. No Olist inteiro, com os comentários das avaliações, o processo ficou em 224 MB de memória residente máxima. O guia foi corrigido com este número.
-- **O dry-run é rápido:** 2,2 s para ler as 446.873 linhas. A carga leva cerca de 30 s, quase tudo esperando o Neo4j.
-- **Endereço do Browser fixo.** No fim da carga, a CLI indica `http://localhost:7474`, mas neste teste o Browser estava na 27474, porque o contêiner era outro. É o comportamento previsto (porta padrão), e não afeta o guia, que usa a 7474.
-- **O jar antigo funciona no Neo4j novo.** O n10s 2025.06.1 carregou no Neo4j 2026.10.1 sem erro. O passo 4 reproduziu de fato o banco de quem seguiu o guia antigo.
-- **`psycopg` instalado no ambiente.** O `uv run --extra postgres` instalou o `psycopg` no ambiente do projeto. Com ele, `test_optional_adapters_fail_clearly` falha, como já estava anotado.
+- **O `U+FEFF` aparece em etapas.** Na ontologia da raiz, o dry-run mostra 2 problemas; o terceiro só aparece depois. Na Task 9, a mensagem desse terceiro trazia o caractere invisível sem marcá-lo. **Corrigido na rodada final:** o plano, o `add_source` e a conferência dos contratos marcam BOM, espaço de largura zero, espaço não separável e caracteres de controle como `<U+FEFF>` e dizem o que fazer (seção 2).
+- **Memória.** A versão anterior do guia dizia que o driver podia passar de 1 GB numa tabela de centenas de milhares de linhas com texto acentuado. No Olist inteiro, o processo ficou entre 224 e 432 MB de memória residente máxima, conforme a execução. O guia cita o número do estado final.
+- **O dry-run é rápido:** 2,2 s para ler as 446.873 linhas. A carga leva cerca de 34 s, quase tudo esperando o Neo4j.
+- **O custo de `_descricao` depende de como se mede:** +14% numa base nova, +43% regravando por cima (Task 10). O arquivo de strings cresce em degraus de 64 MiB.
+- **Endereço do Browser.** No fim da carga, a CLI indica `http://localhost:7474`, a menos que `AKME_NEO4J_BROWSER_URL` diga outro; nesta rodada ela apontou para a porta do contêiner usado.
+- **O jar antigo funciona no Neo4j novo** (Task 9). O n10s 2025.06.1 carregou no Neo4j 2026.10.1 sem erro. O passo 4 reproduziu de fato o banco de quem seguiu o guia antigo.
 
 ## Limites
 
-- Uma máquina só, com Docker local. Aura e Enterprise não foram testados.
-- O Postgres foi testado só na leitura (adapter e `scan_source`), com uma tabela. A carga completa no Neo4j a partir do Postgres não foi rodada.
+- Uma máquina só, com Docker local. **Aura e Enterprise não foram testados.**
+- O Olist não é reproduzível com o que está no repositório (dados e ontologia de fora, cópia com três correções). A aceitação reproduzível é a da demo.
+- O Postgres foi testado com as quatro tabelas da demo (carga completa) e com uma tabela do Olist (só leitura). Snowflake e Databricks, só com cursor falso.
 - A amostra de valores sorteia 200 linhas por fonte, não todas. Na demo, cobre todas; no Olist, cerca de 0,3%.
 - A amostra compara o grafo com o mesmo `convert` e o mesmo `node_id` que a carga usa. Ela prova que o nó é igual à conversão da carga aplicada à origem, e que nada se perdeu ou sobrou no caminho até o banco. Não prova que o `convert` em si está certo; isso é coberto por `tests/test_neo4j_values.py`.
 - Fonte do plano sem chave não vira nó e é pulada pela amostra, com uma linha `PULADA` na saída. Neste teste, nenhuma fonte foi pulada.
-- As perguntas do Olist foram respondidas por consultas avulsas, guardadas só na cópia temporária e nesta página. Só as da demo viraram teste automático.
-- Tempo e memória são de uma execução, sem repetição.
+- Só as perguntas da demo viraram teste automático. As do Olist estão em `examples/olist_perguntas_neo4j.cypher`, para rodar à mão num grafo do Olist.
+- Tempo, memória e disco são de uma execução cada, sem repetição.
 
 ## Testes
 
-- `uv run --extra neo4j pytest tests/test_neo4j_integration.py -q`, com `AKME_NEO4J_TEST_*` no Neo4j descartável: 9 de 9. Sem as variáveis: 9 pulados.
-- `uv run pytest -q`: 321 passaram, 11 foram pulados e 1 falhou, a já conhecida `test_optional_adapters_fail_clearly` (5 min 23 s), com o `psycopg` instalado e sem `AKME_NEO4J_TEST_*`.
+Na rodada final:
+
+- `scripts/test-neo4j.sh` (Neo4j descartável, sem Postgres): 27 passaram, 1 pulado (o do Postgres), em 31 s; com o Postgres descartável também configurado (`AKME_PG_TEST_DSN`), `tests/test_neo4j_integration.py` passou 28 de 28.
+- `uv run pytest -q`: 472 passaram, 30 foram pulados (os de banco real), em 49 s.
 - `uv run --extra docs mkdocs build --strict`: sem avisos.
 
 ## Revisão
 
-A revisão independente aprovou a tarefa, sem problemas críticos nem importantes.
+A revisão independente da Task 9 aprovou a tarefa, sem problemas críticos nem importantes.
 
-- **Números rastreados:** cada número desta página foi conferido contra o comando que o produziu, no relatório da tarefa.
+- **Números rastreados:** cada número desta página foi conferido contra o comando que o produziu, no relatório da tarefa (rodada final: `.superpowers/sdd/2026-11-11-exportacao-neo4j-cypher/rodada-final-report.md`).
 - **Amostra de valores:** compara tipo e valor exatos e pegou as três adulterações feitas de propósito.
 - **Corte de 30 pedidos:** foi registrado no changelog e aprovado por Mateus antes desta execução, quando as respostas foram reservadas. Não é um ajuste para a resposta bater.
-
-Corrigido depois da revisão:
-
-- **CQ-006:** o parágrafo diz que a consulta cai para a propriedade do `Produto` quando falta a aresta, e que a dependência real da correção 1 é a carga acontecer.
-- **O que a amostra prova:** a tabela dos passos e os limites dizem que ela confere o nó contra a conversão da carga, e que o `convert` em si é coberto por `tests/test_neo4j_values.py`.
-- **Teste das perguntas da demo:** exige o mesmo tipo em inteiros e booleanos, e compara dinheiro em centavos inteiros, sem `float`.
-- **`amostra_valores.py`:** avisa com `PULADA` a fonte sem chave, e conta como divergência duas linhas sorteadas com o mesmo `_id`.
-- **Passo 4 e memória do contêiner:** o resultado do verificador e o `docker stats` estão como foram registrados.
-- **Guia:** o aviso de memória em "Limites conhecidos" passou a citar o número medido no Olist.

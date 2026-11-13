@@ -1,5 +1,7 @@
 # Task 8: documentação, guia e verificador da demo
 
+> **Nota (rodada final, 12/11/2026):** a pasta antiga de registros do Neo4j (`exportacao.md`, `historico.md`, `teste-n10s.md` e `teste-n10s/`) saiu do repositório. Os arquivos citados abaixo por esses nomes ficam no histórico do git (por exemplo, `git show 974da8a:docs/neo4j/historico.md`); `usos-do-grafo.md` nunca foi commitado. O estado atual está nesta pasta e no guia (`reports/docs_exp_neo4j/README.md`).
+
 Esta tarefa põe os documentos de uso e os registros em dia com o exportador em Cypher (Tasks 1 a 7). O único código alterado é o verificador da demo, `examples/local_demo/verificar_neo4j.py`. Nenhum código do produto mudou.
 
 ## Para que serve cada documento e o que mudou
@@ -7,8 +9,8 @@ Esta tarefa põe os documentos de uso e os registros em dia com o exportador em 
 | Arquivo | Para que serve | Antes | Agora |
 |---|---|---|---|
 | `reports/docs_exp_neo4j/README.md` | Guia de uso, do primeiro uso até ver o grafo | Passo de baixar e conferir o plugin n10s; `docker run` com volume de plugins e variável que liberava as rotinas do plugin; conferência pela contagem de rotinas do plugin; glossário com RDF e n10s; dry-run gerava `neo4j.nt`; linhas apagadas continuavam no grafo; teto de 100 mil linhas | Sem plugin: Parte 1 com 4 passos (1.1 a 1.4); `docker run` só com porta, senha e volume de dados; conferência pela versão do Neo4j; glossário com Cypher, Conceito e sincronização; dry-run gera `neo4j.cypher`; nova seção 3.3 sobre sincronização; saída real da CLI antes de confirmar; consultas com `Conceito`; recusa do banco antigo com o comando de limpeza; limites novos |
-| `docs/neo4j/exportacao.md` | Estado atual da exportação, com fluxo, modelo, casos e motivos | Situação de 05/11/2026 com n10s; fluxo RDF → plugin; provas do n10s | Situação de 12/11/2026 em Cypher; fluxo plano → confirmação → carga → sincronização → conferência; modelo no grafo, nomes do esquema `akme_*`, tabela de casos nova; nota curta "Antes (n10s)" apontando para o histórico; seção "Provas" com "a preencher na Task 9" |
-| `docs/neo4j/historico.md` | Registro cronológico | Terminava no caminho com n10s | Entrada nova de 11/11/2026 a 12/11/2026, no topo, com o que mudou, o motivo (relações como nós no `onto.import`, teto de 100 mil linhas, n10s ausente no Aura, pedido do colega), a decisão e os links para estas páginas (o desenho original não é linkado, por decisão de Mateus). As entradas antigas não mudaram |
+| `exportacao.md` | Estado atual da exportação, com fluxo, modelo, casos e motivos | Situação de 05/11/2026 com n10s; fluxo RDF → plugin; provas do n10s | Situação de 12/11/2026 em Cypher; fluxo plano → confirmação → carga → sincronização → conferência; modelo no grafo, nomes do esquema `akme_*`, tabela de casos nova; nota curta "Antes (n10s)" apontando para o histórico; seção "Provas" com "a preencher na Task 9" |
+| `historico.md` | Registro cronológico | Terminava no caminho com n10s | Entrada nova de 11/11/2026 a 12/11/2026, no topo, com o que mudou, o motivo (relações como nós no `onto.import`, teto de 100 mil linhas, n10s ausente no Aura, pedido do colega), a decisão e os links para estas páginas (o desenho original não é linkado, por decisão de Mateus). As entradas antigas não mudaram |
 | `SKILL.md` (etapa 5, item 2) | Instrução do agente para o alvo `neo4j` | RDF em `neo4j.nt`, carregado pelo n10s; executar exigia o plugin | Cypher puro em `docs/publish/neo4j.cypher`, sem plugin; ontologia como `Conceito`; cada carga sincroniza; carga continua só pelo humano, na CLI |
 | `CLAUDE.md` e `AGENTS.md` (Cuidados) | Instrução do projeto para agentes | "o akme gera RDF e o plugin n10s carrega" | "o akme grava em Cypher puro, sem plugin (dry-run em `docs/publish/neo4j.cypher`), e cada carga sincroniza"; o resto do item e o link para o guia ficaram iguais |
 | `.gitignore` | Arquivos fora do Git | `.neo4j/`, comentado como pasta do plugin n10s | `.neo4j/` mantido, com o comentário "pasta do plugin da exportação antiga; não é mais usada" (motivo abaixo) |
@@ -17,7 +19,7 @@ Esta tarefa põe os documentos de uso e os registros em dia com o exportador em 
 
 **Por que o `.neo4j/` continua no `.gitignore`:** nenhum código usa a pasta, mas ela ainda existe em máquinas que seguiram o guia antigo, com o jar do plugin (12,8 MB). Tirar a linha faria esse jar aparecer como arquivo novo no `git status`, com risco de ir num commit. O guia, em "Recomeçar do zero", diz que a pasta pode ser apagada.
 
-`tests/test_skill_text.py` e `tests/test_docs_page.py` não citam n10s nem o texto alterado; não precisaram de ajuste. `docs/neo4j/teste-n10s.md` e `docs/neo4j/teste-n10s/` são registros históricos e não mudaram.
+`tests/test_skill_text.py` e `tests/test_docs_page.py` não citam n10s nem o texto alterado; não precisaram de ajuste. `teste-n10s.md` e `teste-n10s/` são registros históricos e não mudaram.
 
 ## Como o guia manteve a estrutura didática
 
@@ -149,11 +151,11 @@ Nenhuma saída mostrou a senha.
 
 `git grep -n -i "n10s\|neosemantics\|neo4j\.nt"` só encontra:
 
-- registros históricos: `docs/neo4j/historico.md`, `docs/neo4j/teste-n10s.md`, `docs/neo4j/teste-n10s/*`;
+- registros históricos: `historico.md`, `teste-n10s.md`, `teste-n10s/*`;
 - a detecção de banco legado: `akme/tools/neo4j_load.py` e os testes em `tests/`;
 - estas páginas (`docs/exportacao-neo4j/*`) e o título da Task 7 no `mkdocs.yml`;
 - o guia: a linha da recusa em "Problemas comuns" e o comando de limpeza da subseção "Banco da exportação antiga";
-- a nota "Antes (n10s)" do `docs/neo4j/exportacao.md`.
+- a nota "Antes (n10s)" do `exportacao.md`.
 
 ## Testes
 
@@ -166,7 +168,7 @@ Revisão aprovada, sem críticos nem importantes. O revisor conferiu comandos, v
 
 Corrigido nesta rodada:
 
-- **Links ao desenho original:** trocados pelas páginas do MkDocs em `docs/neo4j/exportacao.md`, `docs/neo4j/historico.md` e `index.md`, por decisão de Mateus (o desenho e o plano ficam fora do repositório).
+- **Links ao desenho original:** trocados pelas páginas do MkDocs em `exportacao.md`, `historico.md` e `index.md`, por decisão de Mateus (o desenho e o plano ficam fora do repositório).
 - **Sincronização no guia:** célula esvaziada saiu da lista do que a sincronização apaga (some na gravação do nó, pelo `SET n = r.p`); a regra 2 diz "nenhum nó ou aresta é apagado".
 - **Pasta `.neo4j/`:** quem apagar a pasta recria o contêiner (`docker rm -f akme-neo4j` e o passo 1.4); o volume de dados continua.
 - **`verification`:** o guia diz que o `ok` dentro de `verification` deve ser `true` (a CLI imprime o JSON em várias linhas); o bloco da execução real aqui está marcado como aparado.

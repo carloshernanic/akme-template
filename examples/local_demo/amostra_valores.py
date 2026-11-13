@@ -5,7 +5,8 @@ Vale para qualquer projeto carregado pelo `akme publish --target neo4j --no-dry-
   - converte cada celula preenchida com `convert` do tipo aprovado na etapa 5 (texto se nao declarado);
   - busca o no por label e `_id`;
   - compara campo a campo: mesmo valor e mesmo tipo, nenhuma propriedade a mais ou a menos alem das do akme:
-    `_id`, `_projeto`, `_carga` e `_descricao`. A legenda `name` tambem e conferida: o valor esperado e o da regra do
+    `_id`, `_projeto`, `_carga` e, so com `neo4j.descricao_nos_dados: true` no akme.yml, `_descricao` (desligada, o
+    padrao, uma `_descricao` no no conta como propriedade a mais). A legenda `name` tambem e conferida: o valor esperado e o da regra do
     akme (neo4j_values.caption), ou a coluna `name` da origem quando a fonte tem uma (preenchida na linha).
 Datas voltam do driver como neo4j.time.Date e sao normalizadas com to_native() para datetime.date antes da comparacao.
 A saida nao mostra valores das linhas, so contagens e o nome da coluna divergente.
@@ -31,7 +32,7 @@ from akme.project import Project
 from akme.tools.neo4j_plan import BATCH, build_plan
 from akme.tools.neo4j_values import caption, convert, filled, node_id
 
-RESERVED = {"_id", "_projeto", "_carga", "_descricao"}  # campos do akme, nao da origem
+RESERVED = {"_id", "_projeto", "_carga"}  # campos do akme, nao da origem; _descricao entra so com a opcao ligada
 
 
 def sample(adapter: Any, source: str, key: list[str], n: int, rng: random.Random) -> tuple[list[dict[str, Any]], int]:
@@ -57,11 +58,12 @@ def native(value: Any) -> Any:
     return value.to_native() if hasattr(value, "to_native") else value
 
 
-def compare(expected: dict[str, Any], stored: dict[str, Any] | None) -> list[str]:
+def compare(expected: dict[str, Any], stored: dict[str, Any] | None, descricao: bool = False) -> list[str]:
     """Divergencias de um no, so com o nome da coluna e o tipo (nunca o valor da linha)."""
     if stored is None:
         return ["sem no"]
-    got = {k: native(v) for k, v in stored.items() if k not in RESERVED}
+    reserved = RESERVED | ({"_descricao"} if descricao else set())
+    got = {k: native(v) for k, v in stored.items() if k not in reserved}
     out = [f"faltando:{c}" for c in sorted(set(expected) - set(got))]
     out += [f"a mais:{c}" for c in sorted(set(got) - set(expected))]
     for column in sorted(set(expected) & set(got)):
@@ -121,7 +123,7 @@ def main() -> int:
             found = {r["id"]: r["ns"] for r in records}
             for identity, props in expected.items():
                 nodes = found.get(identity, [])
-                problems = ["no repetido"] if len(nodes) > 1 else compare(props, nodes[0] if nodes else None)
+                problems = ["no repetido"] if len(nodes) > 1 else compare(props, nodes[0] if nodes else None, plan.descricao)
                 kinds.update(p.split(" (")[0] for p in problems)
                 total_cells += len(props)
             divergent = sum(kinds.values())

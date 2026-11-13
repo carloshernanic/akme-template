@@ -1,6 +1,6 @@
 # Exportar a ontologia e os dados para o Neo4j
 
-Guia de uso, do primeiro uso até ver o grafo. O motivo de cada escolha e as provas estão em `docs/neo4j/exportacao.md`.
+Guia de uso, do primeiro uso até ver o grafo. O motivo de cada escolha e as provas estão nas páginas de `docs/exportacao-neo4j/` (visão geral em `index.md`, provas em `task-9-aceitacao.md`; `uv run --extra docs mkdocs serve`).
 
 **O que você vai ter no fim:** os dados do cliente como um grafo no Neo4j, com a ontologia junto: conceitos, definições, hierarquia e relações como setas.
 
@@ -29,7 +29,7 @@ Palavras que aparecem no guia:
 | Docker, contêiner | O Docker roda o Neo4j isolado na sua máquina, sem instalar nada no sistema. O contêiner é esse Neo4j rodando |
 | Volume | Pasta do Docker onde o Neo4j guarda os dados. Sobrevive quando o contêiner é recriado |
 | Cypher | A linguagem de consulta do Neo4j. O akme grava o grafo com comandos Cypher, e você usa Cypher para consultar no Browser |
-| Conceito (camada da ontologia) | Nó com o label `Conceito`, um por classe da ontologia (ex: `Pedido`), com a definição. As relações da ontologia aparecem como setas entre conceitos, com o mesmo nome das arestas de dados |
+| Conceito (camada da ontologia) | Nó com o label `Conceito`, um por classe da ontologia (ex: `Pedido`), com a definição. As relações da ontologia aparecem como setas `RELACAO_ONTOLOGIA` entre conceitos, com o nome da relação em `nome` |
 | Sincronização | No fim de cada carga, o akme apaga do banco o que é deste projeto e não veio da origem nesta carga. Assim as contagens do banco batem com as da origem lida nesta carga |
 | Dry-run | Ensaio: gera tudo e mostra o resumo, sem gravar no banco |
 
@@ -89,8 +89,8 @@ AKME_NEO4J_PASSWORD=<invente uma senha com pelo menos 8 caracteres>
 - **USER:** `neo4j` é o administrador que já vem no Neo4j.
 - **PASSWORD:** você inventa agora. Ela vira a senha do banco no passo 1.4. Guarde: trocar depois apaga os dados (ver "Problemas comuns").
 - **Não compartilhe.** Não cole a senha em chat nem em documento. O `.env` já é ignorado pelo Git.
-- **BROWSER_URL (opcional):** só se o Neo4j Browser abrir em outro endereço, por exemplo um contêiner publicado com `--publish=127.0.0.1:27474:7474`. Sem ela, o akme mostra `http://localhost:7474` (ou o console, no Aura) no fim da carga.
-- **DATABASE (opcional):** só num servidor com vários bancos (Neo4j Enterprise). Todas as conexões do akme, da prévia à conferência, usam esse banco. Sem ela, vale o banco padrão do servidor, que é o caso do Docker deste guia e do Aura.
+- **BROWSER_URL (opcional):** só se o Neo4j Browser abrir em outro endereço, por exemplo um contêiner publicado com `--publish=127.0.0.1:27474:7474`. Sem ela, o akme mostra `http://localhost:7474` no fim da carga (com uma URI do Aura, o console; o Aura não foi testado).
+- **DATABASE (opcional):** só num servidor com vários bancos (Neo4j Enterprise). Todas as conexões do akme, da prévia à conferência, usam esse banco. Sem ela, vale o banco padrão do servidor, que é o caso do Docker deste guia (e, pela documentação da Neo4j, do Aura, não testado).
 
 Para conferir sem mostrar a senha:
 
@@ -315,7 +315,7 @@ Todo `publish --target neo4j`, dry-run ou carga, gera um tutorial curto do proje
 3. **Os dados:** o mapa calculado pelo Neo4j, uma bolinha por classe;
 4. **Explorar:** um registro de cada classe e tudo o que está ligado a ele;
 5. **Como navegar:** o que cada clique do Browser faz;
-6. **Perguntas em português:** o caminho para o console da Aura (seção 4.2).
+6. **Perguntas em português:** o caminho para o console da Aura (seção 4.2; o gerador de Cypher e o AuraDB não foram testados).
 
 Para abrir:
 
@@ -333,7 +333,7 @@ As consultas do tutorial também estão em `docs/publish/neo4j_consultas.csv`. N
 
 ### 4.2 Perguntas em portugues pelo Aura console
 
-O console da Neo4j na nuvem (`console.neo4j.io`) pode ser ligado ao banco local de graça. O **Query** dele tem um gerador de Cypher: você escreve a pergunta em português e ele propõe a consulta. Também traz Bloom (exploração visual) e Dashboards. Teste de 12/11/2026:
+O console da Neo4j na nuvem (`console.neo4j.io`) pode ser ligado ao banco local de graça. O **Query** dele tem um gerador de Cypher: você escreve a pergunta em português e ele propõe a consulta. Também traz Bloom (exploração visual) e Dashboards. O que foi testado, em 12/11/2026, foi só a conexão do console a um banco local em Docker, por Mateus; o gerador de Cypher não foi testado, e o AuraDB (o banco na nuvem) também não. Os passos da conexão:
 
 1. Entre em `console.neo4j.io` com a conta Neo4j.
 2. No menu da esquerda, em **Studio**, abra **Query** (ou Bloom, ou Dashboards).
@@ -360,14 +360,23 @@ Cada nó de dado tem:
 - uma propriedade por coluna preenchida, com o nome da coluna e o tipo aprovado;
 - `_id`, que é a identidade dele, formada pela chave (ex: `1001`, ou `1001/CIM-50` numa chave composta);
 - `_projeto` e `_carga`, usadas pela proteção do destino e pela sincronização;
-- `_descricao`, a definição da classe, igual à do `Conceito` (some se a classe não tiver definição). No Browser, clique no nó: ela aparece no painel de propriedades, à direita, junto com as colunas;
+- só se você ligar a opção (abaixo), `_descricao`, a definição da classe, igual à do `Conceito`. Sem a opção, que é o padrão, a definição fica no `Conceito` de mesmo nome: `MATCH (c:Conceito {nome: 'Pedido'}) RETURN c.definicao`;
 - `name`, a legenda que o Browser mostra na bolinha: o label, o início da chave e o valor de uma coluna descritiva (por exemplo, `ItemPedido 1001/CIM-50 100`). Se a tabela tiver uma coluna `name`, vale a dela.
 
-As arestas de dados têm o nome exato da relação na ontologia, por exemplo `(:Pedido)-[:pertenceA]->(:Cliente)`, e também uma `_descricao`: a definição da relação ou, enquanto a ontologia não tiver uma, o rótulo (por exemplo, `pertence a`). Clique na aresta para ver. Uma relação inversa sem aresta própria (`possuiPedido`) é a mesma aresta lida ao contrário: `MATCH (c:Cliente)<-[:pertenceA]-(p:Pedido)`. Na camada da ontologia, cada relação do `schema.ttl`, inversas incluídas, aparece como seta `RELACAO_ONTOLOGIA` entre os conceitos, com o nome em `nome`: `(:Conceito {nome: 'Pedido'})-[:RELACAO_ONTOLOGIA {nome: 'pertenceA'}]->(:Conceito {nome: 'Cliente'})`, mais `publicada_nos_dados`, que diz se ela tem aresta nos dados; a hierarquia aparece como `SUBCLASSE_DE`. Por os tipos serem diferentes, o mapa do próprio Neo4j (`CALL db.schema.visualization()`, página "Os dados" do tutorial) desenha só as ligações que existem nos dados. Os termos do negócio ficam em nós `Termo`, ligados ao seu conceito: `MATCH p = (:Conceito)-[:TEM_TERMO]->(:Termo) RETURN p`. Os dados não se ligam à ontologia por arestas, só pelo label.
+**`_descricao` nos dados (opcional, desligada por padrão).** Para gravar a definição em cada nó e aresta de dado, e vê-la ao clicar no nó do Browser, acrescente ao `akme.yml`:
+
+```yaml
+neo4j:
+  descricao_nos_dados: true
+```
+
+e carregue de novo. Custa disco: no Olist, o banco ficou 14% maior numa base nova e 43% maior regravando por cima de uma carga anterior. Para voltar, apague o bloco e carregue de novo: a carga apaga a propriedade. O bloco `neo4j` só aceita essa opção.
+
+As arestas de dados têm o nome exato da relação na ontologia, por exemplo `(:Pedido)-[:pertenceA]->(:Cliente)`; com a opção ligada, também uma `_descricao`: a definição da relação ou, enquanto a ontologia não tiver uma, o rótulo (por exemplo, `pertence a`). Uma relação inversa sem aresta própria (`possuiPedido`) é a mesma aresta lida ao contrário: `MATCH (c:Cliente)<-[:pertenceA]-(p:Pedido)`. Na camada da ontologia, cada relação do `schema.ttl`, inversas incluídas, aparece como seta `RELACAO_ONTOLOGIA` entre os conceitos, com o nome em `nome`: `(:Conceito {nome: 'Pedido'})-[:RELACAO_ONTOLOGIA {nome: 'pertenceA'}]->(:Conceito {nome: 'Cliente'})`, mais `publicada_nos_dados`, que diz se ela tem aresta nos dados; a hierarquia aparece como `SUBCLASSE_DE`. Por os tipos serem diferentes, o mapa do próprio Neo4j (`CALL db.schema.visualization()`, página "Os dados" do tutorial) desenha só as ligações que existem nos dados. Os termos do negócio ficam em nós `Termo`, ligados ao seu conceito: `MATCH p = (:Conceito)-[:TEM_TERMO]->(:Termo) RETURN p`. Os dados não se ligam à ontologia por arestas, só pelo label.
 
 ## Usar com um LLM
 
-As ferramentas oficiais para um LLM consultar o Neo4j, o [MCP da Neo4j](https://github.com/neo4j/mcp) e o `neo4j-graphrag`, precisam do plugin APOC Core. No Aura ele já vem. No Docker, ligue-o ao criar o contêiner, acrescentando `--env NEO4J_PLUGINS='["apoc"]'` ao `docker run` do passo 1.4.
+As ferramentas oficiais para um LLM consultar o Neo4j, o [MCP da Neo4j](https://github.com/neo4j/mcp) e o `neo4j-graphrag`, precisam do plugin APOC Core. No Aura, pela documentação da Neo4j, ele já vem (não testado). No Docker, ligue-o ao criar o contêiner, acrescentando `--env NEO4J_PLUGINS='["apoc"]'` ao `docker run` do passo 1.4.
 
 Essas ferramentas montam o esquema só com os nomes e os tipos: não leem `_descricao`, nem `Conceito`, nem `Termo`. Por isso o akme escreve, a cada carga, um esquema descritivo com as definições, os termos de cada coluna, as métricas (com "não somar após juntar com"), o glossário, as regras e as precedências. Ele fica em dois lugares:
 - no arquivo `docs/publish/neo4j_schema.md`, para colar no prompt ou passar ao `neo4j-graphrag` (parâmetro `neo4j_schema` do `Text2CypherRetriever`);
@@ -423,7 +432,9 @@ Se você seguiu uma versão antiga deste guia, pode apagar também a pasta `.neo
 | `carga executada, mas o banco diverge do previsto: ...` | O banco não ficou com as contagens do plano | Mostre a mensagem ao agente; os dados continuam gravados |
 | `fonte X sem chave e tipos aprovados na etapa 5` | Falta a decisão da tabela | Faça a Parte 2 para essa tabela |
 | `fonte X com mais de uma classe` | Termos de classes diferentes mapeados para a mesma tabela | Mostre a mensagem ao agente; a correção é na ontologia |
-| `o bloco neo4j do akme.yml nao e mais lido` | Configuração antiga | Apague o bloco `neo4j` do `akme.yml` e faça a Parte 2 |
+| `o bloco neo4j do akme.yml nao le mais keys` (ou `types`, `sources`) | Configuração antiga, de antes da etapa 5 | Apague essas chaves do bloco `neo4j` do `akme.yml` (ele só aceita `descricao_nos_dados`) e faça a Parte 2 |
+| `neo4j.descricao_nos_dados no akme.yml deve ser true ou false` | Valor como `sim` ou `"true"` entre aspas | Escreva `true` ou `false`, sem aspas |
+| `... nao existe nos dados: X.<U+FEFF>coluna; o nome tem caractere invisivel: ...` (ou `coluna inexistente em X: <U+FEFF>...`) | O nome na ontologia ou na proposta tem um caractere que não aparece na tela (BOM do início de um CSV, espaço de largura zero, espaço não separável), marcado como `<U+...>` | Mostre a mensagem ao agente: a correção é reescrever o nome sem o caractere, por proposta na página de revisão |
 | `warning: VIRTUAL_ENV=.venv does not match` | Aviso do uv, sem efeito | Pode ignorar |
 | As tools novas não aparecem no chat | O servidor MCP ainda roda o código antigo | No Claude Code, rode `/mcp` e reinicie o `akme` |
 
@@ -442,15 +453,17 @@ O comando não mostra nada quando dá certo. Depois, rode a carga de novo (seç�
 ## Limites conhecidos
 
 - **Tamanho:** não há teto de linhas. Cada tabela é lida em blocos de 5.000 linhas, e o akme guarda em memória só as chaves e os valores de join.
-- **Memória e tempo:** no Olist inteiro (cerca de 446 mil linhas, com os comentários acentuados das avaliações), a carga levou 31,6 s e o processo do akme chegou a 297 MB de memória residente máxima, medidos com `/usr/bin/time -l` sobre o `uv run ... akme publish`, num banco vazio, numa máquina (Apple M5, 24 GB). Detalhes em `docs/exportacao-neo4j/task-10-semantica.md`. O driver do Neo4j guarda parte da memória do texto acentuado em memória nativa, que o Python não libera. Em máquinas com pouca memória, feche outros programas antes de carregar.
-- **Memória do plano cresce com as chaves:** o plano não guarda as linhas, mas guarda um `_id` por linha da tabela que está lendo e uma contagem por valor de cada coluna de join. A ordem de grandeza: no Olist (446 mil linhas), o dry-run usou cerca de 144 MB; extrapolando, para 10 milhões de linhas, de 1,5 a 2 GB só de chaves, e cerca de 12 minutos de carga; 100 milhões não cabem numa máquina comum. Toda carga é completa: não há carga incremental.
+- **Memória e tempo:** no Olist inteiro (cerca de 446 mil linhas, com os comentários acentuados das avaliações), o dry-run levou 2,24 s com 144 MB, e a carga num banco vazio levou 34,1 s, com 356 MB de memória residente máxima no processo do akme; na demo, 0,39 s e 3,18 s. Medidos com `/usr/bin/time -l` sobre o `akme publish`, uma vez, numa máquina (Apple M5, 24 GB), na rodada final. O Olist é um registro de execução (dados e ontologia fora do repositório, numa cópia com três correções); detalhes em `docs/exportacao-neo4j/task-9-aceitacao.md`. O driver do Neo4j guarda parte da memória do texto acentuado em memória nativa, que o Python não libera. Em máquinas com pouca memória, feche outros programas antes de carregar.
+- **Memória do plano proporcional ao número de chaves:** o plano não guarda as linhas, mas guarda um `_id` por linha da tabela que está lendo e uma contagem por valor de cada coluna de join. A ordem de grandeza: no Olist (446 mil linhas), o dry-run usou cerca de 144 MB; extrapolando, para 10 milhões de linhas, de 1,5 a 2 GB só de chaves, e cerca de 13 minutos de carga; 100 milhões não cabem numa máquina comum.
+- **Carga sempre completa, sem incremental:** cada carga lê a origem inteira e regrava todos os nós e arestas, mesmo que só uma linha tenha mudado.
 - **Duas cargas ao mesmo tempo:** a marca `_carga` tem precisão de milissegundos, e a trava da seção 3.3 (regra 4) faz a carga mais antiga parar sem gravar nem apagar mais nada. Sobra uma janela de milissegundos: um bloco da carga antiga que já estava em andamento quando a nova gravou a marca ainda pode terminar; a sincronização da nova apaga o que ele gravou e a nova não regravou. Se a carga nova começar entre os dois comandos da sincronização, a antiga para com `outra carga deste projeto comecou durante a sincronizacao`: rode a carga de novo.
-- **Sincronização e prévia percorrem o banco todo:** para achar o que é deste projeto, a sincronização e as consultas de estado da prévia e da carga olham todos os nós, porque `_projeto` não tem índice (um índice exigiria um label comum a todos os nós). Num banco grande, essas etapas podem ser as mais demoradas.
-- **Sem data com hora:** os tipos da etapa 5 são `string`, `integer`, `float` e `date`. Um carimbo como `2017-10-02 10:56:33` fica como texto; para comparar prazos, a consulta precisa tratar o texto. Número com vírgula decimal (`1,5`) é recusado para `float`: converta na origem ou deixe como texto.
+- **A sincronização varre todos os nós:** para achar o que é deste projeto, a sincronização e as consultas de estado da prévia e da carga olham todos os nós, porque `_projeto` não tem índice (um índice exigiria um label comum a todos os nós). Num banco grande, essas etapas podem ser as mais demoradas.
+- **Sem tipo `datetime` (a lacuna que mais pesa no uso):** os tipos da etapa 5 são `string`, `integer`, `float` e `date`. Uma data com hora, como `2017-10-02 10:56:33`, fica como texto; para comparar prazos, a consulta precisa cortar a hora (`date(left(p.order_delivered_customer_date, 10))`). No Olist, todas as datas ficaram assim. Número com vírgula decimal (`1,5`) é recusado para `float`: converta na origem ou deixe como texto.
 - **CSV e XLSX aparam diferente:** na planilha, o akme tira os espaços das pontas de cada célula e trata célula só com espaços como vazia; no CSV, o valor fica como está. A mesma tabela nos dois formatos pode gerar `_id` diferentes quando há espaço nas pontas da chave.
 - **Linha com colunas a mais ou a menos:** no CSV, linha com colunas a mais ou a menos é recusada pelo plano, com o número da linha onde começa a primeira (`N linha(s) de X com colunas a mais ou a menos`). Na planilha, só valor além do cabeçalho é detectado: célula vazia no fim da linha não se distingue de coluna faltando. Corrija o arquivo antes de carregar. Linha totalmente em branco no CSV é pulada e não conta, exceto num CSV de uma coluna só: lá ela é um registro com valor vazio, recusado como chave vazia. A etapa 5 (`add_source`) recusa a linha malformada como o plano.
 - **Dinheiro:** é gravado como `FLOAT`, porque o Neo4j não tem tipo decimal. Não serve para conciliação contábil.
-- **`_descricao` ocupa espaço:** o texto da definição é repetido em cada nó e aresta de dado. No Olist, isso aumenta o banco (números na página da Task 10, em `docs/exportacao-neo4j/task-10-semantica.md`).
-- **Relações sem definição:** a ontologia ainda não exige definição nas relações, então a `_descricao` das arestas costuma ser só o rótulo.
+- **`_descricao` ligada ocupa espaço:** com a opção ligada, o texto da definição é repetido em cada nó e aresta de dado. No Olist, o banco foi de 443 para 507 MiB numa base nova (+14%), e a Task 10 mediu +43% regravando por cima. Por isso a opção vem desligada.
+- **Relações sem definição:** a ontologia ainda não exige definição nas relações, então, com a opção ligada, a `_descricao` das arestas costuma ser só o rótulo.
+- **Aura não testado:** tudo neste guia foi testado com o Neo4j local em Docker. O AuraDB e o Enterprise não foram testados; a conexão do console da Aura ao banco local foi testada uma vez (seção 4.2).
 - **Tutorial só nesta máquina:** o `akme review` serve o tutorial em `127.0.0.1`. Para um time, o arquivo `docs/publish/neo4j_guia.html` precisa de um endereço com CORS que todos alcancem. Não testamos o `:guide` no Query do console da Aura.
 - **Legenda automática:** a legenda `name` usa a primeira coluna mapeada da tabela que não é chave nem join, sem julgamento. Para outra legenda, ponha uma coluna `name` na origem.

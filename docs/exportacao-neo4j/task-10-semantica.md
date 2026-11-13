@@ -1,5 +1,7 @@
 # Task 10: camada semântica legível no grafo
 
+> **Atualização (rodada final, 12/11/2026):** a `_descricao` nos dados passou a ser opcional e vem **desligada**; liga-se com `neo4j: {descricao_nos_dados: true}` no `akme.yml`. O motivo é o custo medido abaixo (+43% regravando por cima; +14% numa base nova, na [Task 9](task-9-aceitacao.md)). O esquema para o LLM, os `Termo` e o resto desta página continuam valendo.
+
 A [pesquisa de 12/11/2026](pesquisa-camada-semantica.md) mostrou duas lacunas. Quem clica num nó no Neo4j Browser não vê a definição da classe. E as ferramentas de LLM (o MCP oficial da Neo4j, o `neo4j-graphrag`) só leem nomes e tipos, então a definição, os termos e as regras de métrica nunca chegam ao modelo. Mateus decidiu: descrição em cada nó, para navegação (opção A), e o esquema descritivo gravado também dentro do Neo4j (opção E), para o LLM conseguir lê-lo. A seta do dado para o `Conceito` (opção C) ficou de fora.
 
 ## O que muda

@@ -6,6 +6,9 @@ do schema.ttl: setas RELACAO_ONTOLOGIA com o nome em `nome`), o mapa db.schema.v
 (Termo), a legenda name de cada no, a _descricao de nos e arestas, o esquema para o LLM na marca do projeto,
 as restricoes e indices akme_*, os valores e tipos gravados e a marca da carga (sincronizacao).
 
+A _descricao e conferida no modo do projeto: com `neo4j: {descricao_nos_dados: true}` no akme.yml da pasta atual,
+todo no e aresta de dado tem a definicao; sem a opcao (padrao), nenhum tem a propriedade.
+
 Uso, com as variaveis AKME_NEO4J_* no ambiente:
     uv run --extra neo4j python examples/local_demo/verificar_neo4j.py
 Sai com codigo 1 se alguma verificacao falhar.
@@ -52,6 +55,17 @@ RESERVED = {"_id", "_projeto", "_carga", "_descricao", "name"}  # name: legenda 
 CONCEITOS = ["Cliente", "Entity", "Faturamento", "ItemPedido", "Metric", "Pedido", "Produto", "Relation", "Rule"]
 SUBCLASSES = ["Cliente->Entity", "Faturamento->Metric", "ItemPedido->Entity", "Pedido->Entity", "Produto->Entity"]
 DATA = "n._projeto = $p AND NOT n:Conceito AND NOT n:Termo"
+DESCRICAO = None  # None: le neo4j.descricao_nos_dados do akme.yml da pasta atual; True ou False forca o modo
+
+
+def descricao_ligada() -> bool:
+    """Modo da _descricao nos dados, pela mesma regra da carga (neo4j_options); sem akme.yml, desligada."""
+    if DESCRICAO is not None:
+        return DESCRICAO
+    from akme.project import Project
+    from akme.tools.neo4j_plan import neo4j_options
+
+    return bool(neo4j_options(Project(Path.cwd()))[0]["descricao_nos_dados"]) if Path("akme.yml").exists() else False
 # termos do content.yml da demo, cada um ligado ao conceito da sua classe
 TERMOS = {"categoria": "Produto", "cliente": "Cliente", "cliente_ativo": "Cliente", "data_pedido": "Pedido",
           "faturamento": "Faturamento", "pedido": "Pedido", "produto": "Produto", "quantidade": "ItemPedido",
@@ -215,14 +229,21 @@ def _main() -> int:
                                                      "RETURN t.nome AS t, c.nome AS c", p=p)}, TERMOS)
         check("nenhum Termo solto", lambda: scalar("MATCH (t:Termo) WHERE NOT (:Conceito)-[:TEM_TERMO]->(t) RETURN count(t) AS c"), 0)
 
-        # camada semantica nos dados: _descricao e esquema para o LLM
-        check("todo no de dado com _descricao igual a Conceito.definicao do seu label",
-              lambda: scalar(f"MATCH (n) WHERE {DATA} OPTIONAL MATCH (c:Conceito {{_projeto: $p}}) WHERE c.nome IN labels(n) "
-                             "WITH n, c WHERE c IS NULL OR coalesce(n._descricao, '') <> coalesce(c.definicao, '') "
-                             "RETURN count(n) AS c", p=p), 0)
-        check("_descricao das arestas de dado",
-              lambda: {r["t"]: r["d"] for r in query(f"MATCH (n)-[r]->() WHERE {DATA} RETURN DISTINCT type(r) AS t, r._descricao AS d", p=p)},
-              EDGE_TEXT)
+        # camada semantica nos dados: _descricao (no modo do projeto) e esquema para o LLM
+        if descricao_ligada():
+            check("todo no de dado com _descricao igual a Conceito.definicao do seu label",
+                  lambda: scalar(f"MATCH (n) WHERE {DATA} OPTIONAL MATCH (c:Conceito {{_projeto: $p}}) WHERE c.nome IN labels(n) "
+                                 "WITH n, c WHERE c IS NULL OR coalesce(n._descricao, '') <> coalesce(c.definicao, '') "
+                                 "RETURN count(n) AS c", p=p), 0)
+            check("_descricao das arestas de dado",
+                  lambda: {r["t"]: r["d"] for r in query(f"MATCH (n)-[r]->() WHERE {DATA} RETURN DISTINCT type(r) AS t, r._descricao AS d", p=p)},
+                  EDGE_TEXT)
+        else:
+            # n[$prop]: num banco sem a propriedade, o nome escrito na consulta faz o servidor avisar (01N52)
+            check("nenhum no de dado com _descricao (opcao desligada, o padrao)",
+                  lambda: scalar(f"MATCH (n) WHERE {DATA} AND n[$prop] IS NOT NULL RETURN count(n) AS c", p=p, prop="_descricao"), 0)
+            check("nenhuma aresta de dado com _descricao (opcao desligada, o padrao)",
+                  lambda: scalar(f"MATCH (n)-[r]->() WHERE {DATA} AND r[$prop] IS NOT NULL RETURN count(r) AS c", p=p, prop="_descricao"), 0)
         check("esquema para o LLM na marca do projeto",
               lambda: (lambda e: bool(e) and e.startswith("# Esquema do grafo") and "### Pedido" in e and "NOT n:Conceito" in e)(
                   scalar("MATCH (m:_AkmeProjeto {projeto: $p}) RETURN m.esquema AS e", p=p)), True)

@@ -1,5 +1,7 @@
 # Pesquisa: camada semântica no grafo
 
+> **Nota (rodada final, 12/11/2026):** a pasta antiga de registros do Neo4j (`exportacao.md`, `historico.md`, `teste-n10s.md` e `teste-n10s/`) saiu do repositório. Os arquivos citados abaixo por esses nomes ficam no histórico do git (por exemplo, `git show 974da8a:docs/neo4j/historico.md`); `usos-do-grafo.md` nunca foi commitado. O estado atual está nesta pasta e no guia (`reports/docs_exp_neo4j/README.md`).
+
 Pesquisa de 12/11/2026. Responde a duas perguntas de Mateus: a descrição de cada entidade não poderia ficar no próprio nó, para navegar e consultar melhor? E por que a exportação usa Cypher puro e não o n10s?
 
 Usei três fontes de evidência: o histórico do repositório (commits e arquivos citados com caminho e linha), fontes primárias na web (documentação da Neo4j, código das bibliotecas, artigos) e um experimento medido no Olist, num contêiner descartável que já foi removido. Cada afirmação traz a fonte. Quando a frase é opinião minha, ela leva o rótulo **(julgamento)**.
@@ -19,14 +21,14 @@ Usei três fontes de evidência: o histórico do repositório (commits e arquivo
 
 ### 1.1 O rascunho `akme/tools/cypher.py` (até 05/11/2026)
 
-- **Nunca foi commitado.** `git log --all -- akme/tools/cypher.py` não retorna nada. O relatório de pesquisa o chama de "rascunho não commitado" (`reports/Exportar ontologia para Neo4j.md:230`), e `docs/neo4j/historico.md:26` registra que ele foi substituído pelo n10s em 05/11/2026.
+- **Nunca foi commitado.** `git log --all -- akme/tools/cypher.py` não retorna nada. O relatório de pesquisa o chama de "rascunho não commitado" (`reports/Exportar ontologia para Neo4j.md:230`), e `historico.md:26` registra que ele foi substituído pelo n10s em 05/11/2026.
 - **Descrições ficavam só em comentários do script.** Segundo o relatório: "O rascunho grava termos e métricas só como comentários no script, e comentários não vão para o banco; quem conectar ao Neo4j verá `fl_ativo` sem saber que o financeiro define 'ativo' de outra forma" (`reports/Exportar ontologia para Neo4j.md`, seção "Converter tabelas em grafo não cria camada semântica"). Como o arquivo não está no git, não há como conferir o código em si. Essa é a única descrição que restou dele.
 
 ### 1.2 O exportador com n10s (`5c6b924`, 09/11/2026, até `a154516`)
 
 - **Configuração:** `n10s.graphconfig.init({handleVocabUris: 'IGNORE'})`, sem `handleRDFTypes` (`git show 5c6b924:akme/tools/n10s.py`, linhas 28 e 365). Na documentação do n10s, o padrão de `handleRDFTypes` é `LABELS`: "rdf:type statements are imported as node labels". O vínculo como aresta só existe com `NODES` ou `LABELS_AND_NODES` ([n10s, referência de configuração](https://neo4j.com/labs/neosemantics/4.3/reference/)).
-- **Instância:** `rdf:type` virava label. O teste registrou o nó `Pedido` com as colunas e `uri`, e com os labels `["Pedido", "Resource"]`, sem descrição e sem aresta para a classe (`docs/neo4j/teste-n10s/P1_R2.json`, chaves `exemplo_no_pedido` e `labels_dos_nos`).
-- **Classe:** o `n10s.onto.import` criava `(:Class {name, label, uri, comment})`. O `comment` era o `rdfs:comment` do `schema.ttl`. Exemplo do teste: `{"comment": "Solicitacao de compra de um cliente, com status e valor total.", "label": "Pedido"}` (`P1_R2.json`, chaves `C2_class_props` e `C7_definicao`). As relações viravam nós `:Relationship`, ligados por `DOMAIN` e `RANGE` (`docs/neo4j/historico.md:13`).
+- **Instância:** `rdf:type` virava label. O teste registrou o nó `Pedido` com as colunas e `uri`, e com os labels `["Pedido", "Resource"]`, sem descrição e sem aresta para a classe (`teste-n10s/P1_R2.json`, chaves `exemplo_no_pedido` e `labels_dos_nos`).
+- **Classe:** o `n10s.onto.import` criava `(:Class {name, label, uri, comment})`. O `comment` era o `rdfs:comment` do `schema.ttl`. Exemplo do teste: `{"comment": "Solicitacao de compra de um cliente, com status e valor total.", "label": "Pedido"}` (`P1_R2.json`, chaves `C2_class_props` e `C7_definicao`). As relações viravam nós `:Relationship`, ligados por `DOMAIN` e `RANGE` (`historico.md:13`).
 - **Conclusão:** a descrição ficava num nó separado, e a junção com os dados era por nome (`Class.name` = label). É o mesmo desenho do `:Conceito` de hoje, com outros nomes.
 
 ### 1.3 A página de revisão (`akme/static/graph.js`)
@@ -39,7 +41,7 @@ Usei três fontes de evidência: o histórico do repositório (commits e arquivo
 - **`Conceito`:** um nó por classe, com `nome`, `rotulo`, `definicao` e `iri`. As métricas acrescentam `expressao`, `unidade`, `grao`, `aditividade`, `nao_somar_sobre` e `nao_somar_apos_juntar_com` (`akme/tools/neo4j_onto.py:57-62`, `25-45`).
 - **Setas:** `SUBCLASSE_DE` e uma seta por contrato, com `rotulo`, `definicao`, `multiplicidade`, `inversa` e `publicada` (`neo4j_onto.py:81-88`).
 - **Relações sem definição:** a `definicao` das setas está vazia no Olist. Os 14 blocos `owl:ObjectProperty` do `schema.ttl` não têm `rdfs:comment` (conferido na cópia de aceitação), porque `add_relation` não exige `comment` (`akme/models.py:82`, ao contrário de `add_class` na linha 81).
-- **As duas camadas não se ligam**, por decisão documentada (`docs/neo4j/exportacao.md:42`).
+- **As duas camadas não se ligam**, por decisão documentada (`exportacao.md:42`).
 - **O que não vai para o grafo:** os 25 termos, o glossário, as restrições, a precedência e as perguntas de competência. Isso contradiz a decisão anterior do relatório, "A + B", que previa nós `:Term` e `:Metric` gerados (`reports/Exportar ontologia para Neo4j.md`, seção "Converter tabelas...", tabela de opções). Das duas metades, só a das métricas foi feita, como propriedades do `Conceito`.
 
 | Versão | Descrição da classe | Descrição da coluna (termo) | Instância → classe |
@@ -79,7 +81,7 @@ O que cada uma devolveu para o grafo atual (medido):
 
 ### 2.3 Navegação humana
 
-- **Neo4j Browser:** ferramenta de desenvolvedor, sempre parte de uma consulta (`docs/neo4j/usos-do-grafo.md`, 1.4). Ao clicar num nó, o painel mostra as propriedades dele, então só a opção A mostraria a descrição sem um passo a mais **(julgamento, a partir do uso; não medi)**.
+- **Neo4j Browser:** ferramenta de desenvolvedor, sempre parte de uma consulta (`usos-do-grafo.md`, 1.4). Ao clicar num nó, o painel mostra as propriedades dele, então só a opção A mostraria a descrição sem um passo a mais **(julgamento, a partir do uso; não medi)**.
 - **Bloom e Explore:** a perspectiva define categorias, propriedades visíveis e estilo, inclusive a legenda (caption) ([Bloom, perspectivas](https://neo4j.com/docs/bloom-user-guide/current/bloom-perspectives/bloom-perspectives/)). A página não diz se a perspectiva guarda uma descrição da categoria. Não testado por nós.
 - **Descrição nativa:** o Neo4j não tem lugar para descrever label, tipo de relação ou propriedade. A sintaxe de esquema (restrições, índices e graph types) não tem `COMMENT` nem descrição, e graph types são Enterprise e Cypher 25, a partir de 2026.02 ([Cypher Manual, schema syntax](https://neo4j.com/docs/cypher-manual/current/schema/syntax/)). Com isso, a opção F (lugar nativo) não existe.
 - **Ontologia como nós ao lado dos dados** é o padrão que a própria Neo4j mostrou: Barrasa guarda o schema.org como nós ligados por subclasse e usa isso para inferir ("loans" voltam numa busca por "financial product"), não para navegação nem para o LLM ([Barrasa, Neo4j, 2020](https://neo4j.com/blog/knowledge-graph/ontologies-in-neo4j-semantics-and-knowledge-graphs/)).
@@ -135,7 +137,7 @@ As diferenças estão abaixo de 1,5 ms e dentro do ruído. A seta não traz ganh
 
 ### 4.1 Os motivos registrados
 
-Fontes: `docs/neo4j/historico.md:11-18`, `docs/exportacao-neo4j/index.md` (seção "Por que mudar") e o desenho da mudança. A decisão foi de Mateus, em 11/11/2026, depois do teste ("pode ser").
+Fontes: `historico.md:11-18`, `docs/exportacao-neo4j/index.md` (seção "Por que mudar") e o desenho da mudança. A decisão foi de Mateus, em 11/11/2026, depois do teste ("pode ser").
 
 | Motivo | O que a evidência diz | Avaliação |
 |---|---|---|
@@ -152,7 +154,7 @@ Fontes: `docs/neo4j/historico.md:11-18`, `docs/exportacao-neo4j/index.md` (seç�
 | Instância → classe | Label (`handleRDFTypes` padrão) | Label | Nada mudou |
 | Definição da classe no banco | `Class.comment` | `Conceito.definicao` | Equivalente |
 | URI por nó (`uri`) | Sim | Não; `iri` só no `Conceito`, `_id` nos dados | Pouco: nenhum dos consumidores usa URI (julgamento) |
-| RDF de ida e volta | O n10s exportava RDF; o `n10s.py` tinha o único gerador de RDF fiel (chaves, tipos e relações) | O gerador foi apagado por decisão de Mateus (desenho, linha 36); o alvo `rdf` continua com os defeitos do R1 (`docs/neo4j/teste-n10s.md`: itens identificados pela quantidade, sem relações, sem tipos) | Para o grafo, não. Para interoperabilidade (Morph-KGC, SPARQL, outro triplestore), **é uma perda real**, recuperável pelo `5c6b924` |
+| RDF de ida e volta | O n10s exportava RDF; o `n10s.py` tinha o único gerador de RDF fiel (chaves, tipos e relações) | O gerador foi apagado por decisão de Mateus (desenho, linha 36); o alvo `rdf` continua com os defeitos do R1 (`teste-n10s.md`: itens identificados pela quantidade, sem relações, sem tipos) | Para o grafo, não. Para interoperabilidade (Morph-KGC, SPARQL, outro triplestore), **é uma perda real**, recuperável pelo `5c6b924` |
 | Inferência por hierarquia | `n10s.inference.nodesLabelled` devolveu os 43 nós (teste C7) | `SUBCLASSE_DE` só entre conceitos; os nós de dado não têm labels de ancestrais | Pouco no Olist: as subclasses de `Avaliacao` (positiva, neutra, negativa) não têm nós de dado. Pode importar em outro domínio |
 | SHACL | Só funcionava com `SHORTEN`, não com `IGNORE` (teste C8) | Não | Nada mudou na prática |
 | Vocabulário padrão | `Resource`, `Class`, `SCO` | Nomes em português, próprios | Neutro |
@@ -190,7 +192,7 @@ Em ordem de prioridade. Os itens 1 a 3 cabem numa próxima branch, porque mudam 
 5. **C: não fazer**
     - **Por quê:** custa +17% de disco, cria supernós e acrescenta padrões ao esquema, sem ganho de consulta (3.2). O vínculo por label já é exato e indexado.
 6. **Corrigir o registro e decidir o RDF**
-    - **Registro:** em `docs/neo4j/historico.md`, deixar claro que o teto de 100 mil linhas era do nosso código e que relação virar nó era um problema do `onto.import`.
+    - **Registro:** em `historico.md`, deixar claro que o teto de 100 mil linhas era do nosso código e que relação virar nó era um problema do `onto.import`.
     - **RDF:** decidir se o gerador de RDF fiel do `5c6b924` volta para o alvo `rdf`.
 
 **Para decidir com Mateus e Gabriel:**
@@ -205,7 +207,7 @@ Em ordem de prioridade. Os itens 1 a 3 cabem numa próxima branch, porque mudam 
 
 - `git show 5c6b924:akme/tools/n10s.py` (linhas 25, 28, 138-150, 259-262, 350-370); `4b1e167`; `a154516`; `c2e9e83`
 - `akme/tools/neo4j_onto.py`, `akme/tools/neo4j_load.py`, `akme/tools/publish.py`, `akme/models.py:81-82`, `akme/static/graph.js:105-130`
-- `docs/neo4j/historico.md`, `docs/neo4j/teste-n10s.md`, `docs/neo4j/teste-n10s/P1_R2.json`, `docs/neo4j/exportacao.md`, `docs/neo4j/usos-do-grafo.md`, `reports/Exportar ontologia para Neo4j.md`
+- `historico.md`, `teste-n10s.md`, `teste-n10s/P1_R2.json`, `exportacao.md`, `usos-do-grafo.md`, `reports/Exportar ontologia para Neo4j.md`
 
 **Código de terceiros (lido e executado)**
 

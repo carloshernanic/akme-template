@@ -3,7 +3,7 @@
 // Cada bloco comeca com "// pergunta: <secao>.<chave do gabarito>" e devolve uma linha com a coluna "resposta".
 // Dinheiro e somado em centavos inteiros (cada vl_total arredondado para centavos antes da soma), para a comparacao ser exata.
 // Lido e executado por tests/test_neo4j_integration.py::test_real_competency_questions.
-// As questoes CQ-002 e CQ-003 de examples/local_demo/questions.yml nao tem valor no oraculo; ver docs/neo4j/exportacao.md.
+// As questoes CQ-002 e CQ-003 de examples/local_demo/questions.yml nao tem valor no oraculo; ver docs/exportacao-neo4j/task-9-aceitacao.md.
 
 // pergunta: direct_answers.clientes_sem_pedido
 // Quais clientes nao tem nenhum pedido? Cliente sem aresta pertenceA chegando de um Pedido.
