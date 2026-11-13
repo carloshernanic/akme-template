@@ -1,0 +1,6 @@
+# Servidor MCP do akme para o Codex (o Codex so le este arquivo em projeto confiavel)
+[mcp_servers.akme]
+command = "uv"
+args = ["run", "akme", "serve"]
+# wait_for_review espera ate 540 s pelo humano na pagina de revisao
+tool_timeout_sec = 600

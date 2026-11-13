@@ -51,8 +51,11 @@ ontology/pending/chat.jsonl
 ontology/pending/activity.json
 ontology/pending/activity.tmp
 
-# Configurações de mcp
-.agents
+# Configurações de mcp locais (so a skill do akme em .agents/ e versionada)
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/akme/
 .gemini
 
 # Site MkDocs gerado

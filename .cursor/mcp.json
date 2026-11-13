@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "akme": {
+      "command": "uv",
+      "args": ["--directory", "${workspaceFolder}", "run", "akme", "serve"],
+      "env": { "AKME_ROOT": "${workspaceFolder}" }
+    }
+  }
+}

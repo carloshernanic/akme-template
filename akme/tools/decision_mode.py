@@ -17,7 +17,7 @@ from .ontology_write import EditError
 MODES = ("human", "auto")
 MODE_FILE = "decision_mode.yml"
 # nomes que o agente usa para si; qualquer um deles conta como "a IA esta decidindo"
-AI_NAMES = {"ia", "ai", "agent", "agente", "claude", "llm"}
+AI_NAMES = {"ia", "ai", "agent", "agente", "claude", "llm", "codex", "gpt", "gemini", "cursor", "antigravity"}
 
 
 class ModeError(EditError):
