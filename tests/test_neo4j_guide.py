@@ -61,10 +61,12 @@ def test_data_map_explore_and_navigation(seeded):
         assert f"MATCH (n:{label}) WITH n LIMIT 1\nMATCH p = (n)--(m)\nWHERE NOT m:Conceito\nRETURN p LIMIT 25" in slides[3]
     assert "Colunas" not in slides[3] and "[*1..2]" not in slides[3]
     nav = slides[4]
-    assert "tipo de relacao" in nav and "Dois cliques" in nav and "_descricao" in nav
+    assert "tipo de relacao" in nav and "Dois cliques" in nav and "_descricao" not in nav, "padrao: sem _descricao nos dados"
+    assert "definicao" in nav and "slide A ontologia" in nav
     assert "RELACAO_ONTOLOGIA</code> = relacao da ontologia" in nav and "Results overview" in nav
     aura = slides[5]
     assert "console.neo4j.io" in aura and "APOC" in aura and "Perguntas em portugues pelo Aura console" in aura
+    assert "nao foi testado" in aura and "AuraDB" in aura, "o akme so foi testado com Neo4j local em Docker"
 
 
 def test_guide_has_no_data_values_nor_clock(seeded):

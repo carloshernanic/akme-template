@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections.abc import Sequence
 from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
@@ -90,3 +91,44 @@ def name(identifier: str) -> str:
     return "`" + identifier.replace("`", "``") + "`"
 
 
+
+
+# --- nomes com caractere invisivel ---------------------------------------------------------------------------------
+# O BOM do inicio de um CSV (ou um copiar e colar) gruda no nome da coluna e a mensagem mostrava o mesmo texto dos
+# dois lados. Estes marcam o caractere de forma visivel, como <U+FEFF>, e dizem o que fazer.
+
+_INVISIBLE_NAMES = {"\ufeff": "BOM, marca de inicio de arquivo", "\u200b": "espaco de largura zero",
+                    "\u200c": "separador de largura zero", "\u200d": "juntor de largura zero",
+                    "\u2060": "juntor de palavra", "\u00a0": "espaco nao separavel"}
+
+
+def _invisible(char: str) -> bool:
+    """Controle, formato (BOM, largura zero) ou espaco que nao e o espaco comum (NBSP)."""
+    category = unicodedata.category(char)
+    return category in ("Cc", "Cf") or (category.startswith("Z") and char != " ")
+
+
+def _code(char: str) -> str:
+    return f"<U+{ord(char):04X}>"
+
+
+def visible(text: Any) -> str:
+    """Texto com cada caractere invisivel trocado pelo codigo (<U+FEFF>), para a mensagem mostrar a diferenca."""
+    return "".join(_code(c) if _invisible(c) else c for c in str(text))
+
+
+def invisible_hint(names: Sequence[Any]) -> str:
+    """Complemento da mensagem quando algum nome tem caractere invisivel; vazio quando nenhum tem."""
+    found = sorted({c for n in names for c in str(n) if _invisible(c)})
+    if not found:
+        return ""
+    kinds = ", ".join(f"{_code(c)} ({_INVISIBLE_NAMES.get(c, 'caractere de controle' if unicodedata.category(c) == 'Cc' else 'caractere invisivel')})"
+                      for c in found)
+    return (f"; o nome tem caractere invisivel: {kinds}. Costuma vir do inicio de um CSV ou de um copiar e colar: "
+            "reescreva o nome sem esse caractere onde ele foi digitado (contrato ou fonte no content.yml, por proposta "
+            "na pagina de revisao, ou a proposta do add_source)")
+
+
+def shown(names: Sequence[Any]) -> str:
+    """Nomes unidos por virgula, com o invisivel marcado e a explicacao no fim, se houver."""
+    return ", ".join(visible(n) for n in names) + invisible_hint(names)

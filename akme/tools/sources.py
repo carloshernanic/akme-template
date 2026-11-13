@@ -14,6 +14,7 @@ from ..models import SOURCE_TYPES
 from ..ontology import load_content
 from ..project import Project
 from .neo4j_plan import BATCH, Scan, contract_keys, join_columns, labels_for, ragged_problem, scan_source
+from .neo4j_values import shown
 from .profile import profile_source
 
 # nomes que indicam identificador: um inteiro com esse nome fica texto (zero a esquerda, nao se soma)
@@ -47,7 +48,7 @@ def _sample(project: Project, source: str) -> tuple[list[str], list[dict[str, An
     adapter = load_adapter(project.adapter_name, project.adapter_options())
     try:
         if source not in adapter.list_sources():
-            raise SourceError(f"fonte inexistente: {source}")
+            raise SourceError(f"fonte inexistente: {shown([source])}")
         rows = adapter.read_sample(source, SAMPLE_ROWS)
     finally:
         adapter.close()
@@ -74,7 +75,7 @@ def _read_whole(project: Project, source: str, key: list[str], types: dict[str, 
     adapter = load_adapter(project.adapter_name, project.adapter_options())
     try:
         if source not in adapter.list_sources():
-            raise SourceError(f"fonte inexistente: {source}")
+            raise SourceError(f"fonte inexistente: {shown([source])}")
         if not check:
             return Scan(columns=[], key=[], absent=[])
         return scan_source(adapter, source, key, types, batch=BATCH)
@@ -110,7 +111,7 @@ def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
         raise SourceError(f"fonte {source} sem linhas: nao ha como conferir a chave")
     absent = [c for c in key + list(types) if c not in scan.columns]
     if absent:
-        raise SourceError(f"coluna inexistente em {source}: {', '.join(absent)}")
+        raise SourceError(f"coluna inexistente em {source}: {shown(absent)}")
     empty = scan.rows - scan.complete
     if empty:
         raise SourceError(f"{source}: {empty} linha(s) com a chave {'+'.join(key)} vazia")

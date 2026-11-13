@@ -81,3 +81,25 @@ def test_caption_uses_label_short_key_and_extra_value():
     assert caption("Cliente", ["1"], "") == "Cliente 1"
     assert caption("Avaliacao", ["x"], "texto   com\nquebra " + "a" * 60) == "Avaliacao x " + ("texto com quebra " + "a" * 60)[:40]
     assert caption("Produto", ["1"], 0) == "Produto 1 0"
+
+
+# --- rodada final: caractere invisivel em nome de fonte, coluna ou relacao ---
+
+@pytest.mark.parametrize("raw,shown", [
+    ("﻿product_category_name", "<U+FEFF>product_category_name"),
+    ("id​cliente", "id<U+200B>cliente"), ("id cliente", "id<U+00A0>cliente"),
+    ("id\x01cliente", "id<U+0001>cliente"), ("nome cliente", "nome cliente"), ("Sao Paulo", "Sao Paulo"),
+])
+def test_visible_marks_invisible_characters(raw, shown):
+    from akme.tools.neo4j_values import visible
+
+    assert visible(raw) == shown
+
+
+def test_invisible_hint_names_the_character_and_says_what_to_do():
+    from akme.tools.neo4j_values import invisible_hint
+
+    assert invisible_hint(["id_cliente", "nome cliente"]) == ""
+    hint = invisible_hint(["﻿product_category_name"])
+    assert "<U+FEFF>" in hint and "BOM" in hint and "invisivel" in hint
+    assert "﻿" not in hint and "sem esse caractere" in hint

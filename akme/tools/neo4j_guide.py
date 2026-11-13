@@ -115,7 +115,10 @@ def _slides(plan: Plan, apoc: bool | None) -> list[str]:
         "<ul>",
         "<li>Na lateral (icone de banco), clique num tipo de relacao: vem setas com as duas pontas.</li>",
         "<li>Dois cliques numa bolinha trazem os vizinhos dela.</li>",
-        "<li>Um clique mostra as colunas no painel da direita; <code>_descricao</code> traz a definicao da classe.</li>",
+        ("<li>Um clique mostra as colunas no painel da direita; <code>_descricao</code> traz a definicao da classe.</li>"
+         if plan.descricao else
+         "<li>Um clique mostra as colunas no painel da direita. A definicao de cada classe esta no slide A ontologia "
+         "(no <code>Conceito</code>, em <code>definicao</code>).</li>"),
         "<li>Seta <code>RELACAO_ONTOLOGIA</code> = relacao da ontologia; o nome do TTL esta em <code>nome</code>. Para "
         "ver o nome na seta: no painel Results overview, clique no chip <code>RELACAO_ONTOLOGIA</code> e escolha "
         "<code>nome</code> como legenda (o Browser guarda a escolha). O slide A ontologia ja desenha com os nomes.</li>",
@@ -125,7 +128,8 @@ def _slides(plan: Plan, apoc: bool | None) -> list[str]:
     slides.append("\n".join([
         "<h3>Perguntas em portugues</h3>",
         "<p>No console da Aura (console.neo4j.io), o Query tem um gerador de Cypher a partir de texto, ligado a este "
-        "banco local; ele precisa do APOC.</p>",
+        "banco local; ele precisa do APOC. A conexao do console a um banco local funcionou num teste; o gerador de "
+        "Cypher nao foi testado, nem o AuraDB (o banco na nuvem): o akme so foi testado com o Neo4j local em Docker.</p>",
         f"<p>Passo a passo e cuidados com dado de cliente: secao \"{AURA_SECTION}\" de <code>{USAGE_GUIDE}</code>.</p>"]))
     return slides
 

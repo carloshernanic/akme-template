@@ -203,7 +203,7 @@ def test_dry_run_writes_cypher_artifact_and_does_not_connect(seeded, monkeypatch
     assert "UNWIND $rows AS r MERGE (n:`Pedido` {_id: r.id})" in text
     assert "Construtora" not in text, "os dados nao vao para o artefato"
     assert set(r) == {"target", "dry_run", "artifact", "schema", "guide", "saved_queries",
-                      "rows", "batches", "executed", "nodes", "relationships",
+                      "rows", "batches", "executed", "nodes", "relationships", "descricao",
                       "relations_not_published", "sources_skipped", "problems", "warnings"}
     schema = seeded.docs_dir / "publish" / "neo4j_schema.md"
     assert r["schema"] == str(schema) and schema.read_text(encoding="utf-8").startswith("# Esquema do grafo")
@@ -515,9 +515,28 @@ def test_in_db_count_leaves_out_akme_layers():
     assert "'Conceito'" in neo4j_load.IN_DB_QUERY and "'Termo'" in neo4j_load.IN_DB_QUERY
 
 
-def test_nodes_and_edges_carry_the_description(seeded, fake):
+def _descricao_on(project):
+    from akme.project import Project, read_yaml, write_yaml
+
+    config = read_yaml(project.root / "akme.yml")
+    write_yaml(project.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": True}})
+    return Project(project.root)
+
+
+def test_description_is_off_by_default(seeded, fake):
+    """Padrao: _descricao fica ausente em nos e arestas de dado (SET com null); a definicao segue no Conceito."""
     session = fake["session"]
     neo4j_load.load(seeded, build_plan(seeded), CARGA)
+    data = [p for q, p in session.calls if "MERGE (n:" in q or "MERGE (a)-[e:" in q]
+    assert data and all(p["descricao"] is None for p in data)
+    pedido = next(p for q, p in session.calls if "MERGE (c:Conceito" in q and p.get("nome") == "Pedido")
+    assert pedido["props"]["definicao"].startswith("Solicitacao de compra"), "a definicao continua no Conceito"
+
+
+def test_nodes_and_edges_carry_the_description_when_turned_on(seeded, fake):
+    project = _descricao_on(seeded)
+    session = fake["session"]
+    neo4j_load.load(project, build_plan(project), CARGA)
     nodes = {q: p for q, p in session.calls if "MERGE (n:" in q}
     assert nodes and all("n._descricao = $descricao" in q for q in nodes)
     pedido = next(p for q, p in nodes.items() if "MERGE (n:`Pedido`" in q)
@@ -533,13 +552,39 @@ def test_class_without_definition_sends_no_description(seeded, fake):
     from rdflib import RDFS
     from akme.ontology import base_ns, load_graph, save_graph
 
-    g = load_graph(seeded.schema_path)
+    project = _descricao_on(seeded)
+    g = load_graph(project.schema_path)
     g.remove((base_ns(g)["Produto"], RDFS.comment, None))
-    save_graph(g, seeded.schema_path)
+    save_graph(g, project.schema_path)
     session = fake["session"]
-    neo4j_load.load(seeded, build_plan(seeded), CARGA)
+    neo4j_load.load(project, build_plan(project), CARGA)
     produto = next(p for q, p in session.calls if "MERGE (n:`Produto`" in q)
     assert produto["descricao"] is None, "SET com null deixa a propriedade ausente"
+
+
+@pytest.mark.parametrize("on", [False, True])
+def test_artifact_schema_guide_and_viewing_follow_the_option(seeded, monkeypatch, on):
+    """Artefato, esquema para o LLM, tutorial e mensagem final dizem a mesma coisa nos dois modos."""
+    project = _descricao_on(seeded) if on else seeded
+    monkeypatch.setenv("AKME_NEO4J_URI", "bolt://127.0.0.1:7687")
+    monkeypatch.setenv("AKME_NEO4J_USER", "neo4j")
+    monkeypatch.setenv("AKME_NEO4J_PASSWORD", "x")
+    r = neo4j_load.publish_neo4j(project, _model(project), dry_run=True)
+    assert r["descricao"] is on
+    artifact = (project.docs_dir / "publish" / "neo4j.cypher").read_text(encoding="utf-8")
+    schema = (project.docs_dir / "publish" / "neo4j_schema.md").read_text(encoding="utf-8")
+    guide = (project.docs_dir / "publish" / "neo4j_guia.html").read_text(encoding="utf-8")
+    viewing = "\n".join(neo4j_load.viewing_lines(project, r))
+    if on:
+        assert "$descricao = definicao da classe" in artifact
+        assert "`_descricao` a definicao da classe (no no)" in schema
+        assert "<code>_descricao</code> traz a definicao da classe" in guide
+        assert "_descricao, no painel de propriedades" in viewing
+    else:
+        assert "$descricao = null" in artifact and "descricao_nos_dados" in artifact
+        assert "nao tem `_descricao`" in schema and "`definicao` do `Conceito`" in schema
+        assert "_descricao" not in guide and "slide A ontologia" in guide
+        assert "_descricao" not in viewing and "Conceito" in viewing
 
 
 def test_schema_goes_to_the_marker_before_sync(seeded, fake):

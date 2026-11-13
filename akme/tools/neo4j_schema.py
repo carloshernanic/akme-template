@@ -18,6 +18,10 @@ from .neo4j_plan import Plan
 SCHEMA_QUERY = "MATCH (p:_AkmeProjeto {projeto: $projeto}) RETURN p.esquema"
 
 
+# como o `_id` e montado, igual nos dois modos de `_descricao`
+ID_TEXT = ("valores da chave unidos por `/`, cada um com percent-encoding: `Sao Paulo` vira `Sao%20Paulo`; para "
+           "filtrar, use a coluna original, nao `_id`")
+
 def _one_line(text: Any) -> str:
     return " ".join(str(text or "").split())
 
@@ -86,10 +90,14 @@ def llm_schema(project: Project, plan: Plan) -> str:
         "inversa de um contrato tem `inversa_de`); `SUBCLASSE_DE` liga subclasse a classe. Para ler a ontologia: "
         "`MATCH (a:Conceito)-[r:RELACAO_ONTOLOGIA]->(b:Conceito) RETURN a.nome, r.nome, b.nome`. Toda contagem de dados "
         f"usa o label do dado, como `(:{example})`, ou filtra `WHERE NOT n:Conceito`.",
-        "- `_id`, `_projeto`, `_carga` e `_descricao` sao propriedades do akme, nao colunas da origem: `_id` e a chave "
-        "(valores da chave unidos por `/`, cada um com percent-encoding: `Sao Paulo` vira `Sao%20Paulo`; para filtrar, "
-        "use a coluna original, nao `_id`), `_projeto` o projeto, `_carga` a data da carga e `_descricao` a definicao "
-        "da classe (no no) ou a definicao da relacao (na aresta; ou o rotulo, quando a relacao nao tem definicao).",
+        *(["- `_id`, `_projeto`, `_carga` e `_descricao` sao propriedades do akme, nao colunas da origem: `_id` e a "
+           f"chave ({ID_TEXT}), `_projeto` o projeto, `_carga` a data da carga e `_descricao` a definicao da classe (no "
+           "no) ou a definicao da relacao (na aresta; ou o rotulo, quando a relacao nao tem definicao)."]
+          if plan.descricao else
+          ["- `_id`, `_projeto` e `_carga` sao propriedades do akme, nao colunas da origem: `_id` e a chave "
+           f"({ID_TEXT}), `_projeto` o projeto e `_carga` a data da carga. Nos e arestas de dado nao tem `_descricao`: "
+           "a definicao de cada classe e relacao esta neste esquema e na propriedade `definicao` do `Conceito` "
+           "(`MATCH (c:Conceito {nome: 'Label'}) RETURN c.definicao`)."]),
         "- `name` e a legenda que o akme grava em todo no para o Neo4j Browser (label, inicio da chave e uma coluna "
         "descritiva), nao uma coluna da origem; nao use em filtros. Quando a fonte tem coluna `name`, vale a da origem.",
         f"- Este esquema fica no banco: `{SCHEMA_QUERY}`.",

@@ -432,3 +432,50 @@ def test_source_with_name_column_keeps_it_and_warns(seeded):
     produtos = next(s for s in p.sources if s.source == "produtos")
     assert produtos.own_name and not p.problems
     assert any("produtos" in w and "name" in w and "legenda" in w for w in p.warnings)
+
+
+# --- rodada final: caractere invisivel e opcao _descricao ---
+
+def test_join_column_with_bom_is_shown_and_explained(seeded):
+    content = read_yaml(seeded.content_path)
+    contract = next(c for c in content["relation_contracts"] if c["relation"] == "pertenceA")
+    contract["join"]["to"]["column"] = "﻿" + contract["join"]["to"]["column"]
+    write_yaml(seeded.content_path, content)
+    problem = next(p for p in build_plan(seeded).problems if p.startswith("relacao pertenceA"))
+    assert "clientes.<U+FEFF>id_cliente" in problem, problem
+    assert "﻿" not in problem and "BOM" in problem and "invisivel" in problem
+
+
+def test_key_column_with_invisible_character_is_shown(seeded):
+    content = read_yaml(seeded.content_path)
+    entry = next(s for s in content["sources"] if s["source"] == "produtos")
+    entry["key"] = ["sku​"]
+    write_yaml(seeded.content_path, content)
+    problem = next(p for p in build_plan(seeded).problems if "chave declarada" in p)
+    assert "sku<U+200B>" in problem and "​" not in problem and "invisivel" in problem
+
+
+def test_descricao_on_data_is_off_by_default(seeded):
+    assert build_plan(seeded).descricao is False
+
+
+@pytest.mark.parametrize("value,expected", [(True, True), (False, False)])
+def test_neo4j_block_turns_descricao_on(seeded, value, expected):
+    config = read_yaml(seeded.root / "akme.yml")
+    write_yaml(seeded.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": value}})
+    plan = build_plan(Project(seeded.root))
+    assert plan.descricao is expected and not any("akme.yml" in x for x in plan.problems)
+
+
+def test_neo4j_option_that_is_not_boolean_is_refused(seeded):
+    config = read_yaml(seeded.root / "akme.yml")
+    write_yaml(seeded.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": "sim"}})
+    plan = build_plan(Project(seeded.root))
+    assert any("neo4j.descricao_nos_dados" in x and "true ou false" in x for x in plan.problems)
+
+
+def test_old_keys_next_to_the_new_option_are_still_refused(seeded):
+    config = read_yaml(seeded.root / "akme.yml")
+    write_yaml(seeded.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": True, "keys": {"pedidos": "id_pedido"}}})
+    plan = build_plan(Project(seeded.root))
+    assert any("akme.yml" in x and "keys" in x and "etapa 5" in x for x in plan.problems)

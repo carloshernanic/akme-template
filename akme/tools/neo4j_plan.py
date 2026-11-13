@@ -18,7 +18,7 @@ from ..ontology import classes, is_metric_class, load_content, load_graph
 from ..project import Project
 from .export import build_export
 from .neo4j_onto import ONTOLOGY_TYPE
-from .neo4j_values import TYPES, convert, filled, name, node_id
+from .neo4j_values import TYPES, convert, filled, name, invisible_hint, node_id, shown, visible
 
 RESERVED_LABELS = ("Conceito", "Termo", "_AkmeProjeto")
 META_TYPES = (ONTOLOGY_TYPE, "SUBCLASSE_DE", "TEM_TERMO")  # tipos de aresta da camada de ontologia
@@ -63,6 +63,7 @@ class Plan:
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     rows: int = 0
+    descricao: bool = False  # neo4j.descricao_nos_dados do akme.yml: grava _descricao nos nos e arestas de dado
 
 
 def join_columns(contracts: list[dict[str, Any]]) -> set[tuple[str, str]]:
@@ -89,7 +90,7 @@ def labels_for(data: dict[str, Any], project: Project, sources: list[str], exclu
         if cls and m.get("role") != "metric" and not is_metric_class(g, cls):
             add(m["source"], cls)
 
-    problems = [f"etapa 5 exclui fonte inexistente: {source}" for source in excluded if source not in sources]
+    problems = [f"etapa 5 exclui fonte inexistente: {shown([source])}" for source in excluded if source not in sources]
     problems += [f"fonte {source} sem classe associada: mapeie a fonte ou exclua na etapa 5 (add_source com exclude)"
                  for source in sources if source not in candidates and source not in excluded]
     labels: dict[str, str] = {}
@@ -97,7 +98,7 @@ def labels_for(data: dict[str, Any], project: Project, sources: list[str], exclu
         if source in excluded:
             continue
         if source not in sources:
-            problems.append(f"fonte {source} citada na ontologia, mas nao existe no adapter")
+            problems.append(f"fonte {visible(source)} citada na ontologia, mas nao existe no adapter{invisible_hint([source])}")
             continue
         if len(options) > 1:
             problems.append(f"fonte {source} com mais de uma classe: {', '.join(sorted(options))}")
@@ -121,6 +122,33 @@ def contract_keys(contracts: list[dict[str, Any]]) -> dict[str, str]:
     return keys
 
 
+# Opcoes do bloco neo4j do akme.yml. So o que muda a forma do grafo e nao e decisao de ontologia: chave e tipos de
+# cada fonte sao da etapa 5 (content.yml), e o bloco antigo com eles continua recusado.
+NEO4J_OPTIONS = {
+    # _descricao (definicao da classe ou da relacao) em cada no e aresta de dado. Desligada: a definicao continua no
+    # Conceito e no esquema para o LLM, e o banco do Olist fica 43% menor (medido na Task 10)
+    "descricao_nos_dados": False,
+}
+
+
+def neo4j_options(project: Project) -> tuple[dict[str, Any], list[str]]:
+    """Opcoes do bloco neo4j do akme.yml, com o padrao das ausentes, e os problemas: chave antiga (keys, types,
+    sources, de antes da etapa 5) ou valor que nao e true/false."""
+    block = project.config.get("neo4j")
+    if not block:
+        return dict(NEO4J_OPTIONS), []
+    if not isinstance(block, dict):
+        return dict(NEO4J_OPTIONS), [f"o bloco neo4j do akme.yml so aceita {', '.join(NEO4J_OPTIONS)}: true ou false"]
+    old = sorted(str(k) for k in block if k not in NEO4J_OPTIONS)
+    problems = [f"o bloco neo4j do akme.yml nao le mais {', '.join(old)}: chave e tipos de cada fonte agora sao "
+                f"decididos na etapa 5 (suggest_sources e add_source); remova do bloco (ele so aceita "
+                f"{', '.join(NEO4J_OPTIONS)})"] if old else []
+    problems += [f"neo4j.{k} no akme.yml deve ser true ou false, nao {v!r}"
+                 for k, v in block.items() if k in NEO4J_OPTIONS and not isinstance(v, bool)]
+    options = {k: block[k] if isinstance(block.get(k), bool) else default for k, default in NEO4J_OPTIONS.items()}
+    return options, problems
+
+
 def _config(project: Project) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, str]], list[str], set[str]]:
     """Chave e tipos aprovados na etapa 5 (secao sources do content.yml). O akme.yml nao guarda mais isso."""
     from .ontology_write import list_pending
@@ -130,8 +158,7 @@ def _config(project: Project) -> tuple[list[str], dict[str, list[str]], dict[str
     keys = {s: [e["key"]] if isinstance(e.get("key"), str) else list(e.get("key") or []) for s, e in entries.items() if not e.get("exclude")}
     types = {s: dict(e.get("types") or {}) for s, e in entries.items() if not e.get("exclude")}
     pending = {e.payload.get("source") for e in list_pending(project) if e.type.value == "add_source"}
-    problems = ["o bloco neo4j do akme.yml nao e mais lido: chave e tipos de cada fonte agora sao decididos na etapa 5 "
-                "(suggest_sources e add_source); remova o bloco"] if project.config.get("neo4j") else []
+    problems = neo4j_options(project)[1]
     return excluded, keys, types, problems, pending
 
 
@@ -279,7 +306,7 @@ def _edges(plan: Plan, contracts: list[dict[str, Any]], labels: dict[str, str], 
         sides = ((a, read[a["source"]]), (b, read[b["source"]]))
         absent = [f"{side['source']}.{side['column']}" for side, r in sides if r.columns and side["column"] not in r.columns]
         if absent:
-            plan.problems.append(f"relacao {relation}: coluna do join nao existe nos dados: {', '.join(absent)}")
+            plan.problems.append(f"relacao {relation}: coluna do join nao existe nos dados: {shown(absent)}")
             continue
         origin = read[a["source"]].values.get(a["column"], Counter())
         target = read[b["source"]].values.get(b["column"], Counter())
@@ -302,7 +329,8 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
     contracts = data["relation_contracts"]
     excluded, declared, types, config_problems, pending = _config(project)
     joins = join_columns(contracts)
-    plan = Plan(project=project.name, sources_skipped=sorted(excluded))
+    plan = Plan(project=project.name, sources_skipped=sorted(excluded),
+                descricao=neo4j_options(project)[0]["descricao_nos_dados"])
     reserved = [c["name"] for c in classes(load_graph(project.schema_path)) if c["name"] in RESERVED_LABELS]
     read: dict[str, Scan] = {}
     adapter = load_adapter(project.adapter_name, project.adapter_options())
@@ -312,7 +340,7 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
         problems = plan.problems
         problems += config_problems + label_problems
         problems += [f"classe {name} usa nome reservado do akme no Neo4j" for name in reserved]
-        problems += [f"etapa 5 cita fonte inexistente: {source}" for source in declared if source not in sources]
+        problems += [f"etapa 5 cita fonte inexistente: {shown([source])}" for source in declared if source not in sources]
         problems += [f"etapa 5: tipo desconhecido {kind} em {source}.{column}; use {', '.join(TYPES)}"
                      for source, columns in types.items() for column, kind in columns.items() if kind not in TYPES]
         for source, label in sorted(labels.items()):
@@ -332,14 +360,14 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
                 problems.append(f"fonte {source} sem linhas: a carga apagaria do banco todos os nos de {label}; "
                                 "confira a extracao ou exclua a fonte na etapa 5")
             if state.absent:
-                problems.append(f"fonte {source}: chave declarada usa coluna inexistente: {', '.join(state.absent)}")
+                problems.append(f"fonte {source}: chave declarada usa coluna inexistente: {shown(state.absent)}")
             problems += [f"{source}.{c} usa nome reservado do akme no Neo4j" for c in columns if c in RESERVED_PROPS]
             if key and state.complete < state.rows:
                 problems.append(f"fonte {source}: {state.rows - state.complete} linha(s) com chave {', '.join(key)} vazia")
             if state.repeated:
                 problems.append(f"{source}.{'+'.join(key)} repete {state.repeated}: duas linhas virariam o mesmo no. Rode akme validate")
             protected = joins | {(source, c) for c in key}
-            problems += [f"etapa 5 cita coluna inexistente: {source}.{c}" for c in column_types if columns and c not in columns]
+            problems += [f"etapa 5 cita coluna inexistente: {source}.{shown([c])}" for c in column_types if columns and c not in columns]
             problems += [f"{source}.{c} e chave ou join e precisa ser string, nao {kind}"
                          for c, kind in column_types.items() if (source, c) in protected and kind != "string"]
             metrics = sorted({m["column"] for m in data["mappings"] if m["source"] == source and m.get("role") == "metric" and m.get("column")})

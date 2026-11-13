@@ -227,8 +227,33 @@ def test_real_competency_questions(seeded, db):
     assert wrong == []
 
 
+def _descricao(project, on):
+    from akme.project import read_yaml, write_yaml
+
+    config = read_yaml(project.root / "akme.yml")
+    write_yaml(project.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": on}})
+    return Project(project.root)
+
+
+def test_real_description_is_off_by_default_and_turning_off_clears_it(seeded, db):
+    """Padrao: nenhum no ou aresta de dado com _descricao. Ligar grava; desligar de novo apaga na carga seguinte."""
+    data = "n._projeto = 'demo' AND NOT n:Conceito AND NOT n:Termo"
+    with_text = (f"MATCH (n) WHERE {data} AND n._descricao IS NOT NULL RETURN count(n)",
+                 f"MATCH (n)-[r]->() WHERE {data} AND r._descricao IS NOT NULL RETURN count(r)")
+    assert _publish(seeded)["verification"]["ok"]
+    assert [_count(db, q) for q in with_text] == [0, 0]
+    assert _count(db, "MATCH (c:Conceito {_projeto: 'demo', nome: 'Pedido'}) RETURN c.definicao").startswith("Solicitacao")
+    _publish(_descricao(seeded, True))
+    assert [_count(db, q) for q in with_text] == [sum(EXPECTED_NODES.values()), sum(EXPECTED_EDGES.values())]
+    again = _publish(_descricao(seeded, False))
+    assert [_count(db, q) for q in with_text] == [0, 0]
+    assert again["removed"] == {"nodes": 0, "relationships": 0}
+
+
 def test_real_semantic_layer(seeded, db):
-    """_descricao em todo no e aresta de dado, esquema na marca igual ao arquivo, termos ligados; repetir remove 0."""
+    """Com a opcao ligada: _descricao em todo no e aresta de dado, esquema na marca igual ao arquivo, termos ligados;
+    repetir remove 0."""
+    seeded = _descricao(seeded, True)
     first = _publish(seeded)
     assert first["verification"] == {"ok": True, "divergences": []}
     data = "n._projeto = 'demo' AND NOT n:Conceito AND NOT n:Termo"
@@ -555,12 +580,71 @@ def _script(name):
     return module
 
 
-def test_real_demo_checkers_pass_after_a_load(seeded, db, monkeypatch, capsys):
-    """verificar_neo4j.py (contra os CSVs e o gabarito) e amostra_valores.py (valor, tipo e legenda)."""
-    _publish(seeded)
+@pytest.mark.parametrize("on", [False, True])
+def test_real_demo_checkers_pass_after_a_load(seeded, db, monkeypatch, capsys, on):
+    """verificar_neo4j.py (contra os CSVs e o gabarito) e amostra_valores.py (valor, tipo e legenda), nos dois modos
+    da _descricao; o verificador le o modo do akme.yml da pasta atual, como na demo."""
+    project = _descricao(seeded, on)
+    _publish(project)
+    monkeypatch.chdir(project.root)
     checker = _script("verificar_neo4j")
     monkeypatch.setattr(checker, "PROJETO", "demo")
     assert checker.main() == 0, capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert ("_descricao igual a Conceito.definicao" in out) is on and ("opcao desligada" in out) is not on
     sample = _script("amostra_valores")
-    monkeypatch.setattr("sys.argv", ["amostra_valores.py", str(seeded.root / "akme.yml"), "--n", "50"])
+    monkeypatch.setattr("sys.argv", ["amostra_valores.py", str(project.root / "akme.yml"), "--n", "50"])
     assert sample.main() == 0, capsys.readouterr().out
+    # o modo errado no verificador falha: ele confere o que o akme.yml diz, nao o que o banco tem
+    monkeypatch.setattr(checker, "DESCRICAO", not on)
+    assert checker.main() == 1
+
+
+# --- rodada final: carga completa a partir de um Postgres real ---
+
+PG_SCHEMA = "akme_demo_it"
+
+
+@pytest.mark.skipif(not os.environ.get("AKME_PG_TEST_DSN"), reason="Postgres real so com AKME_PG_TEST_DSN")
+def test_real_load_from_postgres(seeded, db, monkeypatch, capsys):
+    """Do Postgres ao Neo4j: as 4 tabelas da demo num schema proprio (colunas texto, celula vazia vira NULL), o
+    adapter postgres no akme.yml, a carga completa, as contagens do plano e o verificador da demo contra os CSVs.
+    ATENCAO: apaga e recria o schema akme_demo_it do banco de AKME_PG_TEST_DSN."""
+    psycopg = pytest.importorskip("psycopg")
+    from akme.project import read_yaml, write_yaml
+
+    dsn = os.environ["AKME_PG_TEST_DSN"]
+    with psycopg.connect(dsn) as conn:
+        conn.execute(f"DROP SCHEMA IF EXISTS {PG_SCHEMA} CASCADE")
+        conn.execute(f"CREATE SCHEMA {PG_SCHEMA}")
+        for table in ("clientes", "itens_pedido", "pedidos", "produtos"):
+            path = DEMO / f"{table}.csv"
+            with path.open(encoding="utf-8-sig", newline="") as f:
+                header = next(csv.reader(f))
+            columns = ", ".join(f'"{c}" text' for c in header)
+            conn.execute(f'CREATE TABLE {PG_SCHEMA}."{table}" ({columns})')
+            with conn.cursor().copy(f'COPY {PG_SCHEMA}."{table}" FROM STDIN WITH (FORMAT csv, HEADER true)') as copy:
+                copy.write(path.read_bytes().removeprefix(b"\xef\xbb\xbf"))
+    try:
+        monkeypatch.setenv("AKME_PG_TEST_DSN_LOAD", dsn)
+        config = read_yaml(seeded.root / "akme.yml")
+        config.pop("local_folder")
+        write_yaml(seeded.root / "akme.yml", {**config, "adapter": "postgres",
+                                              "postgres": {"dsn": "env:AKME_PG_TEST_DSN_LOAD", "schema": PG_SCHEMA}})
+        project = Project(seeded.root)
+        result = _publish(project)
+        assert result["verification"] == {"ok": True, "divergences": []}
+        assert result["nodes"] == EXPECTED_NODES and result["relationships"] == EXPECTED_EDGES
+        assert result["rows"] == 43 and result["removed"] == {"nodes": 0, "relationships": 0}
+        monkeypatch.chdir(project.root)
+        checker = _script("verificar_neo4j")
+        monkeypatch.setattr(checker, "PROJETO", "demo")
+        assert checker.main() == 0, capsys.readouterr().out
+        assert "RESULTADO: todas as verificacoes passaram" in capsys.readouterr().out
+        sample = _script("amostra_valores")
+        monkeypatch.setattr("sys.argv", ["amostra_valores.py", str(project.root / "akme.yml"), "--n", "50"])
+        assert sample.main() == 0, capsys.readouterr().out
+        assert _publish(project)["removed"] == {"nodes": 0, "relationships": 0}
+    finally:
+        with psycopg.connect(dsn) as conn:
+            conn.execute(f"DROP SCHEMA IF EXISTS {PG_SCHEMA} CASCADE")

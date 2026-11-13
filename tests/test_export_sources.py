@@ -234,3 +234,13 @@ def test_cheap_payload_errors_come_before_reading_the_source(seeded, monkeypatch
     monkeypatch.setattr(sources, "scan_source", must_not_read)
     with pytest.raises(EditError, match=message):
         _propose(seeded, payload)
+
+
+def test_add_source_with_invisible_character_in_key_is_shown_and_explained(seeded):
+    """O BOM grudado no nome aparecia como 'id_pedido' dos dois lados; agora a mensagem o mostra e diz o que fazer."""
+    _without_sources(seeded)
+    with pytest.raises(EditError) as exc:
+        _propose(seeded, {"source": "pedidos", "key": ["﻿id_pedido"]})
+    message = str(exc.value)
+    assert "coluna inexistente em pedidos: <U+FEFF>id_pedido" in message
+    assert "﻿" not in message and "BOM" in message and "sem esse caractere" in message
