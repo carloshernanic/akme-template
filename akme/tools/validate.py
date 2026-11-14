@@ -9,15 +9,15 @@ from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 
 from ..adapters import AdapterError
 from ..models import ADDITIVITY, METRIC_FIELDS, Finding, ValidationReport
-from ..ontology import classes, has_license, is_metric_class, load_content, local, relations
+from ..ontology import ROOT_CLASSES, classes, has_license, is_metric_class, load_content, local, relations
 from ..project import Project, read_yaml, write_text_atomic
 from .contracts import contradictions, observe_join
+from .neo4j_values import reserved_problem
 from .profile import load_profile
 
 OOPS_REST = "https://oops.linkeddata.es/rest"
 OEG_STATUS = "https://raw.githubusercontent.com/oeg-upm/oeg-service-status/main/services_status.json"
 OOPS = Namespace("http://oops.linkeddata.es/def#")
-ROOT_CLASSES = {"Entity", "Relation", "Rule", "Metric"}
 
 
 def _parse_ttl(project: Project, findings: list[Finding]) -> Graph | None:
@@ -67,6 +67,28 @@ def _check_mappings(content: dict[str, Any], project: Project, findings: list[Fi
     done = sum(v["mapped"] for v in by_source.values())
     return {"available": True, "columns": total, "mapped": done,
             "ratio": round(done / total, 3) if total else 0.0, "by_source": by_source}
+
+
+def _check_source_classes(g: Graph, content: dict[str, Any], findings: list[Finding]) -> None:
+    """Cada tabela vira uma classe no grafo. Termos de classes diferentes na mesma tabela quase sempre sao um
+    mapping apontando para a tabela errada; avisa aqui, na etapa 3, o que a carga no Neo4j recusaria na etapa 5."""
+    term_class = {t["name"]: t.get("class") for t in content["terms"]}
+    by_source: dict[str, dict[str, list[str]]] = {}
+    for c in content["relation_contracts"]:
+        if c.get("join"):
+            for side, cls in (("from", c.get("domain")), ("to", c.get("range"))):
+                by_source.setdefault(c["join"][side]["source"], {}).setdefault(cls, []).append(f"relacao {c.get('relation')}")
+    for m in content["mappings"]:
+        cls = term_class.get(m.get("term"))
+        if cls and m.get("role") != "metric" and not is_metric_class(g, cls):
+            by_source.setdefault(m.get("source"), {}).setdefault(cls, []).append(f"termo {m.get('term')}")
+    for source, options in sorted(by_source.items()):
+        if len(options) < 2:
+            continue
+        parts = "; ".join(f"{cls} ({', '.join(sorted(set(who)))})" for cls, who in sorted(options.items()))
+        findings.append(Finding(level="warning", check="source_classes", subject=source,
+                                message=f"a tabela {source} recebe termos de mais de uma classe: {parts}. Cada tabela vira "
+                                        "uma classe; corrija com update_mapping ou remove_mapping"))
 
 
 def _check_relation_contracts(g: Graph, content: dict[str, Any], project: Project, findings: list[Finding],
@@ -137,6 +159,19 @@ def _check_precedence(content: dict[str, Any], findings: list[Finding]) -> None:
             findings.append(Finding(level="error", check="precedence_conflict", subject=key,
                                     message=f"precedencia contraditoria para '{key}': {pair[0]} sobre {pair[1]} e o inverso"))
         seen[key] = pair
+
+
+def _check_reserved_names(g: Graph, content: dict[str, Any], findings: list[Finding]) -> None:
+    """Nomes que o akme usa no Neo4j (Conceito, Termo, RELACAO_ONTOLOGIA, _id...): a carga recusaria. Aviso, nao
+    erro, porque os outros alvos de publicacao aceitam."""
+    found = ([(c["name"], reserved_problem("class", c["name"])) for c in classes(g)]
+             + [(r["name"], reserved_problem("relation", r["name"])) for r in relations(g)]
+             + [(f"{m.get('source')}.{m.get('column')}", reserved_problem("column", str(m.get("column") or "")))
+                for m in content["mappings"]])
+    for subject, problem in dict.fromkeys(found):
+        if problem:
+            findings.append(Finding(level="warning", check="reserved_name", subject=subject,
+                                    message=problem + "; a exportacao para o Neo4j recusa este nome"))
 
 
 def _check_questions(content: dict[str, Any], project: Project, findings: list[Finding]) -> None:
@@ -264,6 +299,8 @@ def validate(project: Project, oops: bool = False, check_data: bool = True) -> V
         pitfalls = native_pitfalls(g)
         _check_relation_contracts(g, content, project, findings, check_data)
         _check_metrics(g, content, findings)
+        _check_reserved_names(g, content, findings)
+        _check_source_classes(g, content, findings)
         if oops:
             oops_result = oops_scan(project.schema_path.read_text(encoding="utf-8"))
             pitfalls += oops_result.get("pitfalls", [])

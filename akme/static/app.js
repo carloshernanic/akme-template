@@ -54,6 +54,7 @@
     const mode = data.stage && data.stage.decision_mode && data.stage.decision_mode.mode;
     if (mode) document.body.dataset.decisionMode = mode;
     window.AkmeGraph.init(data);
+    window.AkmeExport.init(api);  // antes da revisao: ela pode abrir direto na aba Exportar
     window.AkmeReview.init(data, api, { onData: (d) => window.AkmeGraph.update(d) });
   })).catch((err) => {
     $("#tabs").hidden = false;

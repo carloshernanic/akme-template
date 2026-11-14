@@ -174,7 +174,9 @@ def bump_version(project: Project, part: str) -> str:
     return version
 
 
-def publish(project: Project, target: str = "yaml", dry_run: bool = True, release: str | None = None) -> dict[str, Any]:
+def publish(project: Project, target: str = "yaml", dry_run: bool = True, release: str | None = None,
+            plan: Any = None) -> dict[str, Any]:
+    """`plan` so vale para o alvo neo4j: a CLI reaproveita o plano montado uma vez."""
     if target not in TARGETS:
         raise ValueError(f"target desconhecido: {target}. Opcoes: {', '.join(TARGETS)}")
     if target != "rdf":
@@ -189,9 +191,9 @@ def publish(project: Project, target: str = "yaml", dry_run: bool = True, releas
         return result
     model = semantic_model(project)
     if target == "neo4j":
-        from .n10s import publish_neo4j
-        result = publish_neo4j(project, model, dry_run)
-        if release and not result["problems"]:
+        from .neo4j_load import publish_neo4j
+        result = publish_neo4j(project, model, dry_run, plan)
+        if release and not dry_run and not result["problems"]:  # so a carga que deu certo muda a versao
             bump_version(project, release)
         return result
     if target == "yaml":

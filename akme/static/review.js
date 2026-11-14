@@ -138,19 +138,22 @@
 
   // ---------- abas e etapa ----------
   function setTab(name, persist = true) {
-    if (name !== "ontologia") name = "revisao";
+    if (name !== "ontologia" && name !== "exportar") name = "revisao";
     S.tab = name;
+    $("#view-exportar").hidden = name !== "exportar";
+    $("#tab-exportar").setAttribute("aria-selected", String(name === "exportar"));
     $("#view-ontologia").hidden = name !== "ontologia";
     $("#view-revisao").hidden = name !== "revisao";
     $("#tab-ontologia").setAttribute("aria-selected", String(name === "ontologia"));
     $("#tab-revisao").setAttribute("aria-selected", String(name === "revisao"));
     $("#ont-nav").hidden = name !== "ontologia";
     $("#rv-nav").hidden = name !== "revisao";
-    $("#sidebar-mode").textContent = name === "ontologia" ? "ontologia" : "revisão";
+    $("#sidebar-mode").textContent = name === "ontologia" ? "ontologia" : name === "exportar" ? "exportar" : "revisão";
     const bar = $("#rv-bar");
     if (bar) bar.hidden = name !== "revisao" || lean();
     if (persist) store("akme-tab", name);
     if (name === "ontologia" && window.AkmeGraph) { window.AkmeGraph.show(); dispatchEvent(new Event("resize")); }
+    if (name === "exportar" && window.AkmeExport) window.AkmeExport.show();
   }
 
   // ids citados em "pendentes da etapa 1 sem revisao: a, b"
@@ -1326,6 +1329,7 @@
       $("#gate-banner").addEventListener("click", onClick); // "ver" do pendente que trava a etapa
       $("#tab-ontologia").addEventListener("click", () => setTab("ontologia"));
       $("#tab-revisao").addEventListener("click", () => setTab("revisao"));
+      $("#tab-exportar").addEventListener("click", () => setTab("exportar"));
       document.addEventListener("keydown", onKey);
       document.addEventListener("akme:mode", () => render());
       // o chat descobre o modo canal depois da primeira pintura: refaz os textos

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+import uuid
+from typing import Any, Iterator
 
 from .base import SqlAdapter, require
 
@@ -10,6 +11,7 @@ class PostgresAdapter(SqlAdapter):
 
     def __init__(self, dsn: str = "", schema: str = "public") -> None:
         super().__init__()
+        self._reading = 0  # leituras em blocos abertas nesta conexao
         self.dsn = dsn
         self.schema = schema
 
@@ -35,3 +37,18 @@ class PostgresAdapter(SqlAdapter):
 
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]:
         return self.query(f'SELECT * FROM "{self.schema}"."{source}" LIMIT {int(n)}')
+
+    def iter_rows(self, source: str, batch: int = 5000) -> Iterator[list[dict[str, Any]]]:
+        """Cursor do lado do servidor, com nome unico por leitura (duas leituras abertas nao colidem). No fim, a
+        ultima leitura aberta desfaz a transacao que o cursor abriu: a conexao nao fica "idle in transaction"."""
+        self._reading += 1
+        try:
+            yield from self._iter_query(f'SELECT * FROM "{self.schema}"."{source}"', batch,
+                                        cursor=self.conn.cursor(name=f"akme_iter_{uuid.uuid4().hex}"))
+        finally:
+            self._reading -= 1
+            if not self._reading and self._conn is not None:
+                try:
+                    self._conn.rollback()
+                except Exception:  # conexao ja quebrada: o erro que importa e o da leitura, que segue
+                    pass

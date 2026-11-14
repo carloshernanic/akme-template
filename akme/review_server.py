@@ -1,8 +1,10 @@
 """Servidor local da pagina de revisao (`akme review`). Somente 127.0.0.1.
 
 Rotas de leitura: /api/status, /api/stage, /api/pending, /api/requirements, /api/data, /api/sources,
-/api/events, /api/round, /api/chat. Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
-cria ou altera um requisito), /api/apply (aplica em lote as decididas, com nome de quem aprova), /api/chat
+/api/events, /api/round, /api/chat, e /neo4j/guia (o tutorial do projeto no Neo4j Browser, gerado pelo `publish --target
+neo4j`, unica rota com CORS, so para as origens do Neo4j Browser: o Browser busca o guia de outra origem, por
+`:guide <url>`), e /api/versao (versao do akme e recursos deste servidor: a CLI reconhece um servidor de codigo antigo). Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
+cria ou altera um requisito, ou corrige um mapping aplicado), /api/apply (aplica em lote as decididas, com nome de quem aprova), /api/chat
 (mensagem do consultor para o agente, pelo canal) e /api/chat/permission (permitir ou negar uma tool).
 """
 from __future__ import annotations
@@ -29,6 +31,10 @@ from .tools.batch import BatchError
 from .tools.connect import find_in_sources
 from .tools.decision_mode import mode_path, read_mode
 from .tools.export import build_export, export
+from .tools.profile import load_profile
+from . import __version__
+from .tools.neo4j_guide import GUIDE_FILE, GUIDE_ROUTE
+from .tools.neo4j_page import LoadRefused, export_load, export_status, reload_env
 from .tools.ontology_write import EditError, apply_reviewed, propose_edit, review_edit
 from .tools.requirements import cq_references, requirements_status
 from .tools.review_view import present
@@ -38,6 +44,8 @@ from .tools.stage import current_stage
 PROPOSE_TYPES = {
     "add_competency_question", "update_competency_question", "remove_competency_question",
     "update_gap", "update_divergence", "add_use_case", "add_requirement",
+    # correcao de mapping ja aplicado, feita pelo revisor na lista "Mappings aplicados"
+    "update_mapping", "remove_mapping",
 }
 CQ_TYPES_WITH_REFS = {"update_competency_question", "remove_competency_question"}
 EVENTS_MAX_WAIT = 25.0
@@ -49,6 +57,12 @@ def _current(content: dict[str, Any], key: str, item_id: Any) -> dict[str, Any] 
         if item.get("id") == item_id:
             return item
     return None
+
+
+def _source_columns(project: Project) -> dict[str, list[str]]:
+    """Colunas de cada tabela do profile ({tabela: [coluna, ...]}): o formulario de corrigir mapping oferece so essas."""
+    prof = load_profile(project)
+    return {s.name: [c.name for c in s.columns] for s in prof.sources} if prof else {}
 
 
 def _pending_view(project: Project) -> list[dict[str, Any]]:
@@ -148,6 +162,7 @@ def make_handler(project: Project):
             # a pagina e o JS mudam a cada export; nunca servir do cache do navegador
             if not urlparse(self.path).path.startswith("/api/"):
                 self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Akme-Versao", __version__)
             super().end_headers()
 
         def do_GET(self):  # noqa: N802
@@ -177,11 +192,23 @@ def make_handler(project: Project):
                     data["stage"] = current_stage(project)
                     data["round"] = read_round(project) or {}
                     data["token"] = state_token(project)
+                    data["source_columns"] = _source_columns(project)
                     return self._json(200, data)
                 if url.path == "/api/events":
                     return self._json(200, self._events(parse_qs(url.query)))
                 if url.path == "/api/chat":
                     return self._json(200, self._chat_poll(parse_qs(url.query)))
+                if url.path == "/api/versao":
+                    return self._json(200, {"akme": __version__, "recursos": list(FEATURES)})
+                if url.path == "/api/neo4j":  # tela Exportar: .env, plano do dry-run e banco (somente leitura)
+                    # le todas as fontes, regrava docs/publish e conecta no banco: so para a propria pagina. Outro
+                    # site aberto no navegador (img, fetch no-cors) chega com Sec-Fetch-Site cross-site
+                    if self.headers.get("Sec-Fetch-Site", "same-origin") not in ("same-origin", "none"):
+                        return self._json(403, {"error": "rota so para a pagina local"})
+                    try:
+                        return self._json(200, export_status(project, self.server.server_address[1]))
+                    except LoadRefused as exc:
+                        return self._json(exc.code, {"error": str(exc)} | exc.extra)
                 if url.path == "/api/sources":
                     q = parse_qs(url.query)
                     query = (q.get("q") or [""])[0]
@@ -189,6 +216,8 @@ def make_handler(project: Project):
                     return self._json(200, find_in_sources(project, query, case_sensitive=cs))
                 if url.path.startswith("/api/"):
                     return self._json(404, {"error": "rota nao encontrada"})
+                if url.path == GUIDE_ROUTE:
+                    return self._guide()
             except (EditError, ValueError) as exc:
                 return self._json(400, {"error": str(exc)})
             if not self._static_ok():
@@ -264,8 +293,51 @@ def make_handler(project: Project):
             author = str(body.get("author") or "").strip()[:80]
             return chat.append(project, "verdict", "", request_id=request_id, behavior=behavior, author=author)
 
+        def _guide(self, head: bool = False) -> None:
+            """Tutorial do Neo4j Browser, que roda em outra origem (porta 7474, outra porta no Docker, ou o console da
+            Aura). CORS so aqui e so para essas origens (browser_origins): o guia leva nomes e contagens do projeto
+            do cliente, entao outro site aberto no navegador nao pode le-lo. O servidor
+            continua so em 127.0.0.1 e com a checagem do Host."""
+            path = project.docs_dir / "publish" / GUIDE_FILE
+            if not path.is_file():
+                return self._json(404, {"error": "guia ainda nao gerado: rode akme publish --target neo4j"})
+            body = path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self._cors()
+            self.end_headers()
+            if not head:
+                self.wfile.write(body)
+
+        def _cors(self) -> None:
+            """Reflete o Origin so quando ele e uma origem do Neo4j Browser; nunca `*`."""
+            self.send_header("Vary", "Origin")
+            origin = self.headers.get("Origin")
+            if origin not in browser_origins():
+                return
+            self.send_header("Access-Control-Allow-Origin", origin)
+            # Chrome pede permissao antes de uma pagina publica (console da Aura) falar com 127.0.0.1
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+
+        def do_OPTIONS(self):  # noqa: N802
+            if not self._host_ok():
+                return
+            if urlparse(self.path).path != GUIDE_ROUTE:
+                return self._json(404, {"error": "rota nao encontrada"})
+            self.send_response(204)
+            self._cors()
+            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def do_HEAD(self):  # noqa: N802
-            if self._host_ok() and self._static_ok():
+            if not self._host_ok():
+                return
+            if urlparse(self.path).path == GUIDE_ROUTE:
+                return self._guide(head=True)
+            if self._static_ok():
                 super().do_HEAD()
 
         def do_POST(self):  # noqa: N802
@@ -288,9 +360,19 @@ def make_handler(project: Project):
                     return self._json(200, self._chat_send(self._body()))
                 if path == "/api/chat/permission":
                     return self._json(200, self._chat_permission(self._body()))
+                if path == "/api/neo4j/carga":
+                    # a carga e do humano, na pagina: so com a origem da propria pagina (um POST sem Origin nao e ela)
+                    if origin is None:
+                        return self._json(403, {"error": "a carga so parte da pagina local"})
+                    body = self._body()
+                    return self._json(200, export_load(project, self.server.server_address[1],
+                                                       body.get("confirmed"), body.get("removed"),
+                                                       body.get("token")))
                 return self._json(404, {"error": "rota nao encontrada"})
             except _HttpError as exc:
                 return self._json(exc.code, {"error": exc.message} | exc.extra)
+            except LoadRefused as exc:
+                return self._json(exc.code, {"error": str(exc)} | exc.extra)
             except BatchError as exc:
                 return self._json(409, {"error": str(exc), "new_errors": exc.new_errors})
             except EditError as exc:
@@ -347,6 +429,7 @@ def make_handler(project: Project):
 
 
 def start(project: Project, port: int = 8765) -> ThreadingHTTPServer:
+    reload_env(project)  # registra o que veio do .env: linha apagada depois deixa de valer sem reiniciar
     return ThreadingHTTPServer(("127.0.0.1", port), make_handler(project))
 
 
@@ -362,10 +445,58 @@ def is_running(port: int, timeout: float = 1.0) -> bool:
         return False
 
 
+# recursos que este codigo serve; um servidor que nao lista todos em /api/versao e de codigo antigo (ou de antes da rota)
+FEATURES = ("neo4j_guia", "cors_browser", "neo4j_exportar")
+STALE = ("o servidor da pagina local esta desatualizado: pare e rode `uv run akme review` de novo "
+         "(o akme nunca encerra o processo sozinho)")
+
+
+def browser_origins() -> set[str]:
+    """Origens do Neo4j Browser que podem ler o guia: 127.0.0.1 e localhost na porta 7474 e na porta de
+    AKME_NEO4J_BROWSER_URL (http e https), a propria origem dessa variavel, e o console da Aura."""
+    ports = {7474}
+    configured = os.environ.get("AKME_NEO4J_BROWSER_URL", "").strip()
+    extra: set[str] = set()
+    if configured:
+        parts = urlparse(configured)
+        try:
+            if parts.port:
+                ports.add(parts.port)
+        except ValueError:
+            pass
+        if parts.scheme in ("http", "https") and parts.netloc:
+            extra.add(f"{parts.scheme}://{parts.netloc}")
+    return ({f"{scheme}://{host}:{port}" for scheme in ("http", "https") for host in ("127.0.0.1", "localhost")
+             for port in ports} | {"https://console.neo4j.io"} | extra)
+
+
+def server_info(port: int, timeout: float = 1.0) -> dict[str, Any] | None:
+    """O que o servidor na porta diz de si em /api/versao; None se ele nao tem a rota (codigo antigo) ou nao responde."""
+    try:
+        with urllib.request.urlopen(url_for(port) + "api/versao", timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def stale_message(port: int) -> str | None:
+    """Aviso quando ha um `akme review` no ar na porta, mas de codigo antigo (sem algum recurso de FEATURES)."""
+    if not is_running(port):
+        return None
+    info = server_info(port)
+    if info is None or not set(FEATURES) <= set(info.get("recursos") or []):
+        return f"{STALE}; porta {port}"
+    return None
+
+
 def ensure_running(project: Project, port: int = 8765, open_browser: bool = False, wait: float = 15.0) -> str:
     """Garante um `akme review` servindo em `port` (reaproveita o que ja estiver no ar) e devolve a URL.
-    O processo novo e desacoplado do chamador, para o agente poder subir a pagina e seguir."""
+    O processo novo e desacoplado do chamador, para o agente poder subir a pagina e seguir. Um servidor no ar com
+    codigo antigo vira erro com a instrucao para o humano reinicia-lo; o akme nunca encerra o processo."""
     url = url_for(port)
+    stale = stale_message(port)
+    if stale:
+        raise RuntimeError(stale)
     if not is_running(port):
         kwargs: dict[str, Any] = {"cwd": str(project.root), "stdin": subprocess.DEVNULL,
                                   "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
@@ -385,6 +516,9 @@ def ensure_running(project: Project, port: int = 8765, open_browser: bool = Fals
 
 
 def serve(project: Project, port: int = 8765, open_browser: bool = True) -> None:
+    stale = stale_message(port)
+    if stale:
+        raise RuntimeError(stale)
     server = start(project, port)
     url = url_for(server.server_address[1])
     print(f"akme review em {url} (Ctrl+C para sair)")

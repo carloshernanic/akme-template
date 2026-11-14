@@ -117,17 +117,26 @@ def propose_edit(type: str, payload: dict[str, Any], rationale: str = "", propos
     bloqueados ate os requisitos fecharem): add_class, add_relation, add_term, add_mapping, add_constraint, add_precedence.
     add_relation exige multiplicity (de domain para range) e join {from: {source, column}, to: {source, column}} ou
     no_join_reason; o dado e lido e a proposta e recusada se contradizer a multiplicidade. add_term de classe Metric
-    exige unit, grain e additivity; add_mapping de metrica exige expression. Tipo da etapa 5 (so para exportar ao
-    Neo4j): add_source {source, key: [colunas], types: {coluna: string|integer|float|date}} ou {source, exclude: motivo};
-    o dado e lido e a proposta e recusada se a chave repetir ou um valor nao converter. Use suggest_sources para o rascunho."""
+    exige unit, grain e additivity; add_mapping de metrica exige expression. Para corrigir o que ja foi
+    aplicado (mesma revisao e aprovacao humana): update_mapping {term, source, column, set: {term|source|column|role|
+    expression|note: valor novo}} troca um mapping aplicado, identificado por term, source e column atuais;
+    remove_mapping {term, source, column, reason} apaga; rename_class {name, new_name, label (opcional)} troca o nome
+    da classe no schema.ttl e em termos, relacoes, perguntas e propostas pendentes. Tipo da etapa 5 (so para exportar ao
+    Neo4j): add_source {source, key: [colunas], types: {coluna: string|integer|float|date}, caption: coluna} ou
+    {source, exclude: motivo}; caption (opcional) e a coluna cujo valor vira a legenda do no no Neo4j Browser (nome,
+    titulo, descricao). O dado e lido e a proposta e recusada se a chave repetir ou um valor nao converter. Use
+    suggest_sources para o rascunho. Nomes que o akme usa no Neo4j sao recusados: classes Conceito, Termo e
+    _AkmeProjeto; relacoes RELACAO_ONTOLOGIA, SUBCLASSE_DE e TEM_TERMO; colunas _id, _projeto, _carga e _descricao."""
     return write_tool.propose_edit(project(), type, payload, rationale, proposed_by, requirement_id, evidence).model_dump(mode="json")
 
 
 @mcp.tool()
 def suggest_sources() -> list[dict[str, Any]]:
-    """Etapa 5, antes de exportar ao Neo4j: rascunho de chave e tipos de cada fonte, tirado dos contratos de relacao e
-    do profile, sem LLM. Cada item traz class, key, key_from, types, notes e payload pronto para propose_edit
-    add_source (None quando falta a chave). Revise as notes antes de propor: o rascunho e heuristico."""
+    """Etapa 5, antes de exportar ao Neo4j: rascunho de chave, tipos e legenda de cada fonte, tirado dos contratos de
+    relacao e do profile, sem LLM. Cada item traz class, key, key_from, types, caption, notes e payload pronto para
+    propose_edit add_source (None quando falta a chave). caption e a coluna cujo valor aparece na bolinha do no no
+    Neo4j Browser; vem vazia quando nenhuma coluna tem cara de nome. Revise as notes antes de propor: o rascunho e
+    heuristico."""
     from .tools.sources import suggest_sources as suggest
     return suggest(project())
 
@@ -238,7 +247,7 @@ def publish(target: str = "yaml", dry_run: bool = True, release: str | None = No
     """Gera a camada semantica para yaml, snowflake, databricks, rdf ou neo4j. dry_run=false executa no alvo e exige aprovacao humana.
     Em neo4j, esta tool so roda em dry-run: a carga e pela CLI, com o humano confirmando."""
     if target == "neo4j" and not dry_run:
-        raise PermissionError("esta tool nao carrega no Neo4j. Peca ao humano para rodar: akme publish --target neo4j --no-dry-run")
+        raise PermissionError("esta tool nao carrega no Neo4j. Peca ao humano para carregar pela aba Exportar da pagina local (uv run akme review) ou rodar: akme publish --target neo4j --no-dry-run")
     return publish_tool.publish(project(), target, dry_run, release)
 
 

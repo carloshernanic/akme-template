@@ -1,7 +1,9 @@
-"""Chave e tipos de cada fonte, decididos na etapa 5 antes de exportar para o Neo4j.
+"""Chave, tipos e legenda de cada fonte, decididos na etapa 5 antes de exportar para o Neo4j.
 
 `suggest_sources` monta um rascunho a partir dos contratos de relacao e do profile, sem LLM. `check_source`
 confere uma proposta contra o dado e recusa o que daria erro na carga. A decisao final e humana, na revisao.
+A legenda (`caption`) e a coluna cujo valor aparece na bolinha do Neo4j Browser; sem ela, vale a regra automatica
+do plano (neo4j_plan.caption_choice).
 """
 from __future__ import annotations
 
@@ -13,47 +15,35 @@ from ..adapters import load_adapter
 from ..models import SOURCE_TYPES
 from ..ontology import load_content
 from ..project import Project
+from .neo4j_plan import (
+    BATCH, Scan, caption_choice, contract_keys, join_columns, labels_for, looks_like_identifier, ragged_problem,
+    scan_source,
+)
+from .neo4j_values import RESERVED_PROPS, reserved_problem, shown
 from .profile import profile_source
 
-# nomes que indicam identificador: um inteiro com esse nome fica texto (zero a esquerda, nao se soma)
-_IDENTIFIER = {"id", "identifier", "ident", "number", "numero", "num", "nr", "no", "code", "codigo", "cod", "cd",
-               "cnpj", "cpf", "cep", "nf", "sku", "key", "chave"}
+SAMPLE_ROWS = 100_000  # so o rascunho do suggest_sources usa amostra
 
 
 class SourceError(ValueError):
     pass
 
 
-def _tokens(name: str) -> list[str]:
-    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name)
-    return [t for t in re.split(r"[^a-zA-Z0-9]+", spaced.lower()) if t]
-
-
-def looks_like_identifier(name: str) -> bool:
-    return any(t in _IDENTIFIER for t in _tokens(name))
-
-
-def _filled(value: Any) -> bool:
-    return value not in (None, "")
-
-
 def _join_columns(project: Project, source: str) -> set[str]:
     contracts = load_content(project)["relation_contracts"]
-    return {c["join"][side]["column"] for c in contracts if c.get("join") for side in ("from", "to")
-            if c["join"][side]["source"] == source}
+    return {column for src, column in join_columns(contracts) if src == source}
 
 
-def _read(project: Project, source: str) -> tuple[list[str], list[dict[str, Any]], bool]:
-    from .n10s import MAX_ROWS
-
+def _sample(project: Project, source: str) -> tuple[list[str], list[dict[str, Any]]]:
+    """Amostra para o rascunho do suggest_sources. A conferencia do check_source le a fonte inteira."""
     adapter = load_adapter(project.adapter_name, project.adapter_options())
     try:
         if source not in adapter.list_sources():
-            raise SourceError(f"fonte inexistente: {source}")
-        rows = adapter.read_sample(source, MAX_ROWS + 1)
+            raise SourceError(f"fonte inexistente: {shown([source])}")
+        rows = adapter.read_sample(source, SAMPLE_ROWS)
     finally:
         adapter.close()
-    return (list(rows[0]) if rows else []), rows[:MAX_ROWS], len(rows) > MAX_ROWS
+    return (list(rows[0]) if rows else []), rows
 
 
 def parse_types(value: Any) -> dict[str, str]:
@@ -71,34 +61,32 @@ def parse_types(value: Any) -> dict[str, str]:
     return out
 
 
-def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
-    """Confere chave e tipos contra o dado. Devolve o payload normalizado com o bloco `checked`."""
-    from .n10s import rdf_literal
+def _read_whole(project: Project, source: str, key: list[str], types: dict[str, str], *, check: bool = True) -> Scan:
+    """Confere que a fonte existe e, com check, le a fonte inteira pelo leitor unico do plano (scan_source)."""
+    adapter = load_adapter(project.adapter_name, project.adapter_options())
+    try:
+        if source not in adapter.list_sources():
+            raise SourceError(f"fonte inexistente: {shown([source])}")
+        if not check:
+            return Scan(columns=[], key=[], absent=[])
+        return scan_source(adapter, source, key, types, batch=BATCH)
+    finally:
+        adapter.close()
 
+
+def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
+    """Confere chave e tipos contra a fonte inteira, lida em blocos. Devolve o payload normalizado com o bloco `checked`."""
     source = payload["source"]
     exclude = str(payload.get("exclude") or "").strip()
     raw_key = payload.get("key")
     key = [raw_key] if isinstance(raw_key, str) else [str(k).strip() for k in (raw_key or []) if str(k).strip()]
     types = parse_types(payload.get("types"))
-    columns, rows, truncated = _read(project, source)
-    if exclude:
-        if key or types:
-            raise SourceError("fonte excluida nao pode ter key nem types")
-        return {"source": source, "exclude": exclude}
-    if not key:
+    wanted = str(payload.get("caption") or "").strip()
+    # o que o payload sozinho ja recusa vem antes de ler a fonte inteira
+    if exclude and (key or types or wanted):
+        raise SourceError("fonte excluida nao pode ter key, types nem caption")
+    if not exclude and not key:
         raise SourceError("add_source exige key ou exclude")
-    if not rows:
-        raise SourceError(f"fonte {source} sem linhas: nao ha como conferir a chave")
-    absent = [c for c in key + list(types) if c not in columns]
-    if absent:
-        raise SourceError(f"coluna inexistente em {source}: {', '.join(absent)}")
-    empty = sum(1 for r in rows if not all(_filled(r.get(c)) for c in key))
-    if empty:
-        raise SourceError(f"{source}: {empty} linha(s) com a chave {'+'.join(key)} vazia")
-    counts = Counter(tuple(str(r[c]) for c in key) for r in rows)
-    repeated = [" | ".join(v) for v, n in counts.items() if n > 1]
-    if repeated:
-        raise SourceError(f"{source}.{'+'.join(key)} repete {len(repeated)} valor(es), ex.: {repeated[:3]}: duas linhas virariam o mesmo no")
     unknown = {c: k for c, k in types.items() if k not in SOURCE_TYPES}
     if unknown:
         raise SourceError(f"tipo desconhecido em {source}: {unknown}; use {', '.join(SOURCE_TYPES)}")
@@ -106,20 +94,53 @@ def check_source(project: Project, payload: dict[str, Any]) -> dict[str, Any]:
     wrong = [c for c, k in types.items() if c in protected and k != "string"]
     if wrong:
         raise SourceError(f"{source}.{', '.join(wrong)} e chave ou join e precisa ficar string")
-    checked: dict[str, Any] = {"rows": len(rows), "truncated": truncated, "types": {}}
+    scan = _read_whole(project, source, key, types, check=not exclude)
+    if exclude:
+        return {"source": source, "exclude": exclude}
+    if scan.ragged:  # mesma recusa do plano: a carga nao aceitaria esta fonte
+        raise SourceError(ragged_problem(source, scan.ragged))
+    if not scan.rows:
+        raise SourceError(f"fonte {source} sem linhas: nao ha como conferir a chave")
+    absent = [c for c in key + list(types) + ([wanted] if wanted else []) if c not in scan.columns]
+    if absent:
+        raise SourceError(f"coluna inexistente em {source}: {shown(absent)}")
+    reserved = [c for c in scan.columns if c in RESERVED_PROPS]
+    if reserved:  # mesma recusa do plano, dita na etapa 5 e nao so na carga
+        raise SourceError(f"fonte {source}: {reserved_problem('column', reserved[0])}")
+    empty = scan.rows - scan.complete
+    if empty:
+        raise SourceError(f"{source}: {empty} linha(s) com a chave {'+'.join(key)} vazia")
+    if scan.repeated_ids:
+        raise SourceError(f"{source}.{'+'.join(key)} repete {len(scan.repeated_ids)} valor(es), ex.: {scan.repeated[:3]}: duas linhas virariam o mesmo no")
+    checked: dict[str, Any] = {"rows": scan.rows, "types": {}}
     for col, kind in types.items():
-        values = [r[col] for r in rows if _filled(r.get(col))]
-        bad = []
-        for v in values:
-            try:
-                rdf_literal(kind, v)
-            except ValueError:
-                bad.append(v)
-        if bad:
-            raise SourceError(f"{len(bad)} de {len(values)} valores de {source}.{col} nao convertem para {kind}, ex.: {bad[0]}")
-        checked["types"][col] = {"kind": kind, "converted": len(values), "filled": len(values),
-                                 "example": str(values[0]) if values else ""}
-    return {"source": source, "key": key, "types": types, "class": _class_of(project, source), "checked": checked}
+        if scan.invalid[col]:
+            raise SourceError(f"{scan.invalid[col]} de {scan.filled[col]} valores de {source}.{col} nao convertem para {kind}, ex.: {scan.examples[col]}")
+        checked["types"][col] = {"kind": kind, "converted": scan.filled[col], "filled": scan.filled[col],
+                                 "example": str(scan.first[col]) if col in scan.first else ""}
+    label = _class_of(project, source)
+    checked["caption"] = _caption_checked(project, source, label, key, types, scan, wanted)
+    out = {"source": source, "key": key, "types": types, "class": label, "checked": checked}
+    return out | ({"caption": wanted} if wanted else {})
+
+
+def _caption_checked(project: Project, source: str, label: str, key: list[str], types: dict[str, str], scan: Scan,
+                     wanted: str) -> dict[str, Any]:
+    """Como a legenda vai ficar, para a revisao mostrar: a coluna (decidida ou a automatica do plano), quantas linhas
+    a tem preenchida e um exemplo de legenda."""
+    from .export import build_export
+    from .neo4j_values import caption
+
+    data = build_export(project)
+    column, alone = caption_choice(data["mappings"], source, key, join_columns(data["relation_contracts"]),
+                                   scan.columns, types, scan.present, scan.rows, wanted or None,
+                                   scan.distinct_ratio())
+    # exemplo so com o valor da coluna quando a legenda e ela sozinha; nas outras formas a chave e o valor vem de
+    # linhas que podem ser diferentes (primeiro valor preenchido de cada coluna), entao o exemplo mostra so a chave
+    key_values = [scan.sample.get(c, "") for c in key]
+    example = caption(label or source, key_values, scan.sample.get(column) if column and alone else None, alone)
+    return {"column": column or "", "decided": bool(wanted), "alone": alone, "rows": scan.rows,
+            "filled": scan.present[column] if column else 0, "example": example}
 
 
 def _class_of(project: Project, source: str) -> str:
@@ -136,11 +157,10 @@ def _class_of(project: Project, source: str) -> str:
 def suggest_sources(project: Project) -> list[dict[str, Any]]:
     """Rascunho de chave e tipos para cada fonte. O agente revisa antes de propor; o humano decide."""
     from .export import build_export
-    from .n10s import _keys, _labels
 
     data = build_export(project)
     contracts = data["relation_contracts"]
-    contract_key = _keys(contracts)
+    contract_key = contract_keys(contracts)
     key_relation = {}
     for c in contracts:
         join, mult = c.get("join"), c.get("multiplicity")
@@ -152,7 +172,7 @@ def suggest_sources(project: Project) -> list[dict[str, Any]]:
         sources = adapter.list_sources()
     finally:
         adapter.close()
-    labels, _ = _labels(data, project, sources, [])
+    labels, _ = labels_for(data, project, sources, [])
     out = []
     for source in sources:
         if source not in labels:
@@ -160,7 +180,7 @@ def suggest_sources(project: Project) -> list[dict[str, Any]]:
             out.append({"source": source, "class": None, "key": [], "key_from": "", "types": {}, "notes": [reason],
                         "payload": {"source": source, "exclude": reason}})
             continue
-        columns, rows, _ = _read(project, source)
+        columns, rows = _sample(project, source)
         prof = profile_source(source, columns, rows)
         joins = _join_columns(project, source)
         notes: list[str] = []
@@ -186,6 +206,18 @@ def suggest_sources(project: Project) -> list[dict[str, Any]]:
                 notes.append(f"{col.name} tem numeros, mas o nome indica identificador: fica texto")
             elif col.type == "datetime":
                 notes.append(f"{col.name} tem data com horario: fica texto, o Neo4j recebe so data")
+        present = Counter({c: sum(1 for r in rows if r.get(c) not in (None, "")) for c in columns})
+        ratio = {c: len({str(r[c]) for r in rows if r.get(c) not in (None, "")}) / (present[c] or 1) for c in columns}
+        caption, alone = caption_choice(data["mappings"], source, key, join_columns(contracts), columns, types,
+                                        present, len(rows), distinct=ratio)
+        if caption and alone:
+            notes.append(f"legenda: {caption} (o valor desta coluna aparece na bolinha do Neo4j Browser); troque se "
+                         "outra coluna identifica melhor o registro para uma pessoa")
+        else:
+            notes.append("legenda: nenhuma coluna com cara de nome; a bolinha mostra a classe e a chave"
+                         + (f" e {caption}" if caption else "") + ". Se uma coluna identifica o registro para uma "
+                         "pessoa (nome, titulo, descricao), proponha-a em caption")
+        payload = {"source": source, "key": key, "types": types} | ({"caption": caption} if caption and alone else {})
         out.append({"source": source, "class": labels[source], "key": key, "key_from": key_from, "types": types,
-                    "notes": notes, "payload": {"source": source, "key": key, "types": types} if key else None})
+                    "caption": caption if alone else "", "notes": notes, "payload": payload if key else None})
     return out

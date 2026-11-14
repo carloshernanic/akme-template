@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterator
 
-from .base import SqlAdapter, require
+from .base import AdapterError, SqlAdapter, require
 
 SKIP_CATALOGS = ("system", "__databricks_internal")
 SKIP_SCHEMAS = ("information_schema",)
@@ -43,6 +43,8 @@ class DatabricksAdapter(SqlAdapter):
             try:
                 catalogs = [r["catalog"] for r in self.query("SHOW CATALOGS")
                             if r.get("catalog") and r["catalog"] not in SKIP_CATALOGS]
+            except AdapterError:
+                raise  # pacote opcional ausente: erro claro, nao uma lista vazia de fontes
             except Exception as exc:
                 result["errors"].append({"where": "SHOW CATALOGS", "error": str(exc)})
                 return result
@@ -94,3 +96,7 @@ class DatabricksAdapter(SqlAdapter):
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]:
         cat, sch, tbl = self._parse_source(source)
         return self.query(f"SELECT * FROM {cat}.{sch}.{tbl} LIMIT {int(n)}")
+
+    def iter_rows(self, source: str, batch: int = 5000) -> Iterator[list[dict[str, Any]]]:
+        cat, sch, tbl = self._parse_source(source)
+        yield from self._iter_query(f"SELECT * FROM {cat}.{sch}.{tbl}", batch)

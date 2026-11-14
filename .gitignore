@@ -30,13 +30,14 @@ docs/akme.css
 docs/app.js
 docs/graph.js
 docs/review.js
+docs/exportar.js
 docs/etapa1.js
 docs/outras.js
 docs/chat.js
 docs/fonts/
 docs/brand/
 
-# plugin do Neo4j local (n10s), baixado do GitHub
+# pasta do plugin da exportacao antiga do Neo4j; nao e mais usada, mas pode existir em maquinas antigas
 .neo4j/
 
 # macOS
@@ -56,3 +57,6 @@ ontology/pending/activity.tmp
 .agents/skills/*
 !.agents/skills/akme/
 .gemini
+
+# Site MkDocs gerado
+site/

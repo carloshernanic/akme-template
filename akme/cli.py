@@ -14,7 +14,8 @@ from .tools import catalog as catalog_tool
 from .tools import connect as connect_tool
 from .tools import eval as eval_tool
 from .tools import export as export_tool
-from .tools import n10s as n10s_tool
+from .tools import neo4j_load as neo4j_tool
+from .tools import neo4j_plan as neo4j_plan_tool
 from .tools import ontology_write as write_tool
 from .tools import profile as profile_tool
 from .tools import publish as publish_tool
@@ -138,28 +139,43 @@ def _publish_neo4j(release: str | None) -> None:
     """Mostra destino e avisos antes de confirmar; a carga termina com erro se o banco divergir."""
     project = _project()
     try:
-        typer.echo(f"destino: {n10s_tool.destination()}")
-        preview = publish_tool.publish(project, "neo4j", True, None)
-        for line in n10s_tool.preview_lines(preview):
-            typer.echo(line)
+        typer.echo(f"destino: {neo4j_tool.destination()}")
+        plan = neo4j_plan_tool.build_plan(project)  # um plano so: previa, estado do banco e carga o reaproveitam
+        preview = publish_tool.publish(project, "neo4j", True, None, plan)
         if preview["problems"]:
+            for line in neo4j_tool.preview_lines(preview):
+                typer.echo(line)
             raise typer.Exit(1)
-        described, refusal = n10s_tool.check_destination(n10s_tool.destination_state(project), project.name)
+        state = neo4j_tool.destination_state(project, plan)
+        for line in neo4j_tool.preview_lines(preview, state):
+            typer.echo(line)
+        described, refusal = neo4j_tool.check_destination(state, project.name)
         typer.echo(f"banco: {described}")
         if refusal:
             typer.echo(f"erro: {refusal}. Nada foi gravado")
             raise typer.Exit(1)
         if not typer.confirm("Executar no alvo neo4j? Esta acao altera a plataforma do cliente."):
             raise typer.Abort()
-        result = publish_tool.publish(project, "neo4j", False, release)
+        removed = neo4j_tool.large_removal(preview, state)
+        if removed:  # remocao grande: origem truncada por engano apagaria o label; pede o numero, nao um y
+            typed = typer.prompt(f"A sincronizacao apaga mais de {neo4j_tool.LARGE_REMOVAL:.0%} de algum label. "
+                                 f"Para confirmar, digite {removed} (total previsto de nos removidos)",
+                                 default="", show_default=False)
+            if typed.strip() != str(removed):
+                typer.echo(f"erro: confirmacao diferente de {removed}; nada foi gravado")
+                raise typer.Exit(1)
+        result = publish_tool.publish(project, "neo4j", False, release, plan)
         _dump(result)
-        for line in n10s_tool.viewing_lines(project, result):
+        for line in neo4j_tool.viewing_lines(project, result):
             typer.echo(line)
     except (typer.Abort, typer.Exit):
         raise
     except (RuntimeError, publish_tool.PublishError) as exc:
-        typer.echo(f"erro: {exc}")
-        raise typer.Exit(1) from exc
+        typer.echo(f"erro: {neo4j_tool._safe(exc, neo4j_tool._adapter_secrets(project))}")
+        raise typer.Exit(1) from None
+    except Exception as exc:  # inesperado (CSV em outra codificacao, csv.Error, driver do banco): curto, sem credencial
+        typer.echo(f"erro: {type(exc).__name__}: {neo4j_tool._safe(exc, neo4j_tool._adapter_secrets(project))}")
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -172,7 +188,12 @@ def publish(target: str = typer.Option("yaml", help="yaml, snowflake, databricks
         return
     if not dry_run and not typer.confirm(f"Executar no alvo {target}? Esta acao altera a plataforma do cliente."):
         raise typer.Abort()
-    _dump(publish_tool.publish(_project(), target, dry_run, release))
+    result = publish_tool.publish(_project(), target, dry_run, release)
+    _dump(result)
+    if target == "neo4j":  # dry-run tambem gera o tutorial do Browser: diz como abrir
+        from .tools.neo4j_guide import guide_lines
+        for line in guide_lines():
+            typer.echo(line)
 
 
 @app.command(name="eval")
@@ -266,10 +287,18 @@ def review(
     export_tool.export(project)
     if background:
         from .tools.review_round import open_round
-        url = ensure_running(project, port, open_browser)
+        try:
+            url = ensure_running(project, port, open_browser)
+        except RuntimeError as exc:
+            typer.echo(f"erro: {exc}")
+            raise typer.Exit(1) from None
         console.print(f"{url} (rodada {open_round(project)['id']})")
         return
-    serve_review(project, port, open_browser)
+    try:
+        serve_review(project, port, open_browser)
+    except RuntimeError as exc:  # servidor de codigo antigo na porta: o humano para e roda de novo
+        typer.echo(f"erro: {exc}")
+        raise typer.Exit(1) from None
 
 
 @app.command("wait-review")

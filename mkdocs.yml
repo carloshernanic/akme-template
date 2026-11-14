@@ -1,0 +1,23 @@
+site_name: Exportação Neo4j em Cypher
+docs_dir: docs/exportacao-neo4j
+site_dir: site
+theme:
+  name: material
+  language: pt-BR
+nav:
+  - Visão geral: index.md
+  - "Task 1: leitura em blocos nos adapters": task-1-adapters.md
+  - "Task 2: conversão de valores e identidade do nó": task-2-valores.md
+  - "Task 3: plano da carga (dry-run)": task-3-plano.md
+  - "Task 4: camada de ontologia (Conceito)": task-4-ontologia.md
+  - "Task 5: validação do add_source": task-5-add-source.md
+  - "Task 6: carga, sincronização e conferência": task-6-carga.md
+  - "Task 7: troca do exportador e remoção do n10s": task-7-troca.md
+  - "Task 8: documentação, guia e verificador da demo": task-8-docs.md
+  - "Task 9: aceitação real (demo, Olist e Postgres)": task-9-aceitacao.md
+  - "Pesquisa: camada semântica no grafo": pesquisa-camada-semantica.md
+  - "Task 10: camada semântica legível no grafo": task-10-semantica.md
+  - "Task 11: tutorial do projeto no Neo4j Browser": task-11-tutorial.md
+  - "Pesquisa: como ver o grafo": pesquisa-visualizacao.md
+  - "Uso real do grafo": uso-do-grafo.md
+  - "Correções de 13/11: Browser e aba Exportar": correcoes-13-11.md

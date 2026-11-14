@@ -5,6 +5,7 @@ from typing import Any
 
 from ..adapters import load_adapter
 from ..project import Project
+from .neo4j_values import shown
 
 JOIN_SIDES = ("from", "to")
 JOIN_FIELDS = ("source", "column")
@@ -46,9 +47,9 @@ def observe_join(project: Project, join: dict[str, Any], sample: int = SAMPLE) -
         for side in JOIN_SIDES:
             src, col = join[side]["source"], join[side]["column"]
             if src not in sources:
-                return {"available": False, "reason": f"fonte inexistente: {src}"}
+                return {"available": False, "reason": f"fonte inexistente: {shown([src])}"}
             if col not in [c["name"] for c in adapter.read_schema(src)["columns"]]:
-                return {"available": False, "reason": f"coluna inexistente: {src}.{col}"}
+                return {"available": False, "reason": f"coluna inexistente: {src}.{shown([col])}"}
             ends[side] = _side(adapter.read_sample(src, sample), col)
     finally:
         adapter.close()
