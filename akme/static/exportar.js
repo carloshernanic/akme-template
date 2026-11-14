@@ -1,4 +1,5 @@
-/* Aba "Exportar": leva a ontologia e os dados para o Neo4j em quatro passos (banco, previa, carga, ver o grafo).
+/* Aba "Exportar": leva a ontologia e os dados para o Neo4j em quatro passos (conectar ao Neo4j, previa, carga,
+   ver o grafo). O passo 1 vale para qualquer Neo4j (Desktop, Docker ou outro); so o passo 4 muda pelo jeito de ver.
    Le /api/neo4j (somente leitura) e dispara a carga em /api/neo4j/carga, sempre com a confirmacao de quem esta na
    pagina. A senha nunca passa por aqui: fica no .env. Sem biblioteca, sem build. */
 (function () {
@@ -14,8 +15,8 @@
   };
   const NAMES = { AKME_NEO4J_URI: "endereço do banco", AKME_NEO4J_USER: "usuário", AKME_NEO4J_PASSWORD: "senha" };
 
-  // como a pessoa roda o Neo4j: "docker" (comando no terminal, grafo visto no Neo4j Browser) ou "desktop" (Neo4j
-  // Desktop, grafo visto no Query dele). A escolha vale do passo 1 ao 4; o akme so precisa de um banco respondendo no
+  // por onde a pessoa ve o grafo no passo 4: "docker" (Neo4j Browser em localhost, com o tutorial :guide) ou
+  // "desktop" (Query do Neo4j Desktop). O passo 1 nao depende disso: o akme so precisa de um banco respondendo no
   // endereco do .env. null = a pessoa ainda nao escolheu
   const VIA_KEY = "akme-neo4j-via";
   const readVia = () => { try { const v = localStorage.getItem(VIA_KEY); return v === "desktop" || v === "docker" ? v : null; } catch (e) { return null; } };
@@ -23,8 +24,8 @@
 
   const S = { api: null, status: null, loading: false, error: "", confirmed: false, typed: "", running: false, loaded: null, loadError: null, opened: false, via: readVia() };
 
-  // caminho em uso: a escolha guardada; sem ela, com o banco conectado, o que o servidor sabe dele
-  // (conteiner do akme -> Docker; outro banco local -> quase sempre o Neo4j Desktop)
+  // roteiro do passo 4: a escolha guardada; sem ela, com o banco conectado, o que o servidor sabe dele
+  // (conteiner do akme -> Browser; outro banco local -> quase sempre o Neo4j Desktop)
   const viewingOf = (st) => (S.loaded && S.loaded.viewing) || (st && st.database && st.database.connected ? st.viewing : null);
   const guessVia = (st) => {
     const v = viewingOf(st);
@@ -60,86 +61,73 @@
   const againBtn = () => `<div><button type="button" class="btn btn-outline btn-sm" data-act="refresh" ${S.loading || S.running ? "disabled" : ""}>Conferir de novo</button></div>`;
 
   // ---------- 1. banco ----------
-  // escolha entre os dois jeitos de ter um Neo4j local; so aparece enquanto o banco nao conecta
-  const pick = (via) => {
-    const card = (key, title, who) =>
-      `<button type="button" class="ex-pick-c" data-act="via" data-via="${key}" aria-pressed="${via === key}"><b>${title}</b><span>${who}</span></button>`;
-    return `<div class="ex-pick" role="group" aria-label="Como rodar o Neo4j">${card("docker", "Docker", "um comando no terminal")}${card("desktop", "Neo4j Desktop", "aplicativo, sem terminal")}</div>`;
-  };
-
-  // Quem chega aqui pela primeira vez nao tem Neo4j: a tela diz isso antes de qualquer outra hipotese.
+  // O akme so precisa de um Neo4j respondendo no endereco do .env, seja qual for o jeito de rodar: o caminho
+  // principal e um so (linhas no .env + conferir). Como criar um banco fica numa ajuda recolhida, que nao muda
+  // os textos de erro.
+  const TITLE1 = "Conecte ao seu Neo4j";
   function stepDatabase(st) {
     const env = st.env, db = st.database, setup = st.setup, box = st.container || {};
-    const via = viaOf(st), desk = via === "desktop";
     const raw = (text) => `<details class="ex-details"><summary>Mensagem técnica</summary><p class="p secondary mono">${esc(text)}</p></details>`;
     const createCmd = code(setup.docker, "o comando do Docker");
-    const dockerNote = `<p class="p secondary">Precisa do Docker aberto. Na primeira vez, leva alguns minutos.</p>`;
-    const create = ["Crie o banco no terminal, na pasta do projeto", `${createCmd}${dockerNote}`];
+    const create = ["Crie o banco no terminal, na pasta do projeto",
+      `${createCmd}<p class="p secondary">Precisa do Docker aberto. Na primeira vez, leva alguns minutos.</p>`];
     const wait = ["Espere uns 20 segundos e confira", againBtn()];
+    const open = (badgeHtml, body) => step(1, TITLE1, badgeHtml, body);
+    // ajuda recolhida: as duas formas de criar um Neo4j local, uma depois da outra
     // Neo4j Desktop: rotulos conferidos no teste de 13/11/2026 (Instances, Create, RUNNING, Connection URI)
-    const deskGet = ["Baixe e abra o Neo4j Desktop",
-      `<div><a class="btn btn-outline btn-sm" href="https://neo4j.com/download/" target="_blank" rel="noopener">neo4j.com/download</a></div>`];
-    const deskCreate = ["Crie uma instância local",
-      `<p class="p">Em <b>Instances</b>, clique em <b>Create</b>. Senha com 8 caracteres ou mais, só letras e números. Espere ficar <b>RUNNING</b>.</p>
-       <p class="p secondary">Se o banco do Docker estiver ligado, pare antes: <code>docker stop akme-neo4j</code>.</p>`];
-    const deskCheck = ["Confira", againBtn()];
-    const envLines = (what) => ["Cole estas linhas no arquivo <code>.env</code>, na pasta do projeto",
-      `${code(desk ? setup.env.map((l) => l.replace(/<invente[^>]*>/, "<a senha que você criou na instância>")) : setup.env, "as linhas do .env")}<p class="ex-must">${I.warn}${desk ? "Troque a senha pela que você criou na instância." : "Troque a senha por uma sua, com 8 caracteres ou mais."}</p>
-       ${desk ? `<p class="p secondary">O Desktop mostra o endereço em <b>Connection URI</b> (<code>neo4j://127.0.0.1:7687</code>). Se a porta for outra, use a dele.</p>` : ""}
-       <p class="p secondary">Falta hoje: ${esc(what)}.</p>`];
-    // passo 1 ainda nao verde: a escolha vem antes das instrucoes
-    const open = (badgeHtml, body) => step(1, "Banco", badgeHtml, `${pick(via)}${body}`);
+    const help = () => {
+      const noDocker = box.docker === false ? `<p class="ex-must">${I.warn}O Docker não respondeu: abra (ou instale) o Docker Desktop antes.</p>` : "";
+      return `<details class="ex-details ex-help"><summary>Ainda não tem um Neo4j?</summary>
+        <div class="ex-alt"><p class="ex-alt-t">Pelo Neo4j Desktop <span>aplicativo, sem terminal</span></p>
+          ${seq([["Baixe e abra o Neo4j Desktop", `<div><a class="btn btn-outline btn-sm" href="https://neo4j.com/download/" target="_blank" rel="noopener">neo4j.com/download</a></div>`],
+                 ["Crie uma instância local", `<p class="p">Em <b>Instances</b>, clique em <b>Create</b>. Senha com 8 caracteres ou mais, só letras e números. Espere ficar <b>RUNNING</b>.</p>`],
+                 ["Use essa senha no <code>.env</code> e confira", ""]])}</div>
+        <div class="ex-alt"><p class="ex-alt-t">Pelo Docker <span>um comando no terminal</span></p>
+          ${noDocker}<p class="p secondary">O banco nasce com a senha do <code>.env</code>: invente uma de 8 caracteres ou mais e coloque lá antes.</p>
+          ${seq([create, ["Espere uns 20 segundos e confira", ""]])}</div>
+      </details>`;
+    };
+    const anyNeo = `<p class="p secondary">Vale qualquer Neo4j: Neo4j Desktop, Docker ou outro servidor local. A porta padrão é a 7687; no Desktop, ela aparece em <b>Connection URI</b>. Se for outra, troque no endereço.</p>`;
 
     if (env.missing.length) {
       const what = env.missing.map((v) => NAMES[v]).join(", ");
+      const lines = setup.env.map((l) => l.replace(/<invente[^>]*>/, "<a senha da sua instância>"));
       return open(badge("warning", "falta configurar"),
-        seq(desk ? [deskGet, deskCreate, envLines(what), deskCheck] : [envLines(what), create, wait]));
+        `${seq([
+          ["Cole estas linhas no arquivo <code>.env</code>, na pasta do projeto",
+            `${code(lines, "as linhas do .env")}<p class="ex-must">${I.warn}Troque a senha pela da sua instância (8 caracteres ou mais).</p>
+             ${anyNeo}<p class="p secondary">Falta hoje: ${esc(what)}.</p>`],
+          ["Salve e confira", againBtn()],
+        ])}${help()}`);
     }
     if (env.password_chars) {
       return open(badge("warning", "senha inválida"),
-        `${desk
-          ? callout("atencao", I.warn, "Troque a senha do .env: ela tem caractere especial", "Use só letras e números em <code>AKME_NEO4J_PASSWORD</code>. Se a instância já tem essa senha, crie outra instância com uma senha assim.")
-          : callout("atencao", I.warn, "Troque a senha do .env: ela tem caractere especial", "Use só letras, números e <code>_ - . @</code> em <code>AKME_NEO4J_PASSWORD</code>. O comando que cria o banco lê a senha pelo terminal, que troca <code>$</code>, espaço, aspas e <code>#</code>; o banco nasceria com outra senha.")}
+        `${callout("atencao", I.warn, "Troque a senha do .env: ela tem caractere especial", "Use só letras, números e <code>_ - . @</code> em <code>AKME_NEO4J_PASSWORD</code> (e na instância). O comando do Docker lê a senha pelo terminal, que troca <code>$</code>, espaço, aspas e <code>#</code>.")}
          ${againBtn()}`);
     }
     if (env.password_short || env.password_placeholder) {
       const why = env.password_placeholder ? "ainda é o texto de exemplo" : "tem menos de 8 caracteres";
       return open(badge("warning", "senha inválida"),
-        `${callout("atencao", I.warn, `Troque a senha do .env: ela ${why}`, desk ? "Use em <code>AKME_NEO4J_PASSWORD</code> a senha que você criou na instância e salve." : "Use 8 caracteres ou mais em <code>AKME_NEO4J_PASSWORD</code> e salve.")}
+        `${callout("atencao", I.warn, `Troque a senha do .env: ela ${why}`, "Use em <code>AKME_NEO4J_PASSWORD</code> a senha da sua instância, com 8 caracteres ou mais, e salve.")}
          ${againBtn()}`);
     }
-    if (!db) return step(1, "Banco", "", "Conferido depois da prévia (passo 2).", true);
-    if (!db.connected && desk) {
-      if (db.kind === "senha") {
-        return open(badge("error", "senha recusada"),
-          `${callout("erro", I.err, "O banco recusou a senha do .env", "Use no <code>.env</code> a senha que você criou junto com a instância.")}
-           ${againBtn()}
-           <details class="ex-details"><summary>Não lembra a senha?</summary><p class="p">Em <b>Instances</b>, clique em <b>Create</b>, crie outra instância e use a senha nova no <code>.env</code>.</p></details>
-           ${raw(db.error)}`);
-      }
-      if (db.kind !== "desligado") {
-        return open(badge("error", "sem conexão"),
-          `${callout("erro", I.err, `Sem conexão com ${esc(env.destination)}`, esc(db.error))}${againBtn()}`);
-      }
-      return open(badge("warning", "banco desligado"),
-        `${callout("nota", I.info, `Nada responde em ${esc(env.destination)}`, "No Desktop, em <b>Instances</b>, a instância precisa estar <b>RUNNING</b>, e a porta do <b>Connection URI</b> tem de ser a do <code>.env</code>.")}
-         ${seq([deskGet, deskCreate, deskCheck])}${raw(db.error)}`);
-    }
+    if (!db) return step(1, TITLE1, "", "Conferido depois da prévia (passo 2).", true);
     if (!db.connected) {
       const name = esc(box.name || "akme-neo4j");
       const remove = code([`docker rm -f ${box.name || "akme-neo4j"}`, `docker volume rm ${box.name || "akme-neo4j"}-data`], "os comandos de limpeza");
       if (db.kind === "senha") {
+        const forgot = box.exists
+          ? `<details class="ex-details"><summary>Não lembra a senha? Recrie o banco (apaga o que está nele)</summary>${remove}${createCmd}</details>`
+          : `<details class="ex-details"><summary>Não lembra a senha?</summary><p class="p">No Neo4j Desktop, em <b>Instances</b>, clique em <b>Create</b>, crie outra instância e use a senha nova no <code>.env</code>.</p></details>`;
         return open(badge("error", "senha recusada"),
-          `${callout("erro", I.err, "O banco recusou a senha do .env", "Volte no <code>.env</code> a senha com que o banco foi criado.")}
-           ${againBtn()}
-           <details class="ex-details"><summary>Não lembra a senha? Recrie o banco (apaga o que está nele)</summary>${remove}${createCmd}</details>
-           ${raw(db.error)}`);
+          `${callout("erro", I.err, "O banco recusou a senha do .env", "Use no <code>.env</code> a senha da sua instância.")}
+           ${againBtn()}${forgot}${raw(db.error)}`);
       }
       if (db.kind !== "desligado") {
         return open(badge("error", "sem conexão"),
           `${callout("erro", I.err, `Sem conexão com ${esc(env.destination)}`, esc(db.error))}${againBtn()}`);
       }
-      // nada responde no endereco: o caso de quem nunca criou o banco, ou de banco parado
+      // nada responde no endereco: banco parado, ligando ou que nunca foi criado
       let body;
       if (box.exists && box.reason === "senha_curta") {
         body = `${callout("erro", I.err, "O banco não subiu: a senha da criação era curta", `A senha do <code>.env</code> agora serve. Recrie o contêiner <code>${name}</code>.`)}
@@ -150,22 +138,21 @@
         body = `${callout("atencao", I.warn, "O banco está desligado", `Contêiner <code>${name}</code> parado.`)}
                 ${seq([["Ligue o banco no terminal", `${code(`docker start ${box.name}`, "o comando para ligar")}<p class="p secondary">Se desligar de novo, veja o motivo com <code>docker logs ${name}</code>.</p>`], wait])}`;
       } else {
-        const noDocker = box.docker === false ? callout("atencao", I.warn, "O Docker não respondeu", "Abra (ou instale) o Docker Desktop antes.") : "";
-        body = `${callout("nota", I.info, "Ainda não há banco", `Nada responde em <code>${esc(env.destination)}</code>. O banco nasce com a senha do <code>.env</code>.`)}
-                ${noDocker}${seq([create, wait])}`;
+        body = `${callout("nota", I.info, `Nada responde em ${esc(env.destination)}`, "Ligue a sua instância. No Neo4j Desktop, em <b>Instances</b>, ela precisa estar <b>RUNNING</b>, e a porta do <b>Connection URI</b> tem de ser a do <code>.env</code>.")}
+                ${againBtn()}${help()}`;
       }
       return open(badge("warning", "banco desligado"), `${body}${raw(db.error)}`);
     }
     if (db.refusal) {
-      return step(1, "Banco", badge("error", "banco recusado"),
+      return step(1, TITLE1, badge("error", "banco recusado"),
         `${callout("erro", I.err, "Este banco não pode receber a carga", `${esc(db.refusal)}. Use um banco vazio ou o deste projeto.`)}
          <p class="p secondary">Conectado a <code>${esc(env.destination)}</code>.</p>`);
     }
-    // por qual caminho, so quando se sabe: conteiner do akme, escolha guardada ou banco local de fora (Desktop)
+    // "pelo Docker" so quando o servidor sabe que o banco e o conteiner do akme; nada de chute
     const v = viewingOf(st);
-    const by = v && v.container_ours === true ? "Docker" : desk && (S.via || guessVia(st)) ? "Neo4j Desktop" : S.via === "docker" ? "Docker" : "";
-    return step(1, "Banco", badge("success", "conectado"),
-      `<p class="p">Conectado a <code>${esc(env.destination)}</code>${by ? ` · pelo ${by}` : ""} · ${db.has_project ? "já tem este projeto" : "banco vazio"}</p>`);
+    const by = v && v.container_ours === true ? " · pelo Docker" : "";
+    return step(1, TITLE1, badge("success", "conectado"),
+      `<p class="p">Conectado a <code>${esc(env.destination)}</code>${by} · ${db.has_project ? "já tem este projeto" : "banco vazio"}</p>`);
   }
 
   // ---------- 2. previa ----------
@@ -265,7 +252,7 @@
   }
 
   // ---------- 4. ver o grafo ----------
-  // troca de roteiro no proprio passo 4: a mesma escolha do passo 1, em formato compacto
+  // troca de roteiro no passo 4: Neo4j Browser ou Query do Neo4j Desktop
   const viaSwitch = (via) => {
     const b = (key, title) => `<button type="button" data-act="via" data-via="${key}" aria-pressed="${via === key}">${title}</button>`;
     return `<div class="ex-via"><span class="ex-via-l">Ver pelo</span><div class="seg" role="group" aria-label="Ver o grafo pelo">${b("docker", "Neo4j Browser")}${b("desktop", "Neo4j Desktop")}</div></div>`;
@@ -393,9 +380,8 @@
     if (!act) return;
     if (act.dataset.act === "via") {
       S.via = act.dataset.via === "desktop" ? "desktop" : "docker";
-      const where = act.closest(".ex-via") ? ".ex-via" : ".ex-pick";
       saveVia(S.via); render();
-      const again = $(`#view-exportar ${where} [data-act="via"][data-via="${S.via}"]`);
+      const again = $(`#view-exportar .ex-via [data-act="via"][data-via="${S.via}"]`);
       if (again) again.focus();  // o redesenho troca o botao: o foco fica nele
       return;
     }
