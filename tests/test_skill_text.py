@@ -51,7 +51,7 @@ def test_skill_waits_for_page_and_mirrors_checklist():
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assert "## Roteiro visivel no harness" in skill and "checklist" in skill
     assert skill.count("wait_for_review") >= 5
-    assert "Volte para o chat da criacao de ontologia" in skill
+    assert "Volte para o chat do Claude Code" in skill
     assert "akme wait-review" in skill
 
 

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ..models import now_iso
-from ..project import Project, write_text_atomic
+from ..project import Project, read_text, write_text_atomic
 
 ROUND_FILE = "round.json"
 WAIT_DEFAULT = 540.0
@@ -28,7 +28,7 @@ def round_path(project: Project) -> Path:
 def read_round(project: Project) -> dict[str, Any] | None:
     path = round_path(project)
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(read_text(path))  # no Windows, a troca atomica do arquivo da PermissionError por instantes
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None
@@ -38,8 +38,19 @@ def _write(project: Project, data: dict[str, Any]) -> None:
     write_text_atomic(round_path(project), json.dumps(data, ensure_ascii=False, indent=2))
 
 
-def open_round(project: Project) -> dict[str, Any]:
-    """Abre uma rodada nova, ou reaproveita a que ja esta esperando (o id continua o mesmo)."""
+_HARNESSES = (("claude-code", "Claude Code"), ("claude", "Claude"), ("codex", "Codex"), ("cursor", "Cursor"),
+              ("antigravity", "Antigravity"), ("agy", "Antigravity"))
+
+
+def harness_label(client_name: str | None) -> str:
+    """Nome legivel do harness a partir do clientInfo.name do MCP; vazio quando nao reconhece."""
+    name = (client_name or "").lower()
+    return next((label for key, label in _HARNESSES if key in name), "")
+
+
+def open_round(project: Project, harness: str = "") -> dict[str, Any]:
+    """Abre uma rodada nova, ou reaproveita a que ja esta esperando (o id continua o mesmo). harness e o nome
+    do agente que abriu a rodada, para a pagina dizer ao humano para onde voltar."""
     from .ontology_write import list_pending
 
     pending = list_pending(project)
@@ -48,7 +59,8 @@ def open_round(project: Project) -> dict[str, Any]:
         data = current
     else:
         data = {"id": "R-" + uuid.uuid4().hex[:8], "status": "waiting", "opened_at": now_iso()}
-    data |= {"pending": len(pending), "undecided": sum(1 for e in pending if e.review is None)}
+    data |= {"pending": len(pending), "undecided": sum(1 for e in pending if e.review is None),
+             "harness": harness or data.get("harness", "")}
     _write(project, data)
     return data
 
@@ -81,6 +93,12 @@ def wait_for_review(project: Project, round_id: str | None = None, timeout: floa
     deadline = time.monotonic() + timeout
     while True:
         current = read_round(project)
+        # o apply em lote troca a pasta ontology/ inteira (batch.promote): a rodada some por instantes
+        for _ in range(40):
+            if current is not None:
+                break
+            time.sleep(0.05)
+            current = read_round(project)
         if current is None or (round_id and current.get("id") != round_id):
             return {"status": "no_round", "round": current,
                     "hint": "Chame open_review antes para abrir uma rodada de revisao."}
