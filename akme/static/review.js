@@ -112,6 +112,9 @@
   const stage = () => S.data.stage || null;
   const round = () => S.data.round || {};
   const agentWaiting = () => round().status === "waiting";
+  // para onde o humano volta fora do modo canal: o chat do agente que abriu a rodada (o servidor guarda o nome)
+  const agentChat = () => (round().harness ? `o chat do ${round().harness}` : "o chat do seu agente (no terminal ou no editor)");
+  window.AkmeBack = { chat: agentChat };
   const origin = (by) => (!by || by === "agent" || by === "IA" ? "Proposta pela IA" : "Proposta por " + by);
   const originLow = (by) => (!by || by === "agent" || by === "IA" ? "proposta pela IA" : "proposta por " + by);
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -995,9 +998,9 @@
     const r = round(), n = counts();
     let html = "";
     if (S.api && r.status === "waiting") {
-      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">${lean() ? "Decida e clique em <b>Conferir e salvar</b>" : "Decida, salve e clique em <b>Aplicar decididas</b>"}. ${channel() ? "Depois disso o agente segue sozinho no painel Conversa." : "Depois volte para o chat da criação de ontologia: o agente segue sozinho, sem você precisar escrever nada."}</div></div></div>`;
+      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">${lean() ? "Decida e clique em <b>Conferir e salvar</b>" : "Decida, salve e clique em <b>Aplicar decididas</b>"}. ${channel() ? "Depois disso o agente segue sozinho no painel Conversa, aqui nesta página." : `Depois volte para ${esc(agentChat())}: o agente segue sozinho, sem você precisar escrever nada.`}</div></div></div>`;
     } else if (S.api && r.status === "applied" && !n.todo) {
-      html = `<div class="callout callout-ok">${I.ok}<div><div class="t">${channel() ? "Decisões aplicadas" : "Volte para o chat da criação de ontologia"}</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo${channel() ? " no painel Conversa" : ""}.</div></div></div>`;
+      html = `<div class="callout callout-ok">${I.ok}<div><div class="t">${channel() ? "Decisões aplicadas" : `Volte para ${esc(agentChat())}`}</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo${channel() ? " no painel Conversa desta página" : ""}.</div></div></div>`;
     }
     el.innerHTML = html;
     el.hidden = !html;
@@ -1120,11 +1123,11 @@
     body.innerHTML = `<h2 class="h3-semibold">Aplicado</h2>
       <div class="callout callout-ok">${I.ok}<div><div class="t">${plural((out.applied || []).length, "proposta entrou", "propostas entraram")} na ontologia; ${plural((out.rejected || []).length, "rejeitada registrada", "rejeitadas registradas")} no changelog.</div>
         <div class="b">${types ? `<p>${esc(types)}.</p>` : ""}${(out.held_by_gate || []).length ? `<p>${out.held_by_gate.length} propostas da ontologia ficaram esperando os requisitos fecharem.</p>` : ""}${(out.preexisting_errors || []).length ? `<p>A validação já tinha ${out.preexisting_errors.length} erros antes; eles continuam lá.</p>` : ""}</div></div></div>
-      <div class="callout callout-back">${I.info}<div><div class="t">${channel() ? "O agente segue no painel Conversa" : "Volte para o chat da criação de ontologia"}</div><div class="b">${waited ? "O agente estava esperando esta aplicação e já está seguindo para o próximo passo." : "Diga ao agente que aplicou, para ele seguir."}${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
+      <div class="callout callout-back">${I.info}<div><div class="t">${channel() ? "O agente segue no painel Conversa desta página" : `Volte para ${esc(agentChat())}`}</div><div class="b">${waited ? "O agente estava esperando esta aplicação e já está seguindo para o próximo passo." : "Diga ao agente que aplicou, para ele seguir."}${after.label ? ` Agora: ${esc(after.label)}.` : ""}</div></div></div>
       <div class="dlg-actions"><button type="button" class="btn" data-act="dlg-close">Fechar</button></div>`;
     try { await reload(); } catch (e) {}
     render();
-    setMsg("success", channel() ? "Decisões aplicadas. O agente segue no painel Conversa." : "Decisões aplicadas. Volte para o chat da criação de ontologia.");
+    setMsg("success", channel() ? "Decisões aplicadas. O agente segue no painel Conversa desta página." : `Decisões aplicadas. Volte para ${agentChat()}.`);
   }
 
   // leva o revisor ate o cartao de um pendente: troca de aba se precisar, rola e poe o foco

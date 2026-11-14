@@ -5,7 +5,7 @@ import urllib.request
 
 from akme import review_server
 from akme.tools import ontology_write
-from akme.tools.review_round import open_round, read_round, wait_for_review
+from akme.tools.review_round import harness_label, open_round, read_round, wait_for_review
 from akme.tools.stage import current_stage
 
 CQ = {"question": "q", "type": "atributos", "concepts": ["X"],
@@ -23,6 +23,21 @@ def test_open_round_reuses_waiting_round(seeded):
     first = open_round(seeded)
     assert first["status"] == "waiting" and first["pending"] == 1
     assert open_round(seeded)["id"] == first["id"]
+
+
+def test_harness_label_maps_mcp_client_names():
+    assert harness_label("claude-code") == "Claude Code"
+    assert harness_label("codex-mcp-client") == "Codex"
+    assert harness_label("cursor-vscode") == "Cursor"
+    assert harness_label("Antigravity") == "Antigravity"
+    assert harness_label("outro-cliente") == "" and harness_label(None) == ""
+
+
+def test_open_round_keeps_harness_for_the_page(seeded):
+    _cq(seeded)
+    assert open_round(seeded, "Codex")["harness"] == "Codex"
+    assert open_round(seeded)["harness"] == "Codex"  # reaproveitada sem nome: mantem o que ja tinha
+    assert read_round(seeded)["harness"] == "Codex"
 
 
 def test_wait_times_out_while_human_has_not_applied(seeded):

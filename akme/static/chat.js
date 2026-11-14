@@ -218,7 +218,8 @@
     on: () => S.channel,
     // o servidor escreve "No chat, peca ao agente..."; no modo canal o agente segue sozinho
     step: (t) => (S.channel ? String(t || "").replace(/^No chat, peça (ao agente )?(para )?/, "O agente segue sozinho: ") : String(t || "")),
-    after: () => (S.channel ? "O agente recebe o resultado e segue no painel Conversa." : "Volte para o chat: o agente segue para o próximo passo."),
+    after: () => (S.channel ? "O agente recebe o resultado e segue no painel Conversa desta página."
+      : `Volte para ${window.AkmeBack ? window.AkmeBack.chat() : "o chat do seu agente"}: o agente segue para o próximo passo.`),
     ask(text) {
       if (!S.ready) return;
       setOpen(true);
