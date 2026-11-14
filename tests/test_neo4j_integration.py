@@ -238,19 +238,20 @@ def _descricao(project, on):
     return Project(project.root)
 
 
-def test_real_description_is_off_by_default_and_turning_off_clears_it(seeded, db):
-    """Padrao: nenhum no ou aresta de dado com _descricao. Ligar grava; desligar de novo apaga na carga seguinte."""
+def test_real_description_is_on_by_default_and_turning_off_clears_it(seeded, db):
+    """Padrao: todo no e aresta de dado com _descricao. Desligar apaga na carga seguinte; tirar a opcao grava de novo."""
     data = "n._projeto = 'demo' AND NOT n:Conceito AND NOT n:Termo"
     with_text = (f"MATCH (n) WHERE {data} AND n._descricao IS NOT NULL RETURN count(n)",
                  f"MATCH (n)-[r]->() WHERE {data} AND r._descricao IS NOT NULL RETURN count(r)")
+    everything = [sum(EXPECTED_NODES.values()), sum(EXPECTED_EDGES.values())]
     assert _publish(seeded)["verification"]["ok"]
-    assert [_count(db, q) for q in with_text] == [0, 0]
+    assert [_count(db, q) for q in with_text] == everything
     assert _count(db, "MATCH (c:Conceito {_projeto: 'demo', nome: 'Pedido'}) RETURN c.definicao").startswith("Solicitacao")
-    _publish(_descricao(seeded, True))
-    assert [_count(db, q) for q in with_text] == [sum(EXPECTED_NODES.values()), sum(EXPECTED_EDGES.values())]
-    again = _publish(_descricao(seeded, False))
+    off = _publish(_descricao(seeded, False))
     assert [_count(db, q) for q in with_text] == [0, 0]
-    assert again["removed"] == {"nodes": 0, "relationships": 0}
+    assert off["removed"] == {"nodes": 0, "relationships": 0}
+    _publish(_descricao(seeded, True))
+    assert [_count(db, q) for q in with_text] == everything
 
 
 def test_real_semantic_layer(seeded, db):

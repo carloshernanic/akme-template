@@ -112,6 +112,10 @@ No Olist (11/11), um termo foi mapeado para a tabela errada e a tabela de produt
 - **O `validate` avisa antes da etapa 5** (`source_classes`) quando uma tabela recebe termos de mais de uma classe, dizendo quais termos puxam cada classe. Antes, isso só aparecia como problema do plano de carga.
 - **No Neo4j, a correção chega na carga seguinte:** ela sincroniza o banco com a origem, então nós e propriedades do nome antigo saem.
 
+## Definição em cada nó, por padrão
+
+Navegando o grafo do capstone, a definição aparecia ao clicar num `Termo`, mas não ao clicar num registro (`EventoCalendario`, `Projeto`): ela fica no `Conceito` de mesmo nome. A opção `descricao_nos_dados`, que grava `_descricao` em cada nó e aresta de dado, passou a vir **ligada por padrão** (decisão de Mateus, 13/11). Quem tem uma base grande desliga com `neo4j: {descricao_nos_dados: false}` no `akme.yml`: no Olist, a opção ligada custou 14% de disco numa base nova. Vale a partir da próxima carga.
+
 ## O que ficou aberto
 
 - **Grafo desconectado sem aviso próprio.** A aba Exportar já lista as classes sem ligação; falta contar pedaços e nós isolados no dry-run e pôr a regra na etapa 3 do `SKILL.md`.

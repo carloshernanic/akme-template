@@ -149,7 +149,7 @@ O grau dos vendedores mostra por que a exploração precisa de limite: o maior v
 
 Para quem não escreve Cypher, o tutorial do projeto no Browser (`:guide http://127.0.0.1:8765/neo4j/guia`, servido pelo `akme review`) traz esse caminho pronto, em seis páginas só de navegação: o que tem no banco, a ontologia, os dados, explorar um registro de cada classe, como navegar e perguntas em português pelo console da Aura (este último, não testado). Ver a [Task 11](task-11-tutorial.md).
 
-Nesse desenho, porém, o nó `Pedido` não mostra a definição de "Pedido": os nós de dado não têm aresta para a camada `Conceito`, e `_descricao` vem desligada por padrão. A definição está no `Conceito` de mesmo nome e no esquema para o LLM. Veja o item d.
+Nesse desenho, porém, o nó `Pedido` não mostra a definição de "Pedido": os nós de dado não têm aresta para a camada `Conceito`, e `_descricao` vinha desligada por padrão quando este texto foi escrito (desde 13/11 vem ligada: a definição aparece ao clicar no nó). A definição está também no `Conceito` de mesmo nome e no esquema para o LLM. Veja o item d.
 
 ### d) A ontologia como contexto para um LLM
 

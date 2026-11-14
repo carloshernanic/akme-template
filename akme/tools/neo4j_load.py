@@ -6,9 +6,9 @@ grava as arestas, resolvidas pelo banco pela coluna do join; grava a ontologia (
 LLM na marca; e so entao, se nenhuma outra carga do projeto comecou depois desta, apaga deste projeto o que nao veio
 nesta carga. Todo comando de dado, da ontologia e do esquema comeca pela trava (`_LOCK`): depois que uma carga mais
 nova troca `carga_atual`, a antiga nao grava mais nada. Toda gravacao fora a sincronizacao usa transacao gerenciada (execute_write), que o driver repete em erro
-transitorio; repetir e seguro porque tudo e MERGE. Com `neo4j.descricao_nos_dados: true` no akme.yml, cada no e
-aresta de dado leva `_descricao` (definicao da classe ou da relacao) no mesmo SET que o grava; desligada (padrao), o
-SET recebe null e a propriedade fica ausente (e some de uma carga anterior que a tinha). Dados vao sempre como parametro; so identificadores entram no texto, por name().
+transitorio; repetir e seguro porque tudo e MERGE. Por padrao, cada no e
+aresta de dado leva `_descricao` (definicao da classe ou da relacao) no mesmo SET que o grava; com
+`neo4j.descricao_nos_dados: false` no akme.yml, o SET recebe null e a propriedade fica ausente (e some de uma carga anterior que a tinha). Dados vao sempre como parametro; so identificadores entram no texto, por name().
 Credenciais vem do ambiente e nunca aparecem numa mensagem de erro.
 """
 from __future__ import annotations
@@ -275,7 +275,7 @@ def _indexes(plan: Plan) -> list[str]:
     return list(dict.fromkeys(_index(e.range, e.to_column) for e in plan.edges))
 
 
-# $descricao e o texto da classe ou da relacao, igual em todo o bloco; null (opcao desligada, o padrao, ou sem
+# $descricao e o texto da classe ou da relacao, igual em todo o bloco; null (opcao desligada, ou sem
 # definicao) deixa a propriedade ausente
 # Cada bloco comeca pela trava (_LOCK): depois que outra carga do projeto troca carga_atual, o bloco nao grava nada
 # e devolve gravadas = 0; a carga entao confere a marca e para, sem sujar o que a mais nova gravou.
@@ -362,7 +362,7 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
         raise PublishError("carga recusada, nada foi gravado: " + "; ".join(problems))
     keys = {s.source: s.key for s in plan.sources}
     statements = _ontology(project, plan) + [(SCHEMA_SET, {"esquema": llm_schema(project, plan)})]
-    # desligada (padrao): todo bloco manda null, e o SET apaga a _descricao que uma carga anterior tenha gravado
+    # desligada: todo bloco manda null, e o SET apaga a _descricao que uma carga anterior tenha gravado
     node_text, edge_text = descriptions(project) if plan.descricao else ({}, {})
     total = _predicted(plan)
     with _driver() as driver, _session(driver) as session:
@@ -523,7 +523,7 @@ def _artifact(project: Project, model: dict[str, Any], plan: Plan, batches: int)
             *[q + ";" for q in [_constraint(label) for label in plan.nodes] + [CONCEPT_CONSTRAINT, TERM_CONSTRAINT] + _indexes(plan)],
             "", _comment("3. nos, por fonte (modelo: $rows = [{id, p}] em blocos, os dados nao estao aqui;"),
             _comment("   $descricao = definicao da classe, ou null sem definicao)" if plan.descricao else
-                     "   $descricao = null: _descricao desligada, o padrao; neo4j.descricao_nos_dados: true no akme.yml liga)"),
+                     "   $descricao = null: _descricao desligada por neo4j.descricao_nos_dados: false no akme.yml)"),
             *[_comment(f"{s.source}: {_node_query(s.label)}") for s in plan.sources],
             "", _comment("4. arestas, por contrato (modelo: $rows = [{id, v}] em blocos da origem;"),
             _comment("   $descricao = definicao da relacao, ou o rotulo enquanto ela nao tiver definicao)" if plan.descricao else

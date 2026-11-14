@@ -515,16 +515,26 @@ def test_in_db_count_leaves_out_akme_layers():
     assert "'Conceito'" in neo4j_load.IN_DB_QUERY and "'Termo'" in neo4j_load.IN_DB_QUERY
 
 
-def _descricao_on(project):
+def _descricao_on(project, on=True):
     from akme.project import Project, read_yaml, write_yaml
 
     config = read_yaml(project.root / "akme.yml")
-    write_yaml(project.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": True}})
+    write_yaml(project.root / "akme.yml", {**config, "neo4j": {"descricao_nos_dados": on}})
     return Project(project.root)
 
 
-def test_description_is_off_by_default(seeded, fake):
-    """Padrao: _descricao fica ausente em nos e arestas de dado (SET com null); a definicao segue no Conceito."""
+def test_description_is_on_by_default(seeded, fake):
+    """Padrao (desde 13/11): cada no de dado leva a definicao da classe, sem nada no akme.yml."""
+    assert build_plan(seeded).descricao is True
+    neo4j_load.load(seeded, build_plan(seeded), CARGA)
+    pedido = next(p for q, p in fake["session"].calls if "MERGE (n:`Pedido`" in q)
+    assert pedido["descricao"] == "Solicitacao de compra de um cliente, com status e valor total."
+
+
+def test_description_can_be_turned_off(seeded, fake):
+    """Com descricao_nos_dados: false, _descricao fica ausente em nos e arestas de dado (SET com null); a definicao
+    segue no Conceito."""
+    seeded = _descricao_on(seeded, False)
     session = fake["session"]
     neo4j_load.load(seeded, build_plan(seeded), CARGA)
     data = [p for q, p in session.calls if "MERGE (n:" in q or "MERGE (a)-[e:" in q]
@@ -565,7 +575,7 @@ def test_class_without_definition_sends_no_description(seeded, fake):
 @pytest.mark.parametrize("on", [False, True])
 def test_artifact_schema_guide_and_viewing_follow_the_option(seeded, monkeypatch, on):
     """Artefato, esquema para o LLM, tutorial e mensagem final dizem a mesma coisa nos dois modos."""
-    project = _descricao_on(seeded) if on else seeded
+    project = _descricao_on(seeded, on)
     monkeypatch.setenv("AKME_NEO4J_URI", "bolt://127.0.0.1:7687")
     monkeypatch.setenv("AKME_NEO4J_USER", "neo4j")
     monkeypatch.setenv("AKME_NEO4J_PASSWORD", "x")

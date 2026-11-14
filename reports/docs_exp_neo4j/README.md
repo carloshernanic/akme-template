@@ -422,17 +422,17 @@ Cada nó de dado tem:
 - uma propriedade por coluna preenchida, com o nome da coluna e o tipo aprovado;
 - `_id`, que é a identidade dele, formada pela chave (ex: `1001`, ou `1001/CIM-50` numa chave composta);
 - `_projeto` e `_carga`, usadas pela proteção do destino e pela sincronização;
-- só se você ligar a opção (abaixo), `_descricao`, a definição da classe, igual à do `Conceito`. Sem a opção, que é o padrão, a definição fica no `Conceito` de mesmo nome: `MATCH (c:Conceito {nome: 'Pedido'}) RETURN c.definicao`;
+- `_descricao`, a definição da classe, igual à do `Conceito` (ligada por padrão; dá para desligar, abaixo). Desligada, a definição fica só no `Conceito` de mesmo nome: `MATCH (c:Conceito {nome: 'Pedido'}) RETURN c.definicao`;
 - `name`, a legenda que o Browser mostra na bolinha: o valor da coluna de legenda da etapa 5 (por exemplo, `Construtora Horizonte`). Sem coluna de legenda, ou na linha em que ela está vazia, o label e a chave, mais uma coluna descritiva quando há (por exemplo, `ItemPedido 1001/CIM-50 100`). Se a tabela tiver uma coluna `name`, vale a dela.
 
-**`_descricao` nos dados (opcional, desligada por padrão).** Para gravar a definição em cada nó e aresta de dado, e vê-la ao clicar no nó do Browser, acrescente ao `akme.yml`:
+**`_descricao` nos dados (ligada por padrão desde 13/11/2026).** A carga grava a definição em cada nó e aresta de dado, para ela aparecer ao clicar no nó, no Browser ou no Desktop. Para desligar, por exemplo numa base grande, acrescente ao `akme.yml`:
 
 ```yaml
 neo4j:
-  descricao_nos_dados: true
+  descricao_nos_dados: false
 ```
 
-e carregue de novo. Custa disco: no Olist, o banco ficou 14% maior numa base nova e 43% maior regravando por cima de uma carga anterior. Para voltar, apague o bloco e carregue de novo: a carga apaga a propriedade. O bloco `neo4j` só aceita essa opção.
+e carregue de novo: a carga apaga a propriedade, e a definição fica só no `Conceito`. O que a opção ligada custa é disco: no Olist, o banco ficou 14% maior numa base nova e 43% maior regravando por cima de uma carga anterior. Para voltar ao padrão, apague o bloco e carregue de novo. O bloco `neo4j` só aceita essa opção.
 
 As arestas de dados têm o nome exato da relação na ontologia, por exemplo `(:Pedido)-[:pertenceA]->(:Cliente)`; com a opção ligada, também uma `_descricao`: a definição da relação ou, enquanto a ontologia não tiver uma, o rótulo (por exemplo, `pertence a`). Uma relação inversa sem aresta própria (`possuiPedido`) é a mesma aresta lida ao contrário: `MATCH (c:Cliente)<-[:pertenceA]-(p:Pedido)`. As classes de base do akme (`Entity`, `Metric`, `Relation`, `Rule`) não viram `Conceito`: de qual delas a classe descende fica em `tipo`. Para ver o que a ontologia define e os dados ainda não têm: `MATCH (c:Conceito) WHERE NOT c.publicada_nos_dados RETURN c.nome, c.tipo, c.definicao`. Na camada da ontologia, cada relação do `schema.ttl`, inversas incluídas, aparece como seta `RELACAO_ONTOLOGIA` entre os conceitos, com o nome em `nome`: `(:Conceito {nome: 'Pedido'})-[:RELACAO_ONTOLOGIA {nome: 'pertenceA'}]->(:Conceito {nome: 'Cliente'})`, mais `publicada_nos_dados`, que diz se ela tem aresta nos dados; a hierarquia aparece como `SUBCLASSE_DE`. Por os tipos serem diferentes, o mapa do próprio Neo4j (`CALL db.schema.visualization()`, página "Os dados" do tutorial) desenha só as ligações que existem nos dados. Os termos do negócio ficam em nós `Termo`, ligados ao seu conceito: `MATCH p = (:Conceito)-[:TEM_TERMO]->(:Termo) RETURN p`. Os dados não se ligam à ontologia por arestas, só pelo label.
 
@@ -527,7 +527,7 @@ O comando não mostra nada quando dá certo. Depois, rode a carga de novo (seç�
 - **CSV e XLSX aparam diferente:** na planilha, o akme tira os espaços das pontas de cada célula e trata célula só com espaços como vazia; no CSV, o valor fica como está. A mesma tabela nos dois formatos pode gerar `_id` diferentes quando há espaço nas pontas da chave.
 - **Linha com colunas a mais ou a menos:** no CSV, linha com colunas a mais ou a menos é recusada pelo plano, com o número da linha onde começa a primeira (`N linha(s) de X com colunas a mais ou a menos`). Na planilha, só valor além do cabeçalho é detectado: célula vazia no fim da linha não se distingue de coluna faltando. Corrija o arquivo antes de carregar. Linha totalmente em branco no CSV é pulada e não conta, exceto num CSV de uma coluna só: lá ela é um registro com valor vazio, recusado como chave vazia. A etapa 5 (`add_source`) recusa a linha malformada como o plano.
 - **Dinheiro:** é gravado como `FLOAT`, porque o Neo4j não tem tipo decimal. Não serve para conciliação contábil.
-- **`_descricao` ligada ocupa espaço:** com a opção ligada, o texto da definição é repetido em cada nó e aresta de dado. No Olist, o banco foi de 443 para 507 MiB numa base nova (+14%), e a Task 10 mediu +43% regravando por cima. Por isso a opção vem desligada.
+- **`_descricao` ligada ocupa espaço:** com a opção ligada, o texto da definição é repetido em cada nó e aresta de dado. No Olist, o banco foi de 443 para 507 MiB numa base nova (+14%), e a Task 10 mediu +43% regravando por cima. Por isso dá para desligar com `descricao_nos_dados: false`; o padrão é ligada, porque ver a definição ao clicar no nó ajuda quem navega.
 - **Relações sem definição:** a ontologia ainda não exige definição nas relações, então, com a opção ligada, a `_descricao` das arestas costuma ser só o rótulo.
 - **Aura não testado:** tudo neste guia foi testado com o Neo4j local em Docker. O AuraDB e o Enterprise não foram testados; a conexão do console da Aura ao banco local foi testada uma vez (seção 4.2).
 - **Tutorial só nesta máquina:** o `akme review` serve o tutorial em `127.0.0.1`. Para um time, o arquivo `docs/publish/neo4j_guia.html` precisa de um endereço com CORS que todos alcancem. Não testamos o `:guide` no Query do console da Aura.

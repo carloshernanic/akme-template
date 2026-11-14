@@ -90,8 +90,10 @@ def test_explore_starts_from_the_most_connected_record(seeded):
 def test_navigation_and_aura_slides(seeded):
     slides = _slides(guide_html(build_plan(seeded)))
     nav = slides[3]
-    assert "tipo de relação" in nav and "Dois cliques" in nav and "_descricao" not in nav, "padrao: sem _descricao nos dados"
-    assert "definicao" in nav and "página A ontologia" in nav
+    assert "tipo de relação" in nav and "Dois cliques" in nav
+    assert "<code>_descricao</code> traz a definição da classe" in nav, "padrao: _descricao nos dados"
+    off = _slides(guide_html(dataclasses.replace(build_plan(seeded), descricao=False)))[3]
+    assert "_descricao" not in off and "definicao" in off and "página A ontologia" in off
     assert "RELACAO_ONTOLOGIA</code> = relação da ontologia" in nav
     assert "<code>:style</code>" in nav and "docs/publish/neo4j_estilo.grass" in nav
     aura = slides[4]

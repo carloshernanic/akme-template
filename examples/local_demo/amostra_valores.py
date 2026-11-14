@@ -5,8 +5,8 @@ Vale para qualquer projeto carregado pelo `akme publish --target neo4j --no-dry-
   - converte cada celula preenchida com `convert` do tipo aprovado na etapa 5 (texto se nao declarado);
   - busca o no por label e `_id`;
   - compara campo a campo: mesmo valor e mesmo tipo, nenhuma propriedade a mais ou a menos alem das do akme:
-    `_id`, `_projeto`, `_carga` e, so com `neo4j.descricao_nos_dados: true` no akme.yml, `_descricao` (desligada, o
-    padrao, uma `_descricao` no no conta como propriedade a mais). A legenda `name` tambem e conferida: o valor esperado e o da regra do
+    `_id`, `_projeto`, `_carga` e `_descricao` (ligada por padrao; com `neo4j.descricao_nos_dados: false` no akme.yml,
+    uma `_descricao` no no conta como propriedade a mais). A legenda `name` tambem e conferida: o valor esperado e o da regra do
     akme (neo4j_values.caption), ou a coluna `name` da origem quando a fonte tem uma (preenchida na linha).
 Datas voltam do driver como neo4j.time.Date e sao normalizadas com to_native() para datetime.date antes da comparacao.
 A saida nao mostra valores das linhas, so contagens e o nome da coluna divergente.

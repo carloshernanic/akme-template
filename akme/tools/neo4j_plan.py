@@ -65,7 +65,7 @@ class Plan:
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     rows: int = 0
-    descricao: bool = False  # neo4j.descricao_nos_dados do akme.yml: grava _descricao nos nos e arestas de dado
+    descricao: bool = True  # neo4j.descricao_nos_dados do akme.yml (padrao ligado): grava _descricao nos nos e arestas de dado
     concepts_without_data: list[str] = field(default_factory=list)  # classes da ontologia sem no de dado nesta carga
 
 
@@ -128,9 +128,10 @@ def contract_keys(contracts: list[dict[str, Any]]) -> dict[str, str]:
 # Opcoes do bloco neo4j do akme.yml. So o que muda a forma do grafo e nao e decisao de ontologia: chave e tipos de
 # cada fonte sao da etapa 5 (content.yml), e o bloco antigo com eles continua recusado.
 NEO4J_OPTIONS = {
-    # _descricao (definicao da classe ou da relacao) em cada no e aresta de dado. Desligada: a definicao continua no
-    # Conceito e no esquema para o LLM, e o banco do Olist fica 43% menor (medido na Task 10)
-    "descricao_nos_dados": False,
+    # _descricao (definicao da classe ou da relacao) em cada no e aresta de dado, para aparecer ao clicar na bolinha.
+    # Ligada por padrao desde 13/11 (decisao de Mateus). Com false, a definicao fica so no Conceito e no esquema para
+    # o LLM, e o banco fica menor (no Olist, 14% numa base nova; medido na Task 10)
+    "descricao_nos_dados": True,
 }
 
 

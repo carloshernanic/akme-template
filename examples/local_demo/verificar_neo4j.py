@@ -6,8 +6,8 @@ do schema.ttl: setas RELACAO_ONTOLOGIA com o nome em `nome`), o mapa db.schema.v
 (Termo), a legenda name de cada no, a _descricao de nos e arestas, o esquema para o LLM na marca do projeto,
 as restricoes e indices akme_*, os valores e tipos gravados e a marca da carga (sincronizacao).
 
-A _descricao e conferida no modo do projeto: com `neo4j: {descricao_nos_dados: true}` no akme.yml da pasta atual,
-todo no e aresta de dado tem a definicao; sem a opcao (padrao), nenhum tem a propriedade.
+A _descricao e conferida no modo do projeto: por padrao, todo no e aresta de dado tem a definicao; com
+`neo4j: {descricao_nos_dados: false}` no akme.yml da pasta atual, nenhum tem a propriedade.
 
 Uso, com as variaveis AKME_NEO4J_* no ambiente:
     uv run --extra neo4j python examples/local_demo/verificar_neo4j.py
@@ -60,13 +60,13 @@ DESCRICAO = None  # None: le neo4j.descricao_nos_dados do akme.yml da pasta atua
 
 
 def descricao_ligada() -> bool:
-    """Modo da _descricao nos dados, pela mesma regra da carga (neo4j_options); sem akme.yml, desligada."""
+    """Modo da _descricao nos dados, pela mesma regra da carga (neo4j_options); sem akme.yml, ligada (o padrao)."""
     if DESCRICAO is not None:
         return DESCRICAO
     from akme.project import Project
     from akme.tools.neo4j_plan import neo4j_options
 
-    return bool(neo4j_options(Project(Path.cwd()))[0]["descricao_nos_dados"]) if Path("akme.yml").exists() else False
+    return bool(neo4j_options(Project(Path.cwd()))[0]["descricao_nos_dados"]) if Path("akme.yml").exists() else True
 # termos do content.yml da demo, cada um ligado ao conceito da sua classe
 TERMOS = {"categoria": "Produto", "cliente": "Cliente", "cliente_ativo": "Cliente", "data_pedido": "Pedido",
           "faturamento": "Faturamento", "pedido": "Pedido", "produto": "Produto", "quantidade": "ItemPedido",
@@ -245,9 +245,9 @@ def _main() -> int:
                   EDGE_TEXT)
         else:
             # n[$prop]: num banco sem a propriedade, o nome escrito na consulta faz o servidor avisar (01N52)
-            check("nenhum no de dado com _descricao (opcao desligada, o padrao)",
+            check("nenhum no de dado com _descricao (opcao desligada)",
                   lambda: scalar(f"MATCH (n) WHERE {DATA} AND n[$prop] IS NOT NULL RETURN count(n) AS c", p=p, prop="_descricao"), 0)
-            check("nenhuma aresta de dado com _descricao (opcao desligada, o padrao)",
+            check("nenhuma aresta de dado com _descricao (opcao desligada)",
                   lambda: scalar(f"MATCH (n)-[r]->() WHERE {DATA} AND r[$prop] IS NOT NULL RETURN count(r) AS c", p=p, prop="_descricao"), 0)
         check("esquema para o LLM na marca do projeto",
               lambda: (lambda e: bool(e) and e.startswith("# Esquema do grafo") and "### Pedido" in e and "NOT n:Conceito" in e)(

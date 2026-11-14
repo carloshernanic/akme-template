@@ -509,8 +509,8 @@ def test_key_column_with_invisible_character_is_shown(seeded):
     assert "sku<U+200B>" in problem and "​" not in problem and "invisivel" in problem
 
 
-def test_descricao_on_data_is_off_by_default(seeded):
-    assert build_plan(seeded).descricao is False
+def test_descricao_on_data_is_on_by_default(seeded):
+    assert build_plan(seeded).descricao is True
 
 
 @pytest.mark.parametrize("value,expected", [(True, True), (False, False)])
