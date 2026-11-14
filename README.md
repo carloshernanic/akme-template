@@ -111,7 +111,45 @@ Instale o extra do Neo4j uma vez:
 uv sync --extra neo4j
 ```
 
-Depois, a aba "Exportar" da pagina (`uv run akme review`) guia a exportacao em quatro passos: conectar ao seu Neo4j (Neo4j Desktop, Docker ou outro servidor), conferir a previa, carregar e ver o grafo. A carga e so sua, pelo botao da aba ou pela CLI; o agente nao carrega. O passo a passo completo e a tabela de erros estao em `reports/docs_exp_neo4j/README.md`.
+Depois, a aba "Exportar" da pagina (`uv run akme review`) guia a exportacao em quatro passos: conectar ao seu Neo4j (Neo4j Desktop, Docker ou outro servidor), conferir a previa, carregar e ver o grafo. A carga e so sua, pelo botao da aba ou pela CLI; o agente nao carrega.
+
+Pela CLI, o caminho e este:
+
+1. Preencha no `.env` (copie de `.env.example` se ainda nao existir) as linhas do Neo4j. A senha fica so no `.env`, que o Git ignora:
+
+   ```bash
+   AKME_NEO4J_URI=bolt://127.0.0.1:7687
+   AKME_NEO4J_USER=neo4j
+   AKME_NEO4J_PASSWORD=<senha com pelo menos 8 caracteres>
+   ```
+
+2. Suba o Neo4j (5.23 ou mais novo). Com Docker, na primeira vez:
+
+   ```bash
+   set -a; . ./.env; set +a
+   NEO4J_AUTH="neo4j/$AKME_NEO4J_PASSWORD" docker run -d --name akme-neo4j \
+     --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
+     --env NEO4J_AUTH --volume=akme-neo4j-data:/data \
+     neo4j:2026.10.1
+   ```
+
+   Nas proximas vezes, `docker start akme-neo4j`. Sem Docker, use o Neo4j Desktop com o endereco e a senha do `.env`.
+
+3. Gere a previa (dry-run, nao toca no banco; grava `docs/publish/neo4j.cypher` e `docs/publish/neo4j_schema.md`):
+
+   ```bash
+   uv run akme publish --target neo4j
+   ```
+
+4. Carregue. A CLI mostra o destino, o que vai gravar e o que o banco tem hoje, e pede confirmacao. A carga altera o banco e nao tem como desfazer:
+
+   ```bash
+   uv run akme publish --target neo4j --no-dry-run
+   ```
+
+5. Abra o Neo4j Browser em `http://localhost:7474`. Com o `uv run akme review` ligado, o tutorial do projeto abre com `:guide http://127.0.0.1:8765/neo4j/guia`.
+
+O passo a passo completo, as opcoes do `.env` e a tabela de erros estao em `reports/docs_exp_neo4j/README.md`.
 
 ### Onde fica cada coisa
 
@@ -130,6 +168,7 @@ O agente roda estes passos por voce; use direto quando quiser:
 - `uv run akme validate` e `uv run akme eval`: verificacao formal e teste pelas CQs
 - `uv run akme export`: gera os dados da pagina e os arquivos de exportacao
 - `uv run akme publish --target snowflake`: publica (dry-run por padrao; `--no-dry-run` executa)
+- `uv run akme publish --target neo4j`: previa da exportacao para o Neo4j; `--no-dry-run` carrega no banco do `.env`, com confirmacao
 
 ## Demo (so para conhecer)
 
