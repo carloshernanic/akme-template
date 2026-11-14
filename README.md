@@ -22,7 +22,7 @@ Instale tambem o extra de cada formato ou banco que o cliente usar:
 | `.pdf` | `uv sync --extra pdf` |
 | Postgres, Snowflake, Databricks | `uv sync --extra postgres` (ou `snowflake`, `databricks`) |
 
-Os extras se somam no mesmo comando, ex: `uv sync --extra office --extra pdf`.
+Os extras se somam no mesmo comando, ex: `uv sync --extra office --extra pdf`. Cuidado: cada `uv sync` remove os extras que nao estao no comando. Para acrescentar um extra sem perder os outros, use `--inexact` (ex: `uv sync --inexact --extra neo4j`).
 
 ### 2. Aponte para os dados do cliente
 
@@ -94,21 +94,21 @@ O agente segue as seis etapas do LOT descritas no `SKILL.md`. Em cada parada, el
 
 | Etapa | O que o agente faz | O que voce decide |
 |---|---|---|
-| **1. Especificar** | Pergunta o caso de uso, perfila os dados e le os documentos, propoe proposito, escopo e usuarios, dez perguntas de competencia (CQs), lacunas, divergencias e o glossario de siglas, sempre citando a fonte. | Quais CQs valem e com que prioridade, quais ficam reservadas para o teste final, e como tratar lacunas e divergencias. Enquanto os requisitos nao fecham, a ontologia nao e criada. |
+| **1. Especificar** | Perfila os dados e le os documentos. Depois propoe de 2 a 3 casos de uso tirados das fontes e abre a pagina so com eles (nao pergunta no chat). Com o caso de uso escolhido, propoe proposito, escopo e usuarios, dez perguntas de competencia (CQs), lacunas, divergencias e o glossario de siglas, sempre citando a fonte. | Primeiro, quais casos de uso valem (ou escrever o seu, ou dizer que nao ha). Depois, quais CQs valem e com que prioridade, quais ficam reservadas para o teste final, e como tratar lacunas e divergencias. Enquanto os requisitos nao fecham, a ontologia nao e criada. |
 | **2. Conceitualizar** | A partir das CQs aprovadas, propoe classes, relacoes (com multiplicidade e join medidos no dado real) e termos; metricas levam unidade, grao e aditividade. Busca termos reutilizaveis na LOV. | Aceitar, ajustar ou rejeitar cada classe, relacao e termo. |
 | **3. Codificar** | Propoe o mapping de cada termo para tabela e coluna, regras implicitas dos documentos (restricoes) e qual fonte prevalece quando elas divergem (precedencia). Roda o `validate`. | Aceitar ou rejeitar mappings, restricoes e precedencias. |
 | **4. Avaliar** | Roda `validate` (cobertura e pitfalls) e `eval` (as CQs reservadas como teste) e propoe correcoes. | Voltar para a etapa 2 ou 3, ou seguir para publicar. |
 | **5. Publicar** | Gera o artefato do alvo em dry-run em `docs/publish/`: Snowflake (semantic view), Databricks (comments), YAML, RDF ou Neo4j. | Se e quando publicar. Executar no alvo e irreversivel e so acontece com a sua confirmacao: na CLI ou, para o Neo4j, no botao da aba "Exportar" da pagina. |
 | **6. Manter** | Cada mudanca comeca com um registro (issue ou CQ nova), e o agente classifica e lista o impacto. | O escopo da mudanca e quando ela entra em release. |
 
-Nada entra na ontologia ate ser aplicado com o nome de quem aprovou: pelo botao "Aplicar decididas" da pagina, dizendo "aplica" no chat ou na CLI (`uv run akme apply --all-reviewed --approved-by NOME`). Para saber em que ponto o projeto esta, rode `uv run akme stage` ou olhe o topo da pagina.
+Nada entra na ontologia ate ser aplicado com o nome de quem aprovou: pela pagina ("Salvar e aplicar" ou "Aplicar decididas", que pedem o seu nome), dizendo "aplica" no chat ou na CLI (`uv run akme apply --all-reviewed --approved-by NOME`). Para saber em que ponto o projeto esta, rode `uv run akme stage` ou olhe o topo da pagina.
 
 ### Exportar para o Neo4j
 
-Instale o extra do Neo4j uma vez:
+Instale o extra do Neo4j uma vez (o `--inexact` mantem os outros extras ja instalados):
 
 ```bash
-uv sync --extra neo4j
+uv sync --inexact --extra neo4j
 ```
 
 Depois, a aba "Exportar" da pagina (`uv run akme review`) guia a exportacao em quatro passos: conectar ao seu Neo4j (Neo4j Desktop, Docker ou outro servidor), conferir a previa, carregar e ver o grafo. A carga e so sua, pelo botao da aba ou pela CLI; o agente nao carrega.
