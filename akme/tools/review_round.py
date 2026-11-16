@@ -48,6 +48,18 @@ def harness_label(client_name: str | None) -> str:
     return next((label for key, label in _HARNESSES if key in name), "")
 
 
+def mark_proposing(project: Project) -> dict[str, Any]:
+    """Marca que o agente comecou a propor edicoes, antes de chamar open_review.
+    A pagina congela a fila e mostra banner de trabalho ate a rodada ser aberta."""
+    current = read_round(project)
+    if not current or current.get("status") != "proposing":
+        data = {"id": "R-" + uuid.uuid4().hex[:8], "status": "proposing", "opened_at": now_iso()}
+    else:
+        data = current
+    _write(project, data)
+    return data
+
+
 def open_round(project: Project, harness: str = "") -> dict[str, Any]:
     """Abre uma rodada nova, ou reaproveita a que ja esta esperando (o id continua o mesmo). harness e o nome
     do agente que abriu a rodada, para a pagina dizer ao humano para onde voltar."""

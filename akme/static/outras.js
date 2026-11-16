@@ -847,6 +847,10 @@
     }
     if (!M.items.length && !M.own.length) { msg("Nada para salvar."); return; }
     if (isAuto()) { msg("No modo automático, quem salva é a IA."); return; }
+    if (document.body && document.body.classList.contains("is-proposing")) {
+      msg("Aguarde o agente concluir todas as propostas da rodada antes de salvar.");
+      return;
+    }
     openSave();
   }
   // traduz as escolhas para as mesmas chamadas de sempre: /api/review e /api/propose, depois /api/apply

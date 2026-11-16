@@ -60,3 +60,6 @@ ontology/pending/activity.tmp
 
 # Site MkDocs gerado
 site/
+
+# copias da ontologia guardadas pelo akme reset
+backups/
