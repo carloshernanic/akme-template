@@ -146,6 +146,7 @@ def _publish_neo4j(release: str | None) -> None:
             for line in neo4j_tool.preview_lines(preview):
                 typer.echo(line)
             raise typer.Exit(1)
+        typer.echo("consultando estado atual do banco Neo4j...")
         state = neo4j_tool.destination_state(project, plan)
         for line in neo4j_tool.preview_lines(preview, state):
             typer.echo(line)
@@ -164,6 +165,7 @@ def _publish_neo4j(release: str | None) -> None:
             if typed.strip() != str(removed):
                 typer.echo(f"erro: confirmacao diferente de {removed}; nada foi gravado")
                 raise typer.Exit(1)
+        typer.echo("iniciando publicacao no Neo4j...")
         result = publish_tool.publish(project, "neo4j", False, release, plan)
         _dump(result)
         for line in neo4j_tool.viewing_lines(project, result):

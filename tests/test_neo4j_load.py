@@ -69,7 +69,8 @@ def test_edges_match_target_by_join_value_as_stored(seeded, fake):
     session = fake["session"]
     neo4j_load.load(seeded, build_plan(seeded), CARGA)
     query, params = next((q, p) for q, p in session.calls if "[e:`pertenceA`]" in q)
-    assert "MATCH (a:`Pedido` {_id: r.id}) MATCH (b:`Cliente` {`id_cliente`: r.v})" in query
+    assert ("MATCH (a:`Pedido` {_id: r.id}) USING INDEX a:`Pedido`(_id) "
+            "MATCH (b:`Cliente` {`id_cliente`: r.v}) USING INDEX b:`Cliente`(`id_cliente`)") in query
     assert {"id": "1001", "v": "1"} in params["rows"]
 
 
@@ -742,7 +743,7 @@ def test_data_blocks_start_with_the_lock(seeded, fake):
     session = fake["session"]
     neo4j_load.load(seeded, build_plan(seeded), CARGA)
     blocks = [q for q in session.queries() if "UNWIND $rows" in q]
-    assert len(blocks) == 7 and all(q.startswith(neo4j_load._LOCK + "WITH m UNWIND $rows") for q in blocks)
+    assert len(blocks) == 7 and all(q.startswith("CYPHER runtime=slotted " + neo4j_load._LOCK + "WITH m UNWIND $rows") for q in blocks)
 
 
 def test_lock_that_stopped_the_node_sync_gives_the_nothing_deleted_message(seeded, fake):

@@ -23,6 +23,9 @@ from datetime import datetime, timezone
 from typing import Any, Iterator
 from urllib.parse import urlsplit
 
+from rich.console import Console
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+
 from ..adapters import load_adapter
 from ..adapters.base import require
 from ..ontology import load_content, load_graph
@@ -280,14 +283,15 @@ def _indexes(plan: Plan) -> list[str]:
 # Cada bloco comeca pela trava (_LOCK): depois que outra carga do projeto troca carga_atual, o bloco nao grava nada
 # e devolve gravadas = 0; a carga entao confere a marca e para, sem sujar o que a mais nova gravou.
 def _node_query(label: str) -> str:
-    return (_LOCK + f"WITH m UNWIND $rows AS r MERGE (n:{name(label)} {{_id: r.id}}) "
+    return ("CYPHER runtime=slotted " + _LOCK + f"WITH m UNWIND $rows AS r MERGE (n:{name(label)} {{_id: r.id}}) "
             "SET n = r.p, n._id = r.id, n._projeto = $projeto, n._carga = $carga, n._descricao = $descricao "
             "RETURN count(*) AS gravadas")
 
 
 def _edge_query(edge: EdgePlan) -> str:
-    return (_LOCK + f"WITH m UNWIND $rows AS r MATCH (a:{name(edge.domain)} {{_id: r.id}}) "
-            f"MATCH (b:{name(edge.range)} {{{name(edge.to_column)}: r.v}}) "
+    dom, rng, col = name(edge.domain), name(edge.range), name(edge.to_column)
+    return ("CYPHER runtime=slotted " + _LOCK + f"WITH m UNWIND $rows AS r MATCH (a:{dom} {{_id: r.id}}) USING INDEX a:{dom}(_id) "
+            f"MATCH (b:{rng} {{{col}: r.v}}) USING INDEX b:{rng}({col}) "
             f"MERGE (a)-[e:{name(edge.relation)}]->(b) SET e._carga = $carga, e._descricao = $descricao "
             "RETURN count(*) AS gravadas")
 
@@ -365,10 +369,12 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
     # desligada: todo bloco manda null, e o SET apaga a _descricao que uma carga anterior tenha gravado
     node_text, edge_text = descriptions(project) if plan.descricao else ({}, {})
     total = _predicted(plan)
+    log = Console(stderr=True)
     with _driver() as driver, _session(driver) as session:
         import neo4j  # so existe depois que _driver confirmou o extra
 
         errors = (neo4j.exceptions.Neo4jError, neo4j.exceptions.DriverError, ValueError)
+        log.print("[cyan][1/6][/] Conferindo versao, destino e registrando marca da carga...")
         _check_version(session)  # antes do estado: STATE_QUERY usa COLLECT {}, que servidor antigo nem entende
         _, refusal = check_destination(_state(session, plan), project.name)
         if refusal:
@@ -376,6 +382,7 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
         _write(session, MARKER_CONSTRAINT)
         _write(session, CLAIM, {"projeto": project.name, "carga": carga})
 
+        log.print("[cyan][2/6][/] Criando restricoes e indices no Neo4j...")
         for label in plan.nodes:
             _write(session, _constraint(label))
         _write(session, CONCEPT_CONSTRAINT)
@@ -383,6 +390,7 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
         for index in _indexes(plan):
             _write(session, index)
         session.run("CALL db.awaitIndexes(300)").consume()
+        log.print("  [green]\\[ok][/] restricoes e indices online")
 
         done = 0
 
@@ -405,28 +413,50 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
         planned = {s.source: s.rows for s in plan.sources}
         read: list[tuple[str, int]] = []  # (fonte, linhas lidas) de cada passada: a dos nos e a de cada contrato
         secrets = _adapter_secrets(project)
+        log.print(f"[cyan][3/6][/] Carregando dados no Neo4j ({len(plan.sources)} fonte(s), "
+                  f"{len(plan.edges)} relacao(oes), {total} lote(s) de ate {BATCH} linhas)...")
         try:
             adapter = load_adapter(project.adapter_name, project.adapter_options())
             try:
-                for src in plan.sources:
-                    query, count = _node_query(src.label), 0
-                    for block in _blocks(adapter, src.source):
-                        count += len(block)
-                        send(query, lambda: _node_rows(block, src), node_text.get(src.label))
-                    read.append((src.source, count))
-                # arestas depois de todos os nos; uma leitura por fonte de origem, com os contratos dela em cada
-                # bloco, na ordem do plano (deterministico: mesmos comandos e contagens de uma passada por contrato)
-                by_origin: dict[str, list[EdgePlan]] = {}
-                for edge in plan.edges:
-                    by_origin.setdefault(edge.from_source, []).append(edge)
-                for origin, edges in by_origin.items():
-                    count = 0
-                    for block in _blocks(adapter, origin):
-                        count += len(block)
-                        for edge in edges:
-                            send(_edge_query(edge), lambda: _edge_rows(block, keys[origin], edge.from_column),
-                                 edge_text.get(edge.relation))
-                    read.append((origin, count))
+                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(),
+                              MofNCompleteColumn(), TextColumn("{task.percentage:>3.0f}%"), TimeElapsedColumn(),
+                              TimeRemainingColumn(), console=log) as progress:
+                    task = progress.add_task("Iniciando carga de dados...", total=max(1, total))
+                    for src in plan.sources:
+                        query, count = _node_query(src.label), 0
+                        src_batches = max(1, _batches_of(src.rows))
+                        for idx, block in enumerate(_blocks(adapter, src.source), 1):
+                            count += len(block)
+                            progress.update(task, description=f"Nos: {src.label} (lote {idx}/{src_batches})")
+                            send(query, lambda: _node_rows(block, src), node_text.get(src.label))
+                            progress.update(task, completed=done)
+                        read.append((src.source, count))
+                        progress.console.print(f"  [green]\\[ok][/] nos [bold]{src.label}[/] ({src.source}): "
+                                               f"{count} linha(s) em {_batches_of(count)} lote(s)")
+                    progress.update(task, description="Aguardando indices apos carga dos nos...")
+                    session.run("CALL db.awaitIndexes(300)").consume()
+                    # arestas depois de todos os nos; uma leitura por fonte de origem, com os contratos dela em cada
+                    # bloco, na ordem do plano (deterministico: mesmos comandos e contagens de uma passada por contrato)
+                    by_origin: dict[str, list[EdgePlan]] = {}
+                    for edge in plan.edges:
+                        by_origin.setdefault(edge.from_source, []).append(edge)
+                    for origin, edges in by_origin.items():
+                        count = 0
+                        origin_batches = max(1, _batches_of(planned.get(origin, 0)))
+                        rel_names = ", ".join(e.relation for e in edges)
+                        for idx, block in enumerate(_blocks(adapter, origin), 1):
+                            count += len(block)
+                            for edge in edges:
+                                progress.update(
+                                    task,
+                                    description=f"Arestas: {edge.relation} ({edge.domain} -> {edge.range}, lote {idx}/{origin_batches})",
+                                )
+                                send(_edge_query(edge), lambda: _edge_rows(block, keys[origin], edge.from_column),
+                                     edge_text.get(edge.relation))
+                                progress.update(task, completed=done)
+                        read.append((origin, count))
+                        progress.console.print(f"  [green]\\[ok][/] arestas de [bold]{origin}[/] ({rel_names}): "
+                                               f"{count} linha(s) processada(s)")
             finally:
                 adapter.close()
         except PublishError:
@@ -445,6 +475,7 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
                                "nada foi apagado; repetir a carga completa e seguro")
 
         # ontologia e esquema, com a trava em cada comando: 0 gravado com a marca trocada = outra carga comecou
+        log.print(f"[cyan][4/6][/] Gravando camada de ontologia (Conceito, Termo) e esquema ({len(statements)} comandos)...")
         for n, statement in enumerate(statements, 1):
             text, params = statement
             try:
@@ -455,8 +486,10 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
                                    "ja gravado(s); nada foi apagado; repetir a carga completa e seguro") from None
             if stolen:
                 raise PublishError(NEWER_LOAD)
+        log.print("  [green]\\[ok][/] ontologia e esquema gravados")
 
         # sincronizacao: IN TRANSACTIONS exige transacao implicita (session.run); antes de cada comando, a trava
+        log.print("[cyan][5/6][/] Sincronizando banco (removendo nos e arestas de cargas anteriores)...")
         if _current(session, project.name) != carga:
             raise PublishError(NEWER_LOAD)
         failed = "sincronizacao falhou: {}. A carga nova ja esta gravada; parte do que era antigo pode nao ter sido " \
@@ -472,9 +505,12 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
             edges = session.run(SYNC_EDGES, projeto=project.name, carga=carga).consume().counters
         except errors as exc:
             raise PublishError(failed.format(_safe(exc))) from None
+        removed_nodes = nodes.nodes_deleted
+        removed_edges = nodes.relationships_deleted + edges.relationships_deleted
+        log.print(f"  [green]\\[ok][/] sincronizacao concluida (removidos: {removed_nodes} no(s), {removed_edges} aresta(s))")
     # arestas: as de nos apagados (DETACH) mais as antigas entre nos que ficaram
-    return {"executed": done, "removed": {"nodes": nodes.nodes_deleted,
-                                          "relationships": nodes.relationships_deleted + edges.relationships_deleted}}
+    return {"executed": done, "removed": {"nodes": removed_nodes,
+                                          "relationships": removed_edges}}
 
 
 # --- conferencia -----------------------------------------------------------------------------------------------
@@ -574,11 +610,14 @@ def publish_neo4j(project: Project, model: dict[str, Any], dry_run: bool, plan: 
     carga = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     result["carga"] = carga
     result |= load(project, plan, carga)
+    log = Console(stderr=True)
+    log.print("[cyan][6/6][/] Conferindo contagens finais no Neo4j...")
     content = load_content(project)
     concepts = exported_concepts(load_graph(project.schema_path), content)
     result["verification"] = verify(plan, project.name, len(concepts), len(term_entries(content, concepts)))
     if not result["verification"]["ok"]:
         raise PublishError("carga executada, mas o banco diverge do previsto: " + "; ".join(result["verification"]["divergences"]))
+    log.print("  [green]\\[ok][/] conferencia concluida: contagens batem com o plano")
     _write_guide(plan, guide, queries, has_apoc())
     return result
 

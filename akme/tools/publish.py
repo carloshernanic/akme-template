@@ -207,11 +207,19 @@ def publish(project: Project, target: str = "yaml", dry_run: bool = True, releas
     if not dry_run:
         if project.adapter_name != target:
             raise RuntimeError(f"publish --no-dry-run em {target} exige adapter {target} no akme.yml (atual: {project.adapter_name})")
+        from rich.console import Console
+        from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
         adapter = load_adapter(project.adapter_name, project.adapter_options())
+        log = Console(stderr=True)
         try:
-            for stmt in statements:
-                adapter.execute(stmt)
-                executed += 1
+            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(),
+                          MofNCompleteColumn(), TimeElapsedColumn(), console=log) as progress:
+                task = progress.add_task(f"Publicando em {target}...", total=len(statements))
+                for stmt in statements:
+                    adapter.execute(stmt)
+                    executed += 1
+                    progress.advance(task)
         finally:
             adapter.close()
     return {"target": target, "dry_run": dry_run, "artifact": str(path), "statements": len(statements), "executed": executed}
