@@ -30,6 +30,7 @@ Template para construir, validar e publicar uma ontologia e uma camada semântic
 - `uv run akme serve` — sobe o servidor MCP (stdio); registrado em `.mcp.json` (Claude Code), `.codex/config.toml` (Codex) e `.cursor/mcp.json` (Cursor); no Antigravity, com `agy mcp add` (ver README)
 - `claude --dangerously-load-development-channels server:akme` — modo canal (experimental, só Claude Code): a conversa com o agente acontece no painel "Conversa" da página local (`akme/channel.py`, log em `ontology/pending/chat.jsonl`)
 - `uv run akme connect | profile | validate | eval | export | stage | publish` — passos individuais
+- `uv run akme reset` — apaga a ontologia atual para começar outra do zero (pede confirmação e guarda cópia em `backups/`; o template em branco fica em `akme/template/`)
 
 ## Convenções
 - Toda escrita na ontologia passa por `propose_edit` (vai para `ontology/pending/`) e só é aplicada com o nome de quem aprovou; o `changelog.yml` registra proveniência

@@ -97,6 +97,29 @@ def _inventory_databricks() -> None:
 
 
 @app.command()
+def reset(yes: bool = typer.Option(False, "--yes", "-y", help="nao pede confirmacao")) -> None:
+    """Apaga a ontologia atual para comecar outra do zero. Antes guarda uma copia em backups/."""
+    from .tools import reset as reset_tool
+
+    project = _project()
+    if not project.ontology_dir.is_dir():
+        console.print(f"[red]pasta da ontologia nao encontrada:[/] {project.ontology_dir}")
+        raise typer.Exit(1)
+    s = reset_tool.summary(project)
+    console.print(f"Ontologia em [bold]{project.ontology_dir.relative_to(project.root).as_posix()}[/]: "
+                  f"{s['competency_questions']} perguntas de competencia, {s['use_cases']} casos de uso, "
+                  f"{s['terms']} termos, {s['mappings']} mappings, {s['pending']} propostas pendentes.")
+    console.print("Classes, relacoes, requisitos, changelog, propostas pendentes e a conversa da pagina serao apagados. "
+                  "Pare o 'akme review' e o agente antes de continuar.")
+    if not yes and not typer.confirm("Apagar e comecar do zero?", default=False):
+        console.print("nada foi alterado")
+        raise typer.Exit(0)
+    out = reset_tool.reset_ontology(project)
+    console.print(f"[green]ontologia em branco[/] em {out['ontology_dir']}; copia da anterior em {out['backup']}")
+    console.print("Rode 'akme export' para atualizar os arquivos gerados em docs/.")
+
+
+@app.command()
 def connect() -> None:
     """Testa a conexao com o adapter configurado."""
     _dump(connect_tool.connect(_project()))

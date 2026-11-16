@@ -1,0 +1,28 @@
+@prefix akme: <https://akme.example/ontology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://akme.example/ontology> a owl:Ontology ;
+    dcterms:title "Ontologia AKME"@pt ;
+    dcterms:description "Ontologia base do template AKME. As classes do dominio do cliente entram como subclasses de Entity, Relation, Rule e Metric por meio de edicoes aprovadas."@pt ;
+    dcterms:license <https://opensource.org/licenses/MIT> ;
+    owl:versionInfo "0.1.0" .
+
+akme:Entity a owl:Class ;
+    rdfs:label "Entidade"@pt ;
+    rdfs:comment "Coisa do dominio do cliente que tem identidade propria, como cliente, pedido ou produto."@pt .
+
+akme:Relation a owl:Class ;
+    rdfs:label "Relacao"@pt ;
+    rdfs:comment "Ligacao reificada entre entidades quando a relacao precisa de atributos proprios, como vigencia ou origem."@pt .
+
+akme:Rule a owl:Class ;
+    rdfs:label "Regra"@pt ;
+    rdfs:comment "Regra de negocio ou restricao que condiciona como entidades e metricas devem ser interpretadas."@pt .
+
+akme:Metric a owl:Class ;
+    rdfs:label "Metrica"@pt ;
+    rdfs:comment "Medida calculada a partir de dados, com formula e unidade definidas na camada semantica."@pt .
