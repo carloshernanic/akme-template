@@ -1,6 +1,6 @@
 # akme-template
 
-Template para construir, validar e publicar uma ontologia e uma camada semantica sobre a base de dados de um cliente. Segue LOT + NeOn com humano no loop: um agente de IA (Claude Code, de preferencia, ou Codex, Cursor ou Antigravity) le o `SKILL.md`, consulta a ontologia pelo servidor MCP `akme` e propoe edicoes que so entram na ontologia depois de aprovadas por uma pessoa. A ontologia vive em `ontology/` como texto versionado; Snowflake, Databricks, Postgres e pastas locais sao apenas entradas e alvos de publicacao.
+Template para construir, validar e publicar uma ontologia e uma camada semantica sobre uma base de dados. Segue LOT + NeOn com humano no loop: um agente de IA (Claude Code, de preferencia, ou Codex, Cursor ou Antigravity) le o `SKILL.md`, consulta a ontologia pelo servidor MCP `akme` e propoe edicoes que so entram na ontologia depois de aprovadas por uma pessoa. A ontologia vive em `ontology/` como texto versionado; Snowflake, Databricks, Postgres e pastas locais sao apenas entradas e alvos de publicacao.
 
 > Vai comecar um projeto de verdade? Siga **Criar uma ontologia do zero**. A secao **Demo** no fim usa dados de exemplo e serve so para conhecer a ferramenta.
 

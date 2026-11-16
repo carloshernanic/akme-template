@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 from itertools import chain
 from typing import Any
 
+from rich.console import Console
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
 from ..adapters import load_adapter
 from ..adapters.base import check_batch
 from ..ontology import classes, is_metric_class, load_content, load_graph
@@ -419,52 +422,62 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
         problems += [f"etapa 5 cita fonte inexistente: {shown([source])}" for source in declared if source not in sources]
         problems += [f"etapa 5: tipo desconhecido {kind} em {source}.{column}; use {', '.join(TYPES)}"
                      for source, columns in types.items() for column, kind in columns.items() if kind not in TYPES]
-        for source, label in sorted(labels.items()):
-            if source not in declared:
-                problems.append(f"fonte {source} sem chave e tipos aprovados na etapa 5: " + (
-                    "ha proposta pendente na pagina de revisao" if source in pending
-                    else "rode suggest_sources e decida na pagina de revisao"))
-            elif not declared[source]:
-                problems.append(f"fonte {source} sem chave na decisao da etapa 5")
-            column_types = {c: kind for c, kind in types.get(source, {}).items() if kind in TYPES}
-            state = scan_source(adapter, source, declared.get(source) or [], column_types, joins, batch)
-            key, columns = state.key, state.columns
-            if state.ragged:
-                problems.append(ragged_problem(source, state.ragged))
-            if declared.get(source) and not state.rows:
-                # origem truncada por engano (extracao que falhou) apagaria o label inteiro na sincronizacao
-                problems.append(f"fonte {source} sem linhas: a carga apagaria do banco todos os nos de {label}; "
-                                "confira a extracao ou exclua a fonte na etapa 5")
-            if state.absent:
-                problems.append(f"fonte {source}: chave declarada usa coluna inexistente: {shown(state.absent)}")
-            problems += [f"fonte {source}: {reserved_problem('column', c)}" for c in columns if c in RESERVED_PROPS]
-            if key and state.complete < state.rows:
-                problems.append(f"fonte {source}: {state.rows - state.complete} linha(s) com chave {', '.join(key)} vazia")
-            if state.repeated:
-                problems.append(f"{source}.{'+'.join(key)} repete {state.repeated}: duas linhas virariam o mesmo no. Rode akme validate")
-            protected = joins | {(source, c) for c in key}
-            problems += [f"etapa 5 cita coluna inexistente: {source}.{shown([c])}" for c in column_types if columns and c not in columns]
-            problems += [f"{source}.{c} e chave ou join e precisa ser string, nao {kind}"
-                         for c, kind in column_types.items() if (source, c) in protected and kind != "string"]
-            metrics = sorted({m["column"] for m in data["mappings"] if m["source"] == source and m.get("role") == "metric" and m.get("column")})
-            plan.warnings += [f"{source}.{c} e medida, mas fica como texto e nao soma: declare o tipo na etapa 5"
-                              for c in metrics if c in columns and column_types.get(c, "string") == "string"]
-            problems += [f"{source}.{col}: {n} valor(es) invalido(s) para {column_types[col]}, exemplo: {state.examples[col]}"
-                         for col, n in state.invalid.items()]
-            plan.nodes[label] = state.complete if key else state.rows
-            plan.rows += state.rows
-            own_name = "name" in columns
-            if own_name:
-                plan.warnings.append(f"fonte {source} tem coluna name: ela vale como legenda dos nos de {label} no "
-                                     "Browser; o akme so grava a sua nas linhas com name vazio")
-            wanted = captions.get(source)
-            if wanted and columns and wanted not in columns:
-                problems.append(f"etapa 5: a legenda de {source} cita coluna inexistente: {shown([wanted])}")
-            caption, alone = caption_choice(data["mappings"], source, list(key), joins, columns, column_types,
-                                            state.present, state.rows, wanted, state.distinct_ratio())
-            plan.sources.append(SourcePlan(source, label, list(key), column_types, columns, state.rows, caption, own_name,
-                                           alone))
-            read[source] = state
+        items = sorted(labels.items())
+        log = Console(stderr=True)
+        if items:
+            log.print(f"[cyan]Plano:[/] lendo {len(items)} fonte(s) da origem...")
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(),
+                      MofNCompleteColumn(), TimeElapsedColumn(), console=log, transient=True) as progress:
+            task = progress.add_task("Lendo fontes...", total=len(items))
+            for source, label in items:
+                progress.update(task, description=f"Lendo {source} ({label})...")
+                if source not in declared:
+                    problems.append(f"fonte {source} sem chave e tipos aprovados na etapa 5: " + (
+                        "ha proposta pendente na pagina de revisao" if source in pending
+                        else "rode suggest_sources e decida na pagina de revisao"))
+                elif not declared[source]:
+                    problems.append(f"fonte {source} sem chave na decisao da etapa 5")
+                column_types = {c: kind for c, kind in types.get(source, {}).items() if kind in TYPES}
+                state = scan_source(adapter, source, declared.get(source) or [], column_types, joins, batch)
+                key, columns = state.key, state.columns
+                if state.ragged:
+                    problems.append(ragged_problem(source, state.ragged))
+                if declared.get(source) and not state.rows:
+                    # origem truncada por engano (extracao que falhou) apagaria o label inteiro na sincronizacao
+                    problems.append(f"fonte {source} sem linhas: a carga apagaria do banco todos os nos de {label}; "
+                                    "confira a extracao ou exclua a fonte na etapa 5")
+                if state.absent:
+                    problems.append(f"fonte {source}: chave declarada usa coluna inexistente: {shown(state.absent)}")
+                problems += [f"fonte {source}: {reserved_problem('column', c)}" for c in columns if c in RESERVED_PROPS]
+                if key and state.complete < state.rows:
+                    problems.append(f"fonte {source}: {state.rows - state.complete} linha(s) com chave {', '.join(key)} vazia")
+                if state.repeated:
+                    problems.append(f"{source}.{'+'.join(key)} repete {state.repeated}: duas linhas virariam o mesmo no. Rode akme validate")
+                protected = joins | {(source, c) for c in key}
+                problems += [f"etapa 5 cita coluna inexistente: {source}.{shown([c])}" for c in column_types if columns and c not in columns]
+                problems += [f"{source}.{c} e chave ou join e precisa ser string, nao {kind}"
+                             for c, kind in column_types.items() if (source, c) in protected and kind != "string"]
+                metrics = sorted({m["column"] for m in data["mappings"] if m["source"] == source and m.get("role") == "metric" and m.get("column")})
+                plan.warnings += [f"{source}.{c} e medida, mas fica como texto e nao soma: declare o tipo na etapa 5"
+                                  for c in metrics if c in columns and column_types.get(c, "string") == "string"]
+                problems += [f"{source}.{col}: {n} valor(es) invalido(s) para {column_types[col]}, exemplo: {state.examples[col]}"
+                             for col, n in state.invalid.items()]
+                plan.nodes[label] = state.complete if key else state.rows
+                plan.rows += state.rows
+                own_name = "name" in columns
+                if own_name:
+                    plan.warnings.append(f"fonte {source} tem coluna name: ela vale como legenda dos nos de {label} no "
+                                         "Browser; o akme so grava a sua nas linhas com name vazio")
+                wanted = captions.get(source)
+                if wanted and columns and wanted not in columns:
+                    problems.append(f"etapa 5: a legenda de {source} cita coluna inexistente: {shown([wanted])}")
+                caption, alone = caption_choice(data["mappings"], source, list(key), joins, columns, column_types,
+                                                state.present, state.rows, wanted, state.distinct_ratio())
+                plan.sources.append(SourcePlan(source, label, list(key), column_types, columns, state.rows, caption, own_name,
+                                               alone))
+                read[source] = state
+                progress.console.print(f"  [dim]-[/] {source} -> [bold]{label}[/]: {state.rows} linha(s)")
+                progress.advance(task)
     finally:
         adapter.close()
     plan.nodes = dict(sorted(plan.nodes.items()))
