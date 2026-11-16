@@ -743,6 +743,13 @@ dialog.e1-dlg::backdrop { background: oklch(20.64% 0.0205 271.56 / 0.35); backdr
 /* decisoes feitas na tela e ainda nao gravadas no servidor */
 .unsaved { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 12px 16px; background: var(--fill-ui-3); border: 1px solid var(--border-divider); border-left: 4px solid var(--status-warning); font-size: 14px; color: var(--text-primary); }
 .unsaved > span { flex: 1 1 16rem; min-width: 0; }
+.e1-proposing-banner { display: flex; align-items: center; gap: 12px; padding: 14px 18px; margin-bottom: 16px; background: var(--fill-ui-3); border: 1px solid var(--border-divider); border-left: 4px solid var(--status-information); color: var(--text-primary); }
+.e1-proposing-banner .t { font-weight: 600; font-size: 14px; line-height: 20px; }
+.e1-proposing-banner .b { font-size: 13px; line-height: 18px; color: var(--text-secondary); }
+.e1-proposing-banner .spinner { width: 16px; height: 16px; border: 2px solid var(--border-secondary); border-top-color: var(--status-information); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+body.is-proposing .e1-foot button, body.is-proposing .rv-bar .actions button, body.is-proposing .unsaved button, body.is-proposing [data-e1="save"], body.is-proposing [data-o="save"], body.is-proposing .cq-decide, body.is-proposing [data-e1="uc"], body.is-proposing [data-e1="req-ok"], body.is-proposing [data-e1="req-edit"], body.is-proposing [data-e1="draft-on"], body.is-proposing [data-e1="nouc-on"], body.is-proposing [data-o="all"], body.is-proposing [data-o="ncq"] { pointer-events: none; opacity: 0.55; }
+
 .e1-cqs { display: flex; flex-direction: column; gap: 12px; }
 .e1-line { display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; background: var(--surface-primary); box-shadow: var(--elevation-0); border-left: 3px solid var(--border-secondary); font-size: 15px; line-height: 22px; }
 .e1-line.ok { border-left-color: var(--status-success); }

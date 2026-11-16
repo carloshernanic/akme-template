@@ -21,6 +21,7 @@ Instale tambem o extra de cada formato ou banco que quiser conectar:
 | `.xlsx`, `.docx`, `.pptx` | `uv sync --extra office` |
 | `.pdf` | `uv sync --extra pdf` |
 | Postgres, Snowflake, Databricks | `uv sync --extra postgres` (ou `snowflake`, `databricks`) |
+| neo4j | `uv sync --extra neo4j`|
 
 Os extras se somam no mesmo comando, ex: `uv sync --extra office --extra pdf`. Cuidado: cada `uv sync` remove os extras que nao estao no comando. Para acrescentar um extra sem perder os outros, use `--inexact` (ex: `uv sync --inexact --extra neo4j`).
 

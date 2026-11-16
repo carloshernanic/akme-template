@@ -112,6 +112,7 @@
   const stage = () => S.data.stage || null;
   const round = () => S.data.round || {};
   const agentWaiting = () => round().status === "waiting";
+  const agentProposing = () => round().status === "proposing";
   // para onde o humano volta fora do modo canal: o chat do agente que abriu a rodada (o servidor guarda o nome)
   const agentChat = () => (round().harness ? `o chat do ${round().harness}` : "o chat do seu agente (no terminal ou no editor)");
   window.AkmeBack = { chat: agentChat };
@@ -997,7 +998,9 @@
     if (!el) return;
     const r = round(), n = counts();
     let html = "";
-    if (S.api && r.status === "waiting") {
+    if (S.api && r.status === "proposing") {
+      html = `<div class="e1-proposing-banner"><span class="spinner" aria-hidden="true"></span><div><div class="t">IA propondo edições…</div><div class="b">O agente está gerando propostas. Aguarde a conclusão da rodada para revisar e aplicar.</div></div></div>`;
+    } else if (S.api && r.status === "waiting") {
       html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">${lean() ? "Decida e clique em <b>Conferir e salvar</b>" : "Decida, salve e clique em <b>Aplicar decididas</b>"}. ${channel() ? "Depois disso o agente segue sozinho no painel Conversa, aqui nesta página." : `Depois volte para ${esc(agentChat())}: o agente segue sozinho, sem você precisar escrever nada.`}</div></div></div>`;
     } else if (S.api && r.status === "applied" && !n.todo) {
       html = `<div class="callout callout-ok">${I.ok}<div><div class="t">${channel() ? "Decisões aplicadas" : `Volte para ${esc(agentChat())}`}</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo${channel() ? " no painel Conversa desta página" : ""}.</div></div></div>`;
@@ -1037,6 +1040,9 @@
     return st.requirements_closed || !e1Has() ? "outras" : "etapa1";
   }
   function render() {
+    if (document.body) {
+      document.body.classList.toggle("is-proposing", agentProposing());
+    }
     buildCards();
     renderMode();
     renderRound();
@@ -1268,6 +1274,21 @@
         if (!S.token) { S.token = r.token; continue; }
         if (r.changed && !S.busy) {
           S.token = r.token;
+          // Se o agente estiver propondo edicoes, aguardamos ate ele abrir/esperar a revisao
+          // antes de recarregar a tela inteira e anunciar itens parciais
+          if (agentProposing()) {
+            try {
+              const rndData = await S.api.get("/api/round");
+              if (rndData && rndData.status) {
+                S.data.round = rndData;
+                renderRound();
+                if (document.body) document.body.classList.toggle("is-proposing", rndData.status === "proposing");
+              }
+              if (rndData && rndData.status === "proposing") {
+                continue;
+              }
+            } catch (e) { /* se falhar a checagem pontual, segue o reload normal */ }
+          }
           const fresh = await reload({ announce: true });
           render();
           if (!fresh) setMsg("info", "Dados atualizados.");

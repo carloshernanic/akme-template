@@ -616,6 +616,10 @@
   }
   function trySave() {
     if (isAuto()) { msg("No modo automático, quem salva é a IA.", ""); return; }
+    if (document.body && document.body.classList.contains("is-proposing")) {
+      msg("Aguarde o agente concluir todas as propostas da rodada antes de salvar.", "warn");
+      return;
+    }
     // salvar so com as telas visiveis completas; leva para a primeira que falta
     const bad = visibleSteps(E.M).find((i) => missing(E.M, i).length);
     if (bad !== undefined) { goStep(bad); msg(`<b>Falta em ${esc(STEPS[bad].title)}:</b> ${missing(E.M, bad).map(esc).join("; ")}`, "warn"); return; }
