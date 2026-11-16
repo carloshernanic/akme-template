@@ -127,6 +127,9 @@ def propose_edit(type: str, payload: dict[str, Any], rationale: str = "", propos
     titulo, descricao). O dado e lido e a proposta e recusada se a chave repetir ou um valor nao converter. Use
     suggest_sources para o rascunho. Nomes que o akme usa no Neo4j sao recusados: classes Conceito, Termo e
     _AkmeProjeto; relacoes RELACAO_ONTOLOGIA, SUBCLASSE_DE e TEM_TERMO; colunas _id, _projeto, _carga e _descricao."""
+    from .tools.review_round import mark_proposing
+    if proposed_by == "agent":
+        mark_proposing(project())
     return write_tool.propose_edit(project(), type, payload, rationale, proposed_by, requirement_id, evidence).model_dump(mode="json")
 
 
@@ -191,14 +194,17 @@ async def choose_decision_mode(ctx: Context, mode: str = "", authorized_by: str 
 @mcp.tool()
 def open_review(ctx: Context, port: int = 8765, open_browser: bool = True) -> dict[str, Any]:
     """Roda export, garante a pagina de revisao servindo em 127.0.0.1 (sobe em segundo plano se preciso) e
-    abre o navegador. Devolve a URL, a etapa atual e quantos pendentes esperam decisao. Chame em toda parada
-    em que o humano precisa decidir propostas; diga a URL ao humano em uma linha."""
-    from .review_server import ensure_running
+    abre o navegador apenas se ainda nao estiver aberta. Se ja estiver aberta, os dados e a visao do usuario
+    sao atualizados automaticamente via SSE/long-polling. Devolve a URL, a etapa atual e quantos pendentes
+    esperam decisao. Chame em toda parada em que o humano precisa decidir propostas; diga a URL ao humano em uma linha."""
+    from .review_server import ensure_running, is_running
     from .tools.review_round import harness_label, open_round
     from .tools.stage import current_stage
     p = project()
     export_tool.export(p)
-    url = ensure_running(p, port, open_browser)
+    already_running = is_running(port)
+    should_open_browser = open_browser and not already_running
+    url = ensure_running(p, port, should_open_browser)
     try:
         client = ctx.session.client_params.clientInfo.name
     except AttributeError:
@@ -207,6 +213,7 @@ def open_review(ctx: Context, port: int = 8765, open_browser: bool = True) -> di
     st = current_stage(p)
     return {"url": url, "round_id": rnd["id"], "stage": st["label"], "next_step": st["next_step"],
             "undecided": st["undecided"], "pending": st["counts"]["pending"], "checklist": st["checklist"],
+            "browser_opened": should_open_browser,
             "then": "Diga a URL ao humano em uma linha e chame wait_for_review com este round_id."}
 
 

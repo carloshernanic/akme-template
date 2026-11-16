@@ -14,17 +14,18 @@ Requisitos: Python 3.11+, [uv](https://docs.astral.sh/uv/) e [Claude Code](https
 uv sync
 ```
 
-Instale tambem o extra de cada formato ou banco que o cliente usar:
+Instale tambem o extra de cada formato ou banco que quiser conectar:
 
-| Fonte do cliente | Extra |
+| Fonte | Extra |
 |---|---|
 | `.xlsx`, `.docx`, `.pptx` | `uv sync --extra office` |
 | `.pdf` | `uv sync --extra pdf` |
 | Postgres, Snowflake, Databricks | `uv sync --extra postgres` (ou `snowflake`, `databricks`) |
+| neo4j | `uv sync --extra neo4j`|
 
 Os extras se somam no mesmo comando, ex: `uv sync --extra office --extra pdf`. Cuidado: cada `uv sync` remove os extras que nao estao no comando. Para acrescentar um extra sem perder os outros, use `--inexact` (ex: `uv sync --inexact --extra neo4j`).
 
-### 2. Aponte para os dados do cliente
+### 2. Aponte para os dados
 
 **Arquivos (pasta local).** Coloque planilhas e documentos em `data/` (pode ter subpastas; o git ignora o conteudo dessa pasta) e rode:
 
@@ -58,33 +59,29 @@ claude
 
 Na primeira vez ele pergunta se pode usar o servidor MCP `akme` deste projeto: aceite. Depois peca, por exemplo: **"vamos criar a ontologia"**. A skill `akme` carrega sozinha e o agente conduz o resto.
 
-Para o vai e volta com voce, o agente abre a pagina de revisao em `http://127.0.0.1:8765` (sempre pela URL; o `docs/index.html` aberto do disco fica so em modo leitura). La cada proposta aparece com a evidencia e com o que o dado mostra, e voce aceita, ajusta ou rejeita. Quando voce aplica, o agente segue sozinho.
+Na etapa de Conceitualização o agente abre a pagina de revisao em `http://127.0.0.1:8765`. La cada proposta aparece com a evidencia e com o que o dado mostra, e voce aceita, ajusta ou rejeita. Quando voce aplica, o agente segue sozinho.
 
-> **Modo canal (opcional, so no Claude Code):** para conversar com o agente pela propria pagina, sem voltar ao terminal, abra o Claude Code com `claude --dangerously-load-development-channels server:akme` e a pagina com `uv run akme review`. O painel "Conversa" da pagina passa a falar com a sessao. A flag mostra um aviso de "desenvolvimento local" porque o canal do akme nao esta na lista aprovada da Anthropic.
+> **Modo canal (opcional, só no Claude Code):** para conversar com o agente pela propria pagina, sem voltar ao terminal, abra o Claude Code com `claude --dangerously-load-development-channels server:akme` e a pagina com `uv run akme review`. O painel "Conversa" da pagina passa a falar com a sessao. A flag mostra um aviso de "desenvolvimento local" porque o canal do akme nao esta na lista aprovada da Anthropic.
 
 ### Outras harnesses
 
-O Claude Code e o caminho recomendado, mas o fluxo e o mesmo em qualquer agente com MCP: as instrucoes do projeto estao em `AGENTS.md`, a skill em `.agents/skills/akme/` aponta para o `SKILL.md` e o servidor e sempre `uv run akme serve`.
+O Claude Code é o recomendado, mas o fluxo é o mesmo em qualquer agente com MCP: as instruções do projeto estao em `AGENTS.md`, a skill em `.agents/skills/akme/` aponta para o `SKILL.md` e o servidor e sempre `uv run akme serve`.
 
 | Harness | Skill | Servidor MCP `akme` |
 |---|---|---|
 | Claude Code | `.claude/skills/akme/` | `.mcp.json` (aceite na primeira vez) |
 | Codex | `.agents/skills/akme/` | `.codex/config.toml`; o Codex so le esse arquivo depois que voce marca a pasta como confiavel ao abrir `codex` nela |
 | Cursor | `.agents/skills/akme/` | `.cursor/mcp.json`; ative o `akme` em Settings > MCP |
-| Antigravity (`agy`) | `.agents/skills/akme/` | o `agy` so tem config global; registre uma vez com o comando abaixo, trocando o caminho |
+| Antigravity (`agy`) | `.agents/skills/akme/` | `.agents/mcp_config.json`; Ative o `akme` pelo comando `\mcp`|
 
-```powershell
-agy mcp add --env AKME_ROOT=C:\caminho\do\projeto akme uv -- --directory C:\caminho\do\projeto run akme serve
-```
-
-So o Claude Code tem: o modo canal, os agentes de pesquisa de `.claude/agents/` e o formulario de "quem decide" (nas outras a pergunta vem no chat). Se as tools do `akme` nao aparecerem depois de mudar o servidor, reinicie o MCP na harness (Claude Code: `/mcp`; Codex e `agy`: abra uma sessao nova; Cursor: recarregue em Settings > MCP).
+Só o Claude Code tem: o modo canal, os agentes de pesquisa de `.claude/agents/` e o formulario de "quem decide" (nas outras a pergunta vem no chat). Se as tools do `akme` nao aparecerem depois de mudar o servidor, reinicie o MCP na harness (Claude Code: `/mcp`; Codex e `agy`: abra uma sessao nova; Cursor: recarregue em Settings > MCP).
 
 ### 4. Primeiro passo: quem decide
 
 Antes de tudo, o agente pergunta quem decide as propostas:
 
-- **Voce (modo humano, padrao):** o agente propoe e voce decide cada proposta na pagina.
-- **A IA (modo automatico):** a IA aceita, ajusta ou rejeita cada proposta e aplica em seu nome, com a assinatura "IA (modo automatico, autorizado por NOME)" no changelog. Voce revisa no fim. Publicar no alvo continua exigindo a sua confirmacao.
+- **Voce (modo humano, padrao):** o agente propõe e voce decide cada proposta na pagina.
+- **A IA (modo automatico):** a IA aceita, ajusta ou rejeita cada proposta e aplica em seu nome, com a assinatura "IA (modo automatico, autorizado por NOME)" no changelog. Você revisa no fim. Publicar no alvo continua exigindo a sua confirmação.
 
 A escolha fica em `ontology/decision_mode.yml` e pode ser trocada a qualquer momento, pedindo ao agente.
 
@@ -94,14 +91,14 @@ O agente segue as seis etapas do LOT descritas no `SKILL.md`. Em cada parada, el
 
 | Etapa | O que o agente faz | O que voce decide |
 |---|---|---|
-| **1. Especificar** | Perfila os dados e le os documentos. Depois propoe de 2 a 3 casos de uso tirados das fontes e abre a pagina so com eles (nao pergunta no chat). Com o caso de uso escolhido, propoe proposito, escopo e usuarios, dez perguntas de competencia (CQs), lacunas, divergencias e o glossario de siglas, sempre citando a fonte. | Primeiro, quais casos de uso valem (ou escrever o seu, ou dizer que nao ha). Depois, quais CQs valem e com que prioridade, quais ficam reservadas para o teste final, e como tratar lacunas e divergencias. Enquanto os requisitos nao fecham, a ontologia nao e criada. |
-| **2. Conceitualizar** | A partir das CQs aprovadas, propoe classes, relacoes (com multiplicidade e join medidos no dado real) e termos; metricas levam unidade, grao e aditividade. Busca termos reutilizaveis na LOV. | Aceitar, ajustar ou rejeitar cada classe, relacao e termo. |
+| **1. Especificar** | Perfila os dados e le os documentos. Depois propoe de 2 a 3 casos de uso tirados das fontes e abre a pagina so com eles (nao pergunta no chat). Com o caso de uso escolhido, define proposito, escopo e usuarios, dez perguntas de competencia (CQs), lacunas, divergencias e o glossário de siglas, sempre citando a fonte. | Primeiro, quais casos de uso valem (ou escrever o seu, ou dizer que não há). Depois, quais CQs valem e com que prioridade, quais ficam reservadas para o teste final, e como tratar lacunas e divergencias. Enquanto os requisitos nao fecham, a ontologia nao e criada. |
+| **2. Conceitualizar** | A partir das CQs aprovadas, propõe classes, relações e termos; métricas levam unidade, grao e aditividade. Busca termos reutilizaveis na LOV. | Aceitar, ajustar ou rejeitar cada classe, relacao e termo. |
 | **3. Codificar** | Propoe o mapping de cada termo para tabela e coluna, regras implicitas dos documentos (restricoes) e qual fonte prevalece quando elas divergem (precedencia). Roda o `validate`. | Aceitar ou rejeitar mappings, restricoes e precedencias. |
 | **4. Avaliar** | Roda `validate` (cobertura e pitfalls) e `eval` (as CQs reservadas como teste) e propoe correcoes. | Voltar para a etapa 2 ou 3, ou seguir para publicar. |
 | **5. Publicar** | Gera o artefato do alvo em dry-run em `docs/publish/`: Snowflake (semantic view), Databricks (comments), YAML, RDF ou Neo4j. | Se e quando publicar. Executar no alvo e irreversivel e so acontece com a sua confirmacao: na CLI ou, para o Neo4j, no botao da aba "Exportar" da pagina. |
 | **6. Manter** | Cada mudanca comeca com um registro (issue ou CQ nova), e o agente classifica e lista o impacto. | O escopo da mudanca e quando ela entra em release. |
 
-Nada entra na ontologia ate ser aplicado com o nome de quem aprovou: pela pagina ("Salvar e aplicar" ou "Aplicar decididas", que pedem o seu nome), dizendo "aplica" no chat ou na CLI (`uv run akme apply --all-reviewed --approved-by NOME`). Para saber em que ponto o projeto esta, rode `uv run akme stage` ou olhe o topo da pagina.
+Nada entra na ontologia ate ser aplicado com o nome de quem aprovou: pela pagina ("Salvar e aplicar" ou "Aplicar decisões", que pedem o seu nome), dizendo "aplicar" no chat ou na CLI (`uv run akme apply --all-reviewed --approved-by NOME`). Para saber em que ponto o projeto esta, rode `uv run akme stage` ou olhe o topo da pagina.
 
 ### Exportar para o Neo4j
 
@@ -111,7 +108,7 @@ Instale o extra do Neo4j uma vez (o `--inexact` mantem os outros extras ja insta
 uv sync --inexact --extra neo4j
 ```
 
-Depois, a aba "Exportar" da pagina (`uv run akme review`) guia a exportacao em quatro passos: conectar ao seu Neo4j (Neo4j Desktop, Docker ou outro servidor), conferir a previa, carregar e ver o grafo. A carga e so sua, pelo botao da aba ou pela CLI; o agente nao carrega.
+Depois, a aba "Exportar" da pagina (`uv run akme review`) guia a exportacao em quatro passos: conectar à sua instância Neo4j, conferir a previa, carregar e ver o grafo. A publicação é feita pelo usuário, pela página de revisão ou pela comando no terminal; o agente não carrega.
 
 Pela CLI, o caminho e este:
 
@@ -135,13 +132,13 @@ Pela CLI, o caminho e este:
 
    Nas proximas vezes, `docker start akme-neo4j`. Sem Docker, use o Neo4j Desktop com o endereco e a senha do `.env`.
 
-3. Gere a previa (dry-run, nao toca no banco; grava `docs/publish/neo4j.cypher` e `docs/publish/neo4j_schema.md`):
+3. Gere a previa (dry-run, nao toca no banco e apenas prepara a publicação):
 
    ```bash
    uv run akme publish --target neo4j
    ```
 
-4. Carregue. A CLI mostra o destino, o que vai gravar e o que o banco tem hoje, e pede confirmacao. A carga altera o banco e nao tem como desfazer:
+4. Carregue. A CLI mostra o destino, o que vai gravar e o que o banco tem hoje, e pede confirmacao:
 
    ```bash
    uv run akme publish --target neo4j --no-dry-run

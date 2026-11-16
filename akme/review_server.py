@@ -416,6 +416,9 @@ def make_handler(project: Project):
 
         def _apply(self, body: dict[str, Any]) -> dict[str, Any]:
             """Aplica em lote as decididas. O nome de quem aprova e obrigatorio e fica no changelog."""
+            rnd = read_round(project)
+            if rnd and rnd.get("status") == "proposing":
+                raise _HttpError(409, "O agente ainda está propondo edições. Aguarde a conclusão da rodada para aplicar.")
             approved_by = str(body.get("approved_by") or "").strip()
             if not approved_by:
                 raise _HttpError(400, "approved_by obrigatorio")
