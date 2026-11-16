@@ -1,0 +1,82 @@
+# Conteudo da ontologia AKME. Toda entrada aqui nasce de um propose_edit aprovado e aplicado.
+# Os exemplos comentados mostram o formato de cada secao.
+
+requirements:
+  purpose: ""
+  scope: ""
+  users: []
+  use_cases: []
+  # - id: UC-01
+  #   name: Acompanhar faturamento
+  #   description: O financeiro acompanha o faturamento por UF a cada trimestre.
+  no_use_case: ""
+  competency_questions: []
+  # - id: CQ-001
+  #   question: Qual o faturamento por UF no ultimo trimestre?
+  #   type: quantidade_agregacao
+  #   concepts: [faturamento, UF]
+  #   evidence:
+  #     - {kind: source, path: data/pedidos.csv, locator: coluna valor_total, quote: valor_total}
+  #     - {kind: conversation, who: maria, when: "2026-10-01", note: pedido na reuniao de kickoff}
+  #   use_cases: [UC-01]
+  #   priority: high
+  #   status: approved
+  #   answer: ""              # obrigatorio quando status = reserved
+  #   proposed_by: agent
+  #   reviewed_by: maria
+  #   reviewed_at: "2026-10-02T12:00:00+00:00"
+  #   rejection_reason: ""    # preencher quando status = rejected
+  gaps: []
+  # - id: L-01
+  #   question: Qual a regra de devolucao?
+  #   reason: nenhum documento descreve devolucoes
+  #   missing: regra de negocio de devolucao
+  #   evidence:
+  #     - {kind: source, path: data/pedidos.csv, locator: coluna status_devolucao, quote: status_devolucao}
+  #     - {kind: conversation, who: maria, when: "2026-10-01", note: devolucoes nao documentadas}
+  #   decision: request_from_client
+  divergences: []
+  # - id: D-01
+  #   topic: cliente ativo
+  #   sources:
+  #     - {label: financeiro, path: glossario.md, locator: "linha 17", quote: "cliente ativo tem pedido faturado nos ultimos 180 dias"}
+  #     - {label: erp, path: clientes.csv, locator: "coluna fl_ativo", quote: "o ERP usa o campo fl_ativo"}
+  #   decision: precedence
+  #   winner: financeiro
+
+terms: []
+# - name: cliente
+#   class: Cliente
+#   definition: Pessoa juridica que fez ao menos um pedido faturado.
+#   synonyms: [conta, comprador]
+
+mappings: []
+# - term: cliente
+#   source: clientes
+#   column: id_cliente
+#   role: dimension
+#   note: chave primaria da tabela clientes
+
+constraints: []
+# - id: C-001
+#   term: faturamento
+#   rule: considerar apenas pedidos com status FATURADO
+#   severity: error
+
+glossary: []
+# - acronym: UF
+#   meaning: Unidade federativa (sigla do estado brasileiro)
+#   convention: sempre duas letras maiusculas
+
+precedence: []
+# - topic: cliente ativo
+#   winner: financeiro
+#   over: erp
+#   reason: o financeiro define inadimplencia; o ERP so registra cadastro
+
+evidence: []
+# - decision: add_term-1a2b3c4d
+#   source: dicionario de dados do cliente, pagina 3
+#   requirement_id: CQ-001
+#   approved_by: maria
+#   date: "2026-10-27T18:00:00+00:00"
