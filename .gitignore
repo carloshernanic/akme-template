@@ -17,7 +17,7 @@ docs/ontology.js
 akme.yml
 !.env.example
 
-# dados do cliente ficam so na maquina do consultor
+# dados das fontes ficam so na maquina de quem usa o template
 data/*
 !data/.gitkeep
 

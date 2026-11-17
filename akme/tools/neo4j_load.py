@@ -49,7 +49,7 @@ STATE_QUERY = (
     f"RETURN COLLECT {{ MATCH (m) WHERE '{MARKER}' IN labels(m) RETURN m[$prop] }} AS projetos, "
     "COUNT { MATCH (n) } AS total, "
     f"COUNT {{ MATCH (n) WHERE n['_projeto'] IS NULL AND NOT '{MARKER}' IN labels(n) }} AS alheios, "
-    # legado: no do n10s (sem _projeto), para uma classe do cliente chamada Resource nao ser confundida com ele
+    # legado: no do n10s (sem _projeto), para uma classe do dominio chamada Resource nao ser confundida com ele
     "EXISTS { MATCH (n) WHERE n['_projeto'] IS NULL AND ("
     + " OR ".join(f"'{label}' IN labels(n)" for label in LEGACY_LABELS) + ") } AS legado")
 LEGACY_QUERY = f"SHOW CONSTRAINTS YIELD name WHERE name = '{LEGACY_CONSTRAINT}' RETURN count(*) AS c"

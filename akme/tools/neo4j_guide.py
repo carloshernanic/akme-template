@@ -128,7 +128,7 @@ def _slides(plan: Plan, apoc: bool | None) -> list[str]:
 
     # b. a ontologia
     parts = ["<h3>A ontologia</h3>",
-             "<p>As classes e relações do projeto, com os nomes do schema.ttl. Nada aqui é dado do cliente.</p>"]
+             "<p>As classes e relações do projeto, com os nomes do schema.ttl. Nada aqui é dado das fontes.</p>"]
     if apoc is not False:
         parts.append(("<p>Se o banco tiver o plugin APOC (opcional):</p>" if apoc is None else "")
                      + _pre(map_query(plan.project, apoc=True)))
@@ -169,7 +169,7 @@ def _slides(plan: Plan, apoc: bool | None) -> list[str]:
         "<p>No console da Aura (console.neo4j.io), o Query tem um gerador de Cypher a partir de texto, ligado a este "
         "banco local; ele precisa do APOC. A conexão do console a um banco local funcionou num teste; o gerador de "
         "Cypher não foi testado, nem o AuraDB (o banco na nuvem): o akme só foi testado com o Neo4j local em Docker.</p>",
-        f"<p>Passo a passo e cuidados com dado de cliente: seção \"{AURA_SECTION}\" de <code>{USAGE_GUIDE}</code>.</p>"]))
+        f"<p>Passo a passo e cuidados com dados sensíveis: seção \"{AURA_SECTION}\" de <code>{USAGE_GUIDE}</code>.</p>"]))
     return slides
 
 

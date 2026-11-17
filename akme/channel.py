@@ -1,6 +1,6 @@
 """Canal do Claude Code (channels): leva a conversa da pagina de revisao para a sessao do agente.
 
-O servidor MCP declara `claude/channel` e, a cada mensagem que o consultor escreve na pagina,
+O servidor MCP declara `claude/channel` e, a cada mensagem que o usuario escreve na pagina,
 manda `notifications/claude/channel` para a sessao; o agente responde pela tool `reply`.
 Tambem avisa quando o humano aplica a rodada na pagina (o agente nao precisa ficar preso em
 `wait_for_review`) e repassa os pedidos de permissao de tool (`claude/channel/permission`) para

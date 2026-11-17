@@ -192,7 +192,7 @@ def publish(target: str = typer.Option("yaml", help="yaml, snowflake, databricks
     if target == "neo4j" and not dry_run:
         _publish_neo4j(release)
         return
-    if not dry_run and not typer.confirm(f"Executar no alvo {target}? Esta acao altera a plataforma do cliente."):
+    if not dry_run and not typer.confirm(f"Executar no alvo {target}? Esta acao altera o banco de destino."):
         raise typer.Abort()
     result = publish_tool.publish(_project(), target, dry_run, release)
     _dump(result)

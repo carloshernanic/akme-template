@@ -6,7 +6,7 @@ As classes de base do akme (Entity, Metric, Relation, Rule) nao viram Conceito: 
 delas a classe descende fica em `tipo` (entidade, metrica, relacao ou regra). `publicada_nos_dados` diz se ha nos de
 dado com esse label (ou, na metrica, se ela tem expressao sobre uma fonte publicada).
 
-Devolve statements (texto Cypher, parametros) deterministicos. Texto vindo do cliente ou da ontologia vai sempre como
+Devolve statements (texto Cypher, parametros) deterministicos. Texto vindo das fontes ou da ontologia vai sempre como
 parametro; so identificadores (nome da relacao) entram no texto, pelo name() de neo4j_values. A carga (Task 6)
 acrescenta $projeto e $carga; render escreve o texto legivel para o artefato de dry-run, sem executar nada.
 """

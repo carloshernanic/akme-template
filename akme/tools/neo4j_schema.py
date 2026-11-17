@@ -85,7 +85,7 @@ def llm_schema(project: Project, plan: Plan) -> str:
         "(entidade, metrica, relacao ou regra) e `publicada_nos_dados`: se ha nos de dado com esse label), "
         "`Termo` (termos do negocio, ligados ao seu Conceito por `TEM_TERMO`) e `_AkmeProjeto` (marca do projeto; "
         "guarda este esquema em `esquema`).",
-        "- Arestas de dado tem como tipo o nome exato da relacao na ontologia (`[:feitoPorCliente]`). A camada de "
+        "- Arestas de dado tem como tipo o nome exato da relacao na ontologia (`[:feitoPor]`). A camada de "
         "ontologia e um espelho do schema.ttl: as setas entre `Conceito` tem todas o tipo `RELACAO_ONTOLOGIA`, com o "
         "nome da relacao em `nome` (mais `rotulo`, `definicao`, `inversa`, `multiplicidade` e `publicada_nos_dados`; a "
         "inversa de um contrato tem `inversa_de`); `SUBCLASSE_DE` liga subclasse a classe. Para ler a ontologia: "

@@ -6,12 +6,12 @@ requisitos (30/10) e da página de revisão como caixa de entrada de decisões (
 
 ## 1. O problema que o template resolve
 
-Um consultor recebe o banco de dados de um cliente (tabelas, dicionário, relatórios, glossário) e
-precisa deixar um agente de IA respondendo perguntas de negócio sobre esses dados na plataforma
-do cliente (Snowflake, Databricks). Entre o banco e o agente ficam dois artefatos:
+Você recebe um banco de dados (tabelas, dicionário, relatórios, glossário) e precisa deixar um
+agente de IA respondendo perguntas de negócio sobre esses dados na plataforma onde eles estão
+(Snowflake, Databricks). Entre o banco e o agente ficam dois artefatos:
 
 - **A ontologia**: o mapa dos conceitos do negócio e de como se relacionam (Cliente, Pedido,
-  Faturamento, "Pedido pertence a Cliente"). Vale para qualquer cliente do mesmo ramo.
+  Faturamento, "Pedido pertence a Cliente"). Vale para qualquer base do mesmo ramo.
 - **A camada semântica**: onde cada conceito está no banco e como cada métrica se calcula
   (`pedidos.vl_total`, `SUM(... WHERE status = 'FATURADO')`). Só vale neste banco.
 
@@ -56,7 +56,7 @@ O que entrou (desenho em `docs/superpowers/specs/2026-10-30-revisao-de-requisito
 |---|---|---|
 | Caso de uso | Nome, descrição, atores e fluxo, como na LOT. Um ou vários por ontologia. O agente propõe de 2 a 3 tirados das fontes e você escolhe ou escreve o seu na página | `content.yml` → `requirements.use_cases` |
 | CQ completa | Pergunta, tipo (seis tipos), conceitos envolvidos, evidência com arquivo e trecho, prioridade, status (`proposed`, `approved`, `reserved`, `rejected`, `deprecated`), resposta esperada quando reservada, quem propôs e quem revisou | `requirements.competency_questions` |
-| Lacuna | Pergunta que o caso de uso sugere e os dados não respondem, com motivo e o que faltaria. As marcadas "pedir ao cliente" formam o **data request** | `requirements.gaps` |
+| Lacuna | Pergunta que o caso de uso sugere e os dados não respondem, com motivo e o que faltaria. As marcadas "Explicar" formam o **pedido de dados** (data request), com a explicação junto | `requirements.gaps` |
 | Divergência | Duas fontes que discordam, com citação de cada uma, a hipótese da IA rotulada como hipótese, e a decisão (qual prevalece, são termos distintos, perguntar ao especialista, descartar) | `requirements.divergences` |
 | Bloco de revisão | A decisão do humano gravada dentro do próprio pendente: aceitar ou rejeitar, edições, prioridade, motivo, revisor, hora | `ontology/pending/*.yml` → `review` |
 | Aplicação em lote | `apply_reviewed` aplica tudo que tem revisão numa cópia temporária, roda `validate`, e só promove se não houver erro novo | `akme/tools/batch.py` |
@@ -73,11 +73,11 @@ exigida: nem todo projeto tem; sem ela o `eval` avisa que não testou pelo resul
 ### 4.1 Preparar
 
 ```bash
-git clone <repo do template> meu-cliente && cd meu-cliente
+git clone <repo do template> meu-projeto && cd meu-projeto
 uv sync --extra dev --extra office --extra pdf
 ```
 
-Coloque os arquivos do cliente em `data/` (planilhas `.csv` e `.xlsx`, documentos `.md`, `.txt`,
+Coloque os arquivos de dados e documentos em `data/` (planilhas `.csv` e `.xlsx`, documentos `.md`, `.txt`,
 `.pdf`, `.docx`, `.pptx`; subpastas são lidas). O git ignora essa pasta. Depois:
 
 ```bash
@@ -101,7 +101,7 @@ com duas opções e o seu nome:
 - **A IA decide tudo e eu reviso no fim** (modo automático): o agente aceita, ajusta ou rejeita
   cada proposta e aplica em seu nome, sem parar. Cada decisão vai para o `changelog.yml` assinada
   como "IA (modo automático, autorizado por SEU NOME)". A IA não inventa dado que falta (lacuna vira
-  pedido ao cliente), faz no máximo dois ciclos de correção na avaliação e só gera o `publish` em
+  pedido de dados), faz no máximo dois ciclos de correção na avaliação e só gera o `publish` em
   dry-run. No fim, entrega um relatório do que decidiu e abre a página para você conferir.
 
 A escolha fica em `ontology/decision_mode.yml`, com o histórico de trocas. Para mudar, peça ao
@@ -110,7 +110,7 @@ da IA: o agente não consegue se autoaprovar.
 
 ### 4.3 Etapa 1: especificar (LOT: especificação de requisitos)
 
-No chat: "mapeie o domínio do cliente". O agente:
+No chat: "mapeie o domínio destes dados". O agente:
 
 O caso de uso vem antes de tudo e é escolhido na página, em duas rodadas de revisão.
 
@@ -143,7 +143,8 @@ Na página (vista **Revisão**, a inicial):
   **rever**. Textos ajustáveis (rótulo, comentário, definição, sinônimos) ficam em "ajustar
   texto". Em CQs, aceitar pede a **Prioridade**. **Aceitar tudo** aceita o que ainda está sem
   decisão.
-- Em cada lacuna: pedir o dado ao cliente, reformular, descartar ou deixar em aberto. Em cada
+- Em cada lacuna: Explicar (dizer que dado falta e a quem pedir; entra no pedido de dados) ou
+  Ignorar. Em cada
   divergência: qual fonte vale, são coisas diferentes, perguntar ao especialista, descartar ou
   deixar em aberto. "Vale a fonte X" vira candidata a regra de precedência na etapa 3. Deixar em
   aberto mantém a etapa 1 aberta até alguém decidir.

@@ -1,6 +1,6 @@
 # akme-template
 
-Template para construir, validar e publicar uma ontologia e uma camada semântica sobre a base de dados de um cliente, seguindo LOT + NeOn com humano no loop. Um agente lê `SKILL.md`, consulta a ontologia pelo servidor MCP `akme` e propõe edições tipadas que só entram na ontologia depois de aprovadas por uma pessoa.
+Template para construir, validar e publicar uma ontologia e uma camada semântica sobre uma base de dados, seguindo LOT + NeOn com humano no loop. Um agente lê `SKILL.md`, consulta a ontologia pelo servidor MCP `akme` e propõe edições tipadas que só entram na ontologia depois de aprovadas por uma pessoa.
 
 ## Stack
 - Python 3.11+, gerenciado com `uv`
@@ -19,7 +19,7 @@ Template para construir, validar e publicar uma ontologia e uma camada semântic
 - `validation/` — perguntas usadas pelo eval
 - `examples/local_demo/` — dados e edições da demo
 - `docs/` — guia do fluxo, pesquisa metodológica e saídas geradas pelo `export`
-- `data/` — arquivos do cliente (o conteúdo é ignorado pelo git)
+- `data/` — arquivos de dados e documentos do projeto (o conteúdo é ignorado pelo git)
 - `tests/` — pytest
 
 ## Comandos

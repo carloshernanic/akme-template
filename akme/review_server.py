@@ -5,7 +5,7 @@ Rotas de leitura: /api/status, /api/stage, /api/pending, /api/requirements, /api
 neo4j`, unica rota com CORS, so para as origens do Neo4j Browser: o Browser busca o guia de outra origem, por
 `:guide <url>`), e /api/versao (versao do akme e recursos deste servidor: a CLI reconhece um servidor de codigo antigo). Rotas de escrita: /api/review (grava a decisao no pendente), /api/propose (o revisor
 cria ou altera um requisito, ou corrige um mapping aplicado), /api/apply (aplica em lote as decididas, com nome de quem aprova), /api/chat
-(mensagem do consultor para o agente, pelo canal) e /api/chat/permission (permitir ou negar uma tool).
+(mensagem do usuario para o agente, pelo canal) e /api/chat/permission (permitir ou negar uma tool).
 """
 from __future__ import annotations
 
@@ -304,8 +304,8 @@ def make_handler(project: Project):
 
         def _guide(self, head: bool = False) -> None:
             """Tutorial do Neo4j Browser, que roda em outra origem (porta 7474, outra porta no Docker, ou o console da
-            Aura). CORS so aqui e so para essas origens (browser_origins): o guia leva nomes e contagens do projeto
-            do cliente, entao outro site aberto no navegador nao pode le-lo. O servidor
+            Aura). CORS so aqui e so para essas origens (browser_origins): o guia leva nomes e contagens do projeto,
+            entao outro site aberto no navegador nao pode le-lo. O servidor
             continua so em 127.0.0.1 e com a checagem do Host."""
             path = project.docs_dir / "publish" / GUIDE_FILE
             if not path.is_file():

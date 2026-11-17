@@ -2,11 +2,11 @@
 
 A pagina e o servidor MCP rodam em processos diferentes; os dois se falam por um log em
 `ontology/pending/chat.jsonl`, uma mensagem por linha. Papeis:
-- `human`: o consultor escreveu na pagina; o servidor MCP repassa ao agente como evento do canal
+- `human`: o usuario escreveu na pagina; o servidor MCP repassa ao agente como evento do canal
 - `agent`: resposta do agente, gravada pela tool `reply`
 - `event`: aviso do sistema ao agente (ex.: rodada aplicada na pagina)
 - `permission`: o Claude Code pede permissao para uma tool; a pagina mostra permitir ou negar
-- `verdict`: a resposta do consultor a um `permission`; o servidor MCP devolve ao Claude Code
+- `verdict`: a resposta do usuario a um `permission`; o servidor MCP devolve ao Claude Code
 """
 from __future__ import annotations
 

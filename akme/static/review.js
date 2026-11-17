@@ -1,4 +1,4 @@
-/* Vista Revisão: a caixa de entrada de decisões do consultor. Sem biblioteca, sem build.
+/* Vista Revisão: a caixa de entrada de decisões do usuário. Sem biblioteca, sem build.
    window.AkmeReview.init(data, api, hooks): data = /api/data (ou window.AKME_DATA no modo leitura);
    api = null (modo leitura) ou { get(path), post(path, body) } quando servida por `akme review`;
    hooks.onData(data) avisa a outra vista quando os dados mudam.
@@ -826,7 +826,7 @@
     if (editing) {
       decide = `<section class="rv-section rv-decide"><h3>Decisão</h3>
         <div class="choice"><span class="field-label">O que fazer com esta lacuna</span>${seg(key, "choice", GAP_DECISIONS, (x) => v.choice === x, { col: true, label: "Decisão da lacuna" })}
-          ${v.choice === "explain" ? '<span class="choice-help">Entra no pedido de dados ao cliente.</span>' : ""}</div>
+          ${v.choice === "explain" ? '<span class="choice-help">Entra no pedido de dados.</span>' : ""}</div>
         ${textField(key, "note", "Motivo da decisão", v.note, { placeholder: v.choice === "open" ? "opcional" : "obrigatório" })}
         ${isPending ? savedNote(p) : `<div class="row"><button type="button" class="btn btn-ghost btn-sm" data-act="cancel" data-key="${esc(key)}">Cancelar</button></div>`}</section>`;
     } else {

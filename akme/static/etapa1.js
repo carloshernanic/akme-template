@@ -510,7 +510,7 @@
     if (!n) return `<button type="button" class="lnk e1-nouc" data-e1="nouc-on">Sem caso de uso</button>`;
     if (n.ok) return `<p class="e1-nouc-ok"><b>Sem caso de uso:</b> ${esc(n.text)} <button type="button" class="lnk" data-e1="nouc-off">desfazer</button></p>`;
     return `<div class="e1-nouc-f"><label class="field-label" for="e1-nouc">Por que não há caso de uso? ${req(n.text.trim())}</label>
-      <div class="row"><input id="e1-nouc" class="input${n.tried && !n.text.trim() ? " miss" : ""}" type="text" data-e1f="nouc" value="${esc(n.text)}" placeholder="Ex.: o cliente ainda não definiu quem vai usar">
+      <div class="row"><input id="e1-nouc" class="input${n.tried && !n.text.trim() ? " miss" : ""}" type="text" data-e1f="nouc" value="${esc(n.text)}" placeholder="Ex.: ainda não está definido quem vai usar">
       <button type="button" class="btn btn-sm" data-e1="nouc-ok">Confirmar</button><button type="button" class="btn btn-ghost btn-sm" data-e1="nouc-off">Cancelar</button></div></div>`;
   }
   // proposito, escopo e usuarios descrevem o mesmo projeto: um card, um aceite (no servidor seguem tres aceites)

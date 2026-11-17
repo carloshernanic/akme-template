@@ -79,7 +79,7 @@
   const since = (iso) => (iso ? Date.now() - new Date(iso).getTime() : Infinity);
 
   // o agente esta trabalhando: chamou uma tool do akme ha pouco (que nao foi a resposta final) ou ainda
-  // nao respondeu a ultima mensagem do consultor
+  // nao respondeu a ultima mensagem do usuario
   function status() {
     const last = [...S.items].reverse().find((i) => i.role === "human" || i.role === "agent");
     const act = S.activity || {};

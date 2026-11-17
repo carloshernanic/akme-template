@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" width="1400" height="800" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif">
   <title>Pipeline do akme-template</title>
-  <desc>Fontes do cliente, preparação, seis etapas LOT + NeOn, ciclo de revisão humana e alvos de publicação.</desc>
+  <desc>Fontes de dados, preparação, seis etapas LOT + NeOn, ciclo de revisão humana e alvos de publicação.</desc>
   <defs>
     <style>
       .bg { fill: #f8f8f9; }
@@ -34,11 +34,11 @@
 
   <!-- Cabeçalho -->
   <text class="h1" x="55" y="58">Pipeline do akme-template</text>
-  <text class="sub" x="55" y="82">Dos dados do cliente à camada semântica publicada · LOT + NeOn com humano no loop</text>
+  <text class="sub" x="55" y="82">Dos dados à camada semântica publicada · LOT + NeOn com humano no loop</text>
 
   <!-- Entrada: fontes -->
   <rect class="card" x="55" y="110" width="410" height="110" rx="10"/>
-  <text class="t" x="75" y="136">Fontes do cliente</text>
+  <text class="t" x="75" y="136">Fontes de dados</text>
   <rect class="chip" x="75" y="150" width="128" height="26" rx="6"/><text class="m" x="85" y="167">data/ local_folder</text>
   <rect class="chip" x="211" y="150" width="70" height="26" rx="6"/><text class="m" x="221" y="167">postgres</text>
   <rect class="chip" x="289" y="150" width="76" height="26" rx="6"/><text class="m" x="299" y="167">snowflake</text>
@@ -58,7 +58,7 @@
   <rect class="card" x="975" y="110" width="366" height="110" rx="10"/>
   <text class="t" x="995" y="136">Quem faz o quê</text>
   <text class="p" x="995" y="158">Agente (SKILL.md + MCP akme serve) propõe</text>
-  <text class="p" x="995" y="176">Consultor decide na página e aplica com o nome</text>
+  <text class="p" x="995" y="176">Usuário decide na página e aplica com o nome</text>
   <path class="flow" d="M995 200 H1025" marker-end="url(#a)"/><text class="s" x="1031" y="204">fluxo</text>
   <path class="back" d="M1075 200 H1105" marker-end="url(#a)"/><text class="s" x="1111" y="204">volta</text>
   <rect class="human" x="1155" y="193" width="22" height="14" rx="3"/><text class="s" x="1183" y="204">decisão humana</text>

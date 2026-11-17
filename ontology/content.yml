@@ -35,7 +35,7 @@ requirements:
   #     - {kind: source, path: data/pedidos.csv, locator: coluna status_devolucao, quote: status_devolucao}
   #     - {kind: conversation, who: maria, when: "2026-10-01", note: devolucoes nao documentadas}
   #   decision: explain
-  #   note: pedir ao cliente o status de devolucao
+  #   note: pedir a quem fornece os dados o status de devolucao
   divergences: []
   # - id: D-01
   #   topic: cliente ativo
@@ -77,7 +77,7 @@ precedence: []
 
 evidence: []
 # - decision: add_term-1a2b3c4d
-#   source: dicionario de dados do cliente, pagina 3
+#   source: dicionario de dados, pagina 3
 #   requirement_id: CQ-001
 #   approved_by: maria
 #   date: "2026-10-27T18:00:00+00:00"
