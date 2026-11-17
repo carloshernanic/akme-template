@@ -167,7 +167,8 @@ def _observed(p: dict[str, Any]) -> dict[str, Any] | None:
     orphans = int(o.get("orphans") or 0)
     if orphans:
         ex = ", ".join(_s(x) for x in (o.get("orphan_examples") or [])[:5])
-        lines.append(f"Órfãos: {orphans} chaves de origem sem par no destino" + (f" (ex.: {ex})" if ex else ""))
+        lines.append(f"Órfãos: {orphans} chaves de origem sem par no destino" + (f" (ex.: {ex})" if ex else "")
+                     + ("" if o.get("orphans_exact", not o.get("truncated")) else " — contado por amostra, pode não ser real"))
         alerts.append("há chaves de origem sem correspondência no destino")
     if o.get("fanout"):
         alerts.append("a junção repete linhas da origem (fanout): métricas da origem não podem ser somadas depois de juntar")

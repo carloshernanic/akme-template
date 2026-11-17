@@ -118,7 +118,8 @@ def _check_relation_contracts(g: Graph, content: dict[str, Any], project: Projec
                                     message=f"'{c['relation']}' declarada {c['multiplicity']}, observada "
                                             f"{observed['multiplicity']}: {problem}"))
         if observed["orphans"]:
-            hint = " (amostra truncada: pode ser falso positivo)" if observed["truncated"] else ""
+            exact = observed.get("orphans_exact", not observed["truncated"])
+            hint = "" if exact else " (contado por amostra: pode ser falso positivo)"
             findings.append(Finding(level="warning", check="join_orphans", subject=c["relation"],
                                     message=f"'{c['relation']}': {observed['orphans']} chaves de "
                                             f"{c['join']['from']['source']}.{c['join']['from']['column']} sem par em "

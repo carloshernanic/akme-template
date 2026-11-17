@@ -1,9 +1,12 @@
 import pytest
 from rdflib import OWL, RDF
 
+from akme.adapters import AdapterError
+from akme.adapters.local_folder import LocalFolderAdapter
 from akme.ontology import base_ns, load_content, load_graph, save_content
 from akme.project import read_yaml
 from akme.tools import ontology_write
+from akme.tools.contracts import observe_join
 from akme.tools.ontology_write import EditError
 from akme.tools.publish import PublishError, publish, semantic_model
 from akme.tools.validate import validate
@@ -90,6 +93,18 @@ def test_validate_flags_missing_contracts_and_orphans(seeded):
     assert checks[("metric_without_contract", "faturamento")] == "error"
     assert checks[("join_orphans", "pertenceA")] == "warning"
     assert not report.ok
+
+
+def test_orphans_look_for_the_keys_in_the_whole_target_when_its_sample_is_truncated(seeded, monkeypatch):
+    # com sample=3 a amostra de pedidos tem o cliente 4 e a de clientes nao: comparar so as amostras acusaria orfao
+    observed = observe_join(seeded, PERTENCE["join"], sample=3)
+    assert observed["truncated"] and observed["orphans"] == 0 and observed["orphans_exact"] is True
+
+    def no_batches(self, source, batch=5000):
+        raise AdapterError("nao le em blocos")
+    monkeypatch.setattr(LocalFolderAdapter, "iter_rows", no_batches)
+    approx = observe_join(seeded, PERTENCE["join"], sample=3)
+    assert approx["orphans"] == 1 and approx["orphans_exact"] is False
 
 
 def test_publish_snowflake_has_keys_relationships_and_fanout(seeded):

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..adapters import load_adapter
+from ..adapters import AdapterError, load_adapter
 from ..project import Project
 from .neo4j_values import shown
 
@@ -38,8 +38,23 @@ def _side(rows: list[dict[str, Any]], column: str) -> dict[str, Any]:
             "duplicated": len(distinct) < len(present), "keys": distinct}
 
 
+def _find_keys(adapter: Any, source: str, column: str, wanted: set[str]) -> set[str] | None:
+    """Procura as chaves no destino inteiro, em blocos, e para quando acha todas. None se o adapter nao le em blocos."""
+    found: set[str] = set()
+    try:
+        for rows in adapter.iter_rows(source):
+            found |= {k for k in (_key(r.get(column)) for r in rows) if k in wanted}
+            if found == wanted:
+                break
+    except AdapterError:
+        return None
+    return found
+
+
 def observe_join(project: Project, join: dict[str, Any], sample: int = SAMPLE) -> dict[str, Any]:
-    """Le uma amostra das duas pontas e mede nulos, duplicatas, orfaos e a multiplicidade observada."""
+    """Le uma amostra das duas pontas e mede nulos, duplicatas, orfaos e a multiplicidade observada.
+    Orfaos: as chaves da amostra de origem sem par sao procuradas no destino inteiro quando a amostra do destino
+    veio truncada; comparar duas amostras independentes acusaria orfaos que nao existem."""
     adapter = load_adapter(project.adapter_name, project.adapter_options())
     try:
         sources = set(adapter.list_sources())
@@ -51,10 +66,18 @@ def observe_join(project: Project, join: dict[str, Any], sample: int = SAMPLE) -
             if col not in [c["name"] for c in adapter.read_schema(src)["columns"]]:
                 return {"available": False, "reason": f"coluna inexistente: {src}.{shown([col])}"}
             ends[side] = _side(adapter.read_sample(src, sample), col)
+        left, right = ends["from"], ends["to"]
+        missing = left["keys"] - right["keys"]
+        exact = right["rows"] < sample
+        if missing and not exact:
+            found = _find_keys(adapter, join["to"]["source"], join["to"]["column"], missing)
+            if found is not None:
+                missing, exact = missing - found, True
+        elif not missing:
+            exact = True
     finally:
         adapter.close()
-    left, right = ends["from"], ends["to"]
-    orphans = sorted(left["keys"] - right["keys"])
+    orphans = sorted(missing)
     truncated = left["rows"] >= sample or right["rows"] >= sample
     observed = f"{'many' if left['duplicated'] else 'one'}_to_{'many' if right['duplicated'] else 'one'}"
     return {
@@ -62,7 +85,7 @@ def observe_join(project: Project, join: dict[str, Any], sample: int = SAMPLE) -
         "multiplicity": observed,
         "from": {k: v for k, v in left.items() if k != "keys"},
         "to": {k: v for k, v in right.items() if k != "keys"},
-        "orphans": len(orphans), "orphan_examples": orphans[:5],
+        "orphans": len(orphans), "orphan_examples": orphans[:5], "orphans_exact": exact,
         "coverage": round(1 - len(orphans) / left["distinct"], 3) if left["distinct"] else 0.0,
         # juntar domain com range repete linhas do domain quando a ponta "to" tem chave repetida
         "fanout": right["duplicated"],
