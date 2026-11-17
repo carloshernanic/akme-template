@@ -75,7 +75,7 @@ TERMOS = {"categoria": "Produto", "cliente": "Cliente", "cliente_ativo": "Client
 EDGE_TEXT = {"contem": "contem", "pertenceA": "pertence a", "referencia": "referencia"}
 # setas RELACAO_ONTOLOGIA: toda owl:ObjectProperty do schema.ttl da demo, inversas incluidas
 # (dominio, nome, alcance, publicada nos dados)
-ONTOLOGY_ARROWS = [("Cliente", "possuiPedido", "Pedido", False), ("ItemPedido", "pertenceAoPedido", "Pedido", False),
+ONTOLOGY_ARROWS = [("Cliente", "possui", "Pedido", False), ("ItemPedido", "compoe", "Pedido", False),
                    ("ItemPedido", "referencia", "Produto", True), ("Pedido", "contem", "ItemPedido", True),
                    ("Pedido", "pertenceA", "Cliente", True)]
 

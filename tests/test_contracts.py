@@ -8,7 +8,7 @@ from akme.tools.ontology_write import EditError
 from akme.tools.publish import PublishError, publish, semantic_model
 from akme.tools.validate import validate
 
-PERTENCE = {"name": "doCliente", "domain": "Pedido", "range": "Cliente", "label": "do cliente",
+PERTENCE = {"name": "pertenceA", "domain": "Pedido", "range": "Cliente", "label": "pertence a",
             "join": {"from": {"source": "pedidos", "column": "id_cliente"},
                      "to": {"source": "clientes", "column": "id_cliente"}}}
 
@@ -50,7 +50,7 @@ def test_applied_relation_stores_observed_contract_and_functional_property(seede
     g = load_graph(seeded.schema_path)
     ns = base_ns(g)
     assert (ns["pertenceA"], RDF.type, OWL.FunctionalProperty) in g
-    assert (ns["pertenceAoPedido"], RDF.type, OWL.FunctionalProperty) in g
+    assert (ns["compoe"], RDF.type, OWL.FunctionalProperty) in g
     assert (ns["contem"], RDF.type, OWL.FunctionalProperty) not in g
 
 

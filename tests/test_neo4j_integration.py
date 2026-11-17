@@ -523,7 +523,7 @@ def test_real_ontology_layer_mirrors_the_schema_ttl(seeded, db):
     flags = {r["n"]: (r["p"], r["i"]) for r in db.execute_query(
         "MATCH (:Conceito)-[r:RELACAO_ONTOLOGIA]->(:Conceito) RETURN r.nome AS n, r.publicada_nos_dados AS p, "
         "r.inversa_de AS i").records}
-    assert flags["pertenceA"] == (True, None) and flags["possuiPedido"] == (False, "pertenceA")
+    assert flags["pertenceA"] == (True, None) and flags["possui"] == (False, "pertenceA")
     assert _count(db, "MATCH (:Conceito)-[r]->(:Conceito) WHERE NOT type(r) IN ['RELACAO_ONTOLOGIA', 'SUBCLASSE_DE'] "
                       "RETURN count(r)") == 0
 

@@ -18,15 +18,15 @@ def test_demo_ontology_draws_concepts_and_arrows(seeded):
     assert concepts["Pedido"]["tipo"] == "entidade" and concepts["Faturamento"]["tipo"] == "metrica"
     # espelho do schema.ttl: uma seta RELACAO_ONTOLOGIA por relacao, inversas incluidas (5 na demo)
     arrows = {p["rel"]: p for t, p in sts if ":RELACAO_ONTOLOGIA {nome: $rel}]" in t}
-    assert sorted(arrows) == ["contem", "pertenceA", "pertenceAoPedido", "possuiPedido", "referencia"]
+    assert sorted(arrows) == ["compoe", "contem", "pertenceA", "possui", "referencia"]
     assert all(t.endswith("SET r = $props, r._carga = $carga") for t in texts if "RELACAO_ONTOLOGIA" in t)
     assert arrows["pertenceA"]["props"] == {"nome": "pertenceA", "rotulo": "pertence a", "definicao": "",
-                                            "multiplicidade": "many_to_one", "inversa": "possuiPedido",
+                                            "multiplicidade": "many_to_one", "inversa": "possui",
                                             "publicada_nos_dados": True}
-    assert arrows["possuiPedido"]["props"] == {"nome": "possuiPedido", "rotulo": "possuiPedido", "definicao": "",
+    assert arrows["possui"]["props"] == {"nome": "possui", "rotulo": "possui", "definicao": "",
                                                "inversa": "pertenceA", "publicada_nos_dados": False,
                                                "inversa_de": "pertenceA", "multiplicidade": "one_to_many"}
-    assert (arrows["possuiPedido"]["de"], arrows["possuiPedido"]["para"]) == ("Cliente", "Pedido")
+    assert (arrows["possui"]["de"], arrows["possui"]["para"]) == ("Cliente", "Pedido")
     assert not any("`pertenceA`" in t for t in texts), "o nome da relacao vai como parametro, nao como tipo"
 
 
@@ -114,14 +114,14 @@ def test_inverse_pair_with_both_contracts_draws_both_arrows_like_the_ttl(seeded)
     for c in content["relation_contracts"]:
         if c["relation"] == "pertenceA":
             c.pop("inverse_of")
-    content["relation_contracts"].append({"relation": "possuiPedido", "domain": "Cliente", "range": "Pedido",
+    content["relation_contracts"].append({"relation": "possui", "domain": "Cliente", "range": "Pedido",
                                           "inverse_of": "pertenceA", "multiplicity": "one_to_many"})
     write_yaml(seeded.content_path, content)
     sts = ontology_statements(seeded, PUBLISHED)
     arrows = {p["rel"]: p["props"] for t, p in sts if "RELACAO_ONTOLOGIA" in t}
-    assert arrows["pertenceA"]["inversa"] == "possuiPedido" and arrows["possuiPedido"]["inversa"] == "pertenceA"
-    assert arrows["possuiPedido"]["multiplicidade"] == "one_to_many" and "inversa_de" not in arrows["possuiPedido"]
-    assert arrows["possuiPedido"]["publicada_nos_dados"] is False
+    assert arrows["pertenceA"]["inversa"] == "possui" and arrows["possui"]["inversa"] == "pertenceA"
+    assert arrows["possui"]["multiplicidade"] == "one_to_many" and "inversa_de" not in arrows["possui"]
+    assert arrows["possui"]["publicada_nos_dados"] is False
 
 
 def test_render_nan_and_inf_are_valid_cypher():

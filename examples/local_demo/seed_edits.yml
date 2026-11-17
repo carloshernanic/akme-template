@@ -131,7 +131,7 @@ edits:
       domain: Pedido
       range: Cliente
       label: pertence a
-      inverse_of: possuiPedido
+      inverse_of: possui
       multiplicity: many_to_one
       join:
         from: {source: pedidos, column: id_cliente}
@@ -144,7 +144,7 @@ edits:
       domain: Pedido
       range: ItemPedido
       label: contem
-      inverse_of: pertenceAoPedido
+      inverse_of: compoe
       multiplicity: one_to_many
       join:
         from: {source: pedidos, column: id_pedido}

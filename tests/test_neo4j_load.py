@@ -910,7 +910,7 @@ def test_data_edges_use_the_exact_relation_name(seeded, fake):
     assert sorted(re.search(r"\[e:`(\w+)`\]", q).group(1) for q in edges) == ["contem", "pertenceA", "referencia"]
     arrows = [(q, p) for q, p in session.calls if "MATCH (a:Conceito" in q and "SUBCLASSE_DE" not in q]
     assert arrows and all("[r:RELACAO_ONTOLOGIA {nome: $rel}]" in q for q, _ in arrows)
-    assert sorted(p["rel"] for _, p in arrows) == ["contem", "pertenceA", "pertenceAoPedido", "possuiPedido", "referencia"]
+    assert sorted(p["rel"] for _, p in arrows) == ["compoe", "contem", "pertenceA", "possui", "referencia"]
 
 
 def test_every_data_node_gets_a_distinguishing_name(seeded, fake):

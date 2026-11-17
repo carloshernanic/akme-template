@@ -181,8 +181,33 @@ def _validate_payload(project: Project, edit_type: EditType, payload: dict[str, 
     return p
 
 
+def _words(text: str) -> list[str]:
+    """Quebra lowerCamelCase, PascalCase, snake_case e texto livre em palavras minusculas."""
+    return [w.lower() for w in re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+", re.sub(r"[^A-Za-z0-9]+", " ", text))]
+
+
+def _entity_names(project: Project, p: dict[str, Any]) -> set[str]:
+    names = set(class_names(load_graph(project.schema_path))) - set(ROOT_CLASSES)
+    names |= {str(e.payload.get("name")) for e in list_pending(project) if e.type == EditType.add_class}
+    names |= {str(p.get(f)) for f in ("domain", "range") if p.get(f)} - set(ROOT_CLASSES)
+    return names
+
+
+def _check_relation_wording(project: Project, p: dict[str, Any], fields: tuple[str, ...]) -> None:
+    """Relacao descreve o vinculo, nunca a entidade: pertenceA, nao pertenceAoPedido."""
+    names = _entity_names(project, p)
+    for field in fields:
+        words = _words(str(p.get(field) or ""))
+        for name in sorted(names):
+            target = _words(name)
+            if target and any(words[i:i + len(target)] == target for i in range(len(words) - len(target) + 1)):
+                raise EditError(f"{field} da relacao nao pode conter o nome da entidade {name}: {p.get(field)}. "
+                                "Descreva so o vinculo (ex: pertenceA, contem, realizadoPor); domain e range ja dizem as entidades")
+
+
 def _check_relation_contract(project: Project, p: dict[str, Any]) -> None:
     """Multiplicidade lida de domain para range; join.from e a coluna do domain, join.to a do range."""
+    _check_relation_wording(project, p, ("name", "label", "inverse_of"))
     _check_choice("multiplicity", p["multiplicity"], list(MULTIPLICITIES))
     join = p.get("join")
     if not join:
@@ -661,6 +686,8 @@ def review_edit(project: Project, edit_id: str, decision: str, reviewer: str,
         raise EditError("edits deve ser um objeto")
     edits = dict(edits or {})
     _check_review_edits(edit, edits)
+    if edit.type == EditType.add_relation and "label" in edits:
+        _check_relation_wording(project, {**edit.payload, "label": edits["label"]}, ("label",))
     if edit.type == EditType.add_source and edits and decision == "accept":
         if isinstance(edits.get("key"), str):
             edits["key"] = [k.strip() for k in edits["key"].split(",") if k.strip()]

@@ -71,18 +71,18 @@ def test_schema_has_no_timestamp(seeded):
 
 def test_inverse_with_its_own_published_edge_is_not_told_to_walk_backwards(seeded):
     content = read_yaml(seeded.content_path)
-    content["relation_contracts"].append({"relation": "possuiPedido", "domain": "Cliente", "range": "Pedido",
+    content["relation_contracts"].append({"relation": "possui", "domain": "Cliente", "range": "Pedido",
                                           "inverse_of": "pertenceA", "multiplicity": "one_to_many",
                                           "join": {"from": {"source": "clientes", "column": "id_cliente"},
                                                    "to": {"source": "pedidos", "column": "id_cliente"}}})
     write_yaml(seeded.content_path, content)
     plan = build_plan(seeded)
-    assert {"pertenceA", "possuiPedido"} <= set(plan.relationships)
+    assert {"pertenceA", "possui"} <= set(plan.relationships)
     text = llm_schema(seeded, plan)
     line = next(x for x in text.splitlines() if "[:pertenceA]->" in x)
-    assert "inversa: possuiPedido (tem aresta propria no grafo: `[:possuiPedido]`)" in line and "ao contrario" not in line
+    assert "inversa: possui (tem aresta propria no grafo: `[:possui]`)" in line and "ao contrario" not in line
     contem = next(x for x in text.splitlines() if "[:contem]->" in x)
-    assert ("inversa: pertenceAoPedido (sem aresta propria; e esta aresta lida ao contrario: "
+    assert ("inversa: compoe (sem aresta propria; e esta aresta lida ao contrario: "
             "`(:ItemPedido)<-[:contem]-(:Pedido)`)") in contem
 
 

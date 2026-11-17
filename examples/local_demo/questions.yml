@@ -3,7 +3,7 @@ questions:
   question: Quais clientes ativos nao compraram nos ultimos 90 dias?
   expects:
   - Cliente type Class
-  - Cliente possuiPedido Pedido
+  - Cliente possui Pedido
   answer: financeiro
   mirrored: true
 - id: CQ-003

@@ -62,6 +62,22 @@ def test_class_and_relation_go_to_ttl(project):
     assert rels["possui"]["domain"] == ["Entity"]
 
 
+def test_relation_wording_cannot_name_an_entity(project):
+    _close_requirements(project)
+    for name in ("ItemPedido", "Pedido"):
+        c = ontology_write.propose_edit(project, "add_class", {"name": name, "label": name, "comment": "x"})
+        ontology_write.apply_edit(project, c.id, "maria")
+    base = {"name": "pertenceA", "domain": "ItemPedido", "range": "Pedido", "label": "pertence a",
+            "multiplicity": "many_to_one", "no_join_reason": "conceitual"}
+    for bad in ({"name": "pertenceAoPedido"}, {"label": "pertence ao pedido"}, {"inverse_of": "contemItemPedido"},
+                {"name": "itemPedidoDe"}):
+        with pytest.raises(EditError, match="nao pode conter o nome da entidade"):
+            ontology_write.propose_edit(project, "add_relation", base | bad)
+    r = ontology_write.propose_edit(project, "add_relation", base | {"inverse_of": "contem"})
+    with pytest.raises(EditError, match="nao pode conter o nome da entidade Pedido"):
+        ontology_write.review_edit(project, r.id, "accept", "maria", edits={"label": "pertence ao Pedido"})
+
+
 def test_reject_edit(project):
     _close_requirements(project)
     edit = ontology_write.propose_edit(project, "add_term", {"name": "x", "class": "Entity", "definition": "y"})
