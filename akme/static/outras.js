@@ -358,9 +358,10 @@
   }
 
   // ---------- alteracoes do revisor (perguntas, lacunas e divergencias ja aplicadas, pergunta nova) ----------
-  const ownText = (o) => (o.kind === "ncq" ? o.q : o.label);
+  const ownText = (o) => (o.kind === "ncq" ? o.q : o.kind === "ncls" ? o.name : o.label);
   function ownSummary(o) {
     if (o.kind === "ncq") return `pergunta nova · ${PRIO_L[o.prio]}`;
+    if (o.kind === "ncls") return `classe nova · ${o.label}`;
     if (o.kind === "acq") return "alterar " + Object.keys(o.diff).map((k) => (FIELD_L[k] || k).toLowerCase()).join(", ");
     if (o.kind === "rcq") return "excluir: " + o.reason;
     if (o.kind === "agap") return GAP_L[o.decision] + (o.note ? ": " + o.note : "");
@@ -452,7 +453,7 @@
     const auto = isAuto(), und = M.items.filter((it) => !it.dec).length, can = !auto && !!O.ctx.api, ns = unsavedOf(M);
     const bar = `<div class="e1-cqbar"><span class="e1-count">${und ? `<b>${und}</b> ${und === 1 ? "proposta para avaliar" : "propostas para avaliar"}` : M.items.length ? "Todas decididas" : "Nada pendente da IA"}</span>
       <span class="e1-cqbar-a">${und && can ? `<button type="button" class="btn btn-outline" data-o="all" title="Aceita as ${und} propostas ainda sem decisão, como a IA propôs. Dá para rever cada uma antes de salvar.">✓ Aceitar tudo (${und})</button>` : ""}
-      ${can ? '<button type="button" class="btn btn-outline" data-o="ncq">+ Nova pergunta</button>' : ""}</span></div>`;
+      ${can ? '<button type="button" class="btn btn-outline" data-o="ncls">+ Nova Classe</button>' : ""}</span></div>`;
     const groups = groupKeys(M).map((g) => {
       const its = M.items.filter((it) => it.v.group === g);
       return its.length ? `<h3 class="e1-sub">${esc(GROUP_LABEL[g] || g)} <span class="ou-n">${its.length}</span></h3><div class="e1-cqs">${its.map(card).join("")}</div>` : "";
@@ -524,6 +525,7 @@
       case "all": M.items.forEach((x) => { if (!x.dec) { x.dec = "ok"; x.open = false; } }); return render('[data-o="save"]');
       case "save": return onSave();
       case "ncq": return openDlg("ncq", { from: '[data-o="ncq"]' });
+      case "ncls": return openDlg("ncls", { from: '[data-o="ncls"]' });
       case "acq": case "rcq": case "agap": case "adiv": case "amap": case "rmap": return openDlg(act, { ref: b.dataset.ref, from: `[data-o="${act}"][data-ref="${b.dataset.ref}"]` });
       case "own-edit": { const i = Number(b.dataset.i), o = M.own[i]; if (o) openDlg(o.kind, { i, ref: o.id, from: `[data-o="own-edit"][data-i="${i}"]` }); return; }
       case "own-del": M.own.splice(Number(b.dataset.i), 1); return render('[data-o="save"]');
@@ -660,8 +662,8 @@
   const divLab = (x, k) => x.label || "Fonte " + String.fromCharCode(65 + k);
   function openDlg(kind, opts) {
     const M = O.M, i = opts.i ?? null, prev = i === null ? null : M.own[i];
-    const cur = kind === "ncq" ? null : findApplied(kind, opts.ref);
-    if (kind !== "ncq" && !cur) { if (O.ctx.toast) O.ctx.toast("Esse item não está mais na ontologia."); return; }
+    const cur = kind === "ncq" || kind === "ncls" ? null : findApplied(kind, opts.ref);
+    if (kind !== "ncq" && kind !== "ncls" && !cur) { if (O.ctx.toast) O.ctx.toast("Esse item não está mais na ontologia."); return; }
     const d = dlgEl();
     Object.assign(D, { kind, i, ref: opts.ref || null, from: opts.from || null, prio: "", choice: "" });
     let title = "", body = "", ok = i === null ? "Adicionar" : "Salvar";
@@ -687,6 +689,18 @@
       title = "Remover mapeamento"; ok = "Propor remoção";
       body = `${mapCtx(cur)}<div class="field"><label class="field-label" for="ou-d-why">Motivo da remoção ${tagReq("ou-d-why")}</label>
         <textarea id="ou-d-why" class="textarea" rows="2"></textarea></div>${nameField}`;
+    } else if (kind === "ncls") {
+      const o = prev || { name: "", label: "", comment: "", parent: "Entity" };
+      title = i === null ? "Nova Classe" : "Editar Classe";
+      body = `<div class="e1-dlg-2">
+          <div class="field"><label class="field-label" for="ou-d-name">Nome (PascalCase) ${tagReq("ou-d-name")}</label>
+            <input id="ou-d-name" class="input" type="text" autocomplete="off" placeholder="Ex.: PedidoCompra" value="${esc(o.name)}"></div>
+          <div class="field"><label class="field-label" for="ou-d-label">Rótulo ${tagReq("ou-d-label")}</label>
+            <input id="ou-d-label" class="input" type="text" autocomplete="off" placeholder="Ex.: Pedido de Compra" value="${esc(o.label)}"></div></div>
+        <div class="field"><label class="field-label" for="ou-d-parent">Classe pai</label>
+          <select id="ou-d-parent" class="select">${["Entity", "Metric", "Rule", "Relation"].map((p) => `<option value="${p}"${p === (o.parent || "Entity") ? " selected" : ""}>${p}</option>`).join("")}</select></div>
+        <div class="field"><label class="field-label" for="ou-d-comment">Descrição ${tagReq("ou-d-comment")}</label>
+          <textarea id="ou-d-comment" class="textarea" rows="2" placeholder="O que esta classe representa no domínio">${esc(o.comment)}</textarea></div>`;
     } else if (kind === "ncq") {
       const o = prev || { q: "", uc: "", type: "", concepts: [], prio: "" };
       D.prio = o.prio; title = i === null ? "Nova pergunta" : "Editar pergunta";
@@ -742,10 +756,15 @@
   function dlgSubmit() {
     const M = O.M, k = D.kind, val = (sel) => { const el = d0(sel); return el ? el.value.trim() : ""; };
     // o servidor pode ter mudado com a janela aberta: o item alterado precisa continuar na ontologia
-    if (k !== "ncq" && !findApplied(k, D.ref)) { d0("#ou-dlg-msg").textContent = "Esse item não está mais na ontologia. Cancele e confira a lista."; return; }
+    if (k !== "ncq" && k !== "ncls" && !findApplied(k, D.ref)) { d0("#ou-dlg-msg").textContent = "Esse item não está mais na ontologia. Cancele e confira a lista."; return; }
     if (k === "amap" || k === "rmap") return mapSubmit();
     let o = null;
-    if (k === "ncq" || k === "acq") {
+    if (k === "ncls") {
+      const name = val("#ou-d-name"), label = val("#ou-d-label"), comment = val("#ou-d-comment"), parent = val("#ou-d-parent") || "Entity";
+      const falta = [["#ou-d-name", !name, "o nome"], ["#ou-d-label", !label, "o rótulo"], ["#ou-d-comment", !comment, "a descrição"]].filter((x) => x[1]);
+      if (falta.length) return dlgFail(falta.map(([s, , l]) => [s, l]));
+      o = { kind: "ncls", name, label, comment, parent };
+    } else if (k === "ncq" || k === "acq") {
       const q = val("#ou-d-q"), type = val("#ou-d-type"), concepts = splitList(val("#ou-d-c"));
       const falta = [["#ou-d-q", !q, "a pergunta"], ["#ou-d-type", !type, "o tipo"], ["#ou-d-c", !concepts.length, "os conceitos"], ["#ou-d-p", !D.prio, "a prioridade"]].filter((x) => x[1]);
       if (falta.length) return dlgFail(falta.map(([s, , l]) => [s, l]));
@@ -868,6 +887,7 @@
       const label = `“${cut(ownText(o), 60)}”`;
       let type = "", payload = null;
       if (o.kind === "ncq") { type = "add_competency_question"; payload = Object.assign({ question: o.q, type: o.type, concepts: o.concepts, priority: o.prio, status: "approved" }, o.uc ? { use_cases: [o.uc] } : {}); }
+      else if (o.kind === "ncls") { type = "add_class"; payload = { name: o.name, label: o.label, comment: o.comment, parent: o.parent || "Entity" }; }
       else if (o.kind === "acq") { type = "update_competency_question"; payload = Object.assign({ id: o.id }, o.diff); }
       else if (o.kind === "rcq") { type = "remove_competency_question"; payload = { id: o.id, reason: o.reason }; }
       else if (o.kind === "agap") { type = "update_gap"; payload = Object.assign({ id: o.id, decision: o.decision }, o.note ? { note: o.note } : {}); }
