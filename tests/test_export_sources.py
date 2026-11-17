@@ -345,3 +345,12 @@ def test_validate_warns_about_reserved_names_already_in_the_ontology(seeded):
     found = [f for f in validate(seeded).findings if f.check == "reserved_name"]
     assert [(f.level, f.subject) for f in found] == [("warning", "Conceito")]
     assert "a exportacao para o Neo4j recusa este nome" in found[0].message
+
+
+def test_suggest_sources_opens_one_connection_and_lists_once(seeded, monkeypatch):
+    from akme.adapters.local_folder import LocalFolderAdapter
+    listed = []
+    real = LocalFolderAdapter.list_sources
+    monkeypatch.setattr(LocalFolderAdapter, "list_sources", lambda self: listed.append(1) or real(self))
+    assert suggest_sources(seeded)
+    assert len(listed) == 1

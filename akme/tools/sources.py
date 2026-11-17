@@ -34,15 +34,10 @@ def _join_columns(project: Project, source: str) -> set[str]:
     return {column for src, column in join_columns(contracts) if src == source}
 
 
-def _sample(project: Project, source: str) -> tuple[list[str], list[dict[str, Any]]]:
-    """Amostra para o rascunho do suggest_sources. A conferencia do check_source le a fonte inteira."""
-    adapter = load_adapter(project.adapter_name, project.adapter_options())
-    try:
-        if source not in adapter.list_sources():
-            raise SourceError(f"fonte inexistente: {shown([source])}")
-        rows = adapter.read_sample(source, SAMPLE_ROWS)
-    finally:
-        adapter.close()
+def _sample(adapter: Any, source: str) -> tuple[list[str], list[dict[str, Any]]]:
+    """Amostra para o rascunho do suggest_sources, na conexao ja aberta. A conferencia do check_source le a fonte
+    inteira."""
+    rows = adapter.read_sample(source, SAMPLE_ROWS)
     return (list(rows[0]) if rows else []), rows
 
 
@@ -167,17 +162,19 @@ def suggest_sources(project: Project) -> list[dict[str, Any]]:
         if join and mult != "many_to_many":
             side = join["from"] if mult == "one_to_many" else join["to"]
             key_relation.setdefault(side["source"], c["relation"])
+    # uma conexao e uma listagem para todas as fontes: abrir uma por fonte e listar de novo travava no Databricks
     adapter = load_adapter(project.adapter_name, project.adapter_options())
     try:
         sources = adapter.list_sources()
+        labels, _ = labels_for(data, project, sources, [])
+        samples = {source: _sample(adapter, source) for source in sources if source in labels}
     finally:
         adapter.close()
-    labels, _ = labels_for(data, project, sources, [])
     out = []
     for source in sources:
         if source not in labels:
             continue
-        columns, rows = _sample(project, source)
+        columns, rows = samples[source]
         prof = profile_source(source, columns, rows)
         joins = _join_columns(project, source)
         notes: list[str] = []
