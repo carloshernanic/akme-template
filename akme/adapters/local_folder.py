@@ -13,7 +13,7 @@ from .base import Adapter, AdapterError, check_batch, require
 TABLES = {".csv", ".xlsx"}
 DOCS = {".md", ".txt", ".pdf", ".docx", ".pptx"}
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-OFFICE_MISSING = "[{} ignorado: instale o extra 'office' (uv sync --extra office) para extrair texto]"
+OFFICE_MISSING = "[{} ignorado: instale o extra 'office' (uv sync --inexact --extra office) para extrair texto]"
 
 
 class LocalFolderAdapter(Adapter):

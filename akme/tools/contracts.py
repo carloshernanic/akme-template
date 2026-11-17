@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..adapters import AdapterError, load_adapter
+from ..adapters import load_adapter
 from ..project import Project
 from .neo4j_values import shown
 
@@ -39,16 +39,12 @@ def _side(rows: list[dict[str, Any]], column: str) -> dict[str, Any]:
 
 
 def _find_keys(adapter: Any, source: str, column: str, wanted: set[str]) -> set[str] | None:
-    """Procura as chaves no destino inteiro, em blocos, e para quando acha todas. None se o adapter nao le em blocos."""
-    found: set[str] = set()
+    """Procura as chaves no destino inteiro (o adapter SQL pergunta so por elas). None se nao deu para conferir:
+    a contagem de orfaos fica a da amostra, marcada como aproximada."""
     try:
-        for rows in adapter.iter_rows(source):
-            found |= {k for k in (_key(r.get(column)) for r in rows) if k in wanted}
-            if found == wanted:
-                break
-    except AdapterError:
+        return adapter.find_keys(source, column, wanted)
+    except Exception:  # noqa: BLE001 - adapter sem leitura em blocos, tipo incompativel no IN ou falha do banco
         return None
-    return found
 
 
 def observe_join(project: Project, join: dict[str, Any], sample: int = SAMPLE) -> dict[str, Any]:

@@ -145,7 +145,7 @@ def render_rdf(project: Project, dry_run: bool) -> dict[str, Any]:
     try:
         import morph_kgc
     except ImportError as exc:
-        raise RuntimeError("instale o extra 'rdf' (uv sync --extra rdf) para materializar com Morph-KGC") from exc
+        raise RuntimeError("instale o extra 'rdf' (uv sync --inexact --extra rdf) para materializar com Morph-KGC") from exc
     config = f"[DataSource1]\nmappings: {path}\n"
     g = morph_kgc.materialize(config)
     out = project.docs_dir / "ontology-data.ttl"

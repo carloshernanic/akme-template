@@ -36,6 +36,9 @@ class SnowflakeAdapter(SqlAdapter):
         )
         return {"name": source, "columns": [{"name": r["COLUMN_NAME"], "type": r["DATA_TYPE"]} for r in rows]}
 
+    def _table_ref(self, source: str) -> str:
+        return f"{self.database}.{self.schema}.{source}"
+
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]:
         return self.query(f"SELECT * FROM {self.database}.{self.schema}.{source} LIMIT {int(n)}")
 

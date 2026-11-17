@@ -35,6 +35,9 @@ class PostgresAdapter(SqlAdapter):
         )
         return {"name": source, "columns": [{"name": r["column_name"], "type": r["data_type"]} for r in rows]}
 
+    def _table_ref(self, source: str) -> str:
+        return f'"{self.schema}"."{source}"'
+
     def read_sample(self, source: str, n: int = 100) -> list[dict[str, Any]]:
         return self.query(f'SELECT * FROM "{self.schema}"."{source}" LIMIT {int(n)}')
 

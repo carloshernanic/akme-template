@@ -32,7 +32,7 @@ def test_optional_adapters_fail_clearly(monkeypatch):
         monkeypatch.setitem(sys.modules, module, None)
     for name in ("postgres", "snowflake", "databricks"):
         adapter = load_adapter(name, {})
-        with pytest.raises(AdapterError, match="uv sync --extra"):
+        with pytest.raises(AdapterError, match="uv sync --inexact --extra"):
             adapter.list_sources()
 
 
