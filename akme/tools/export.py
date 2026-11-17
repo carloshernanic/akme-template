@@ -65,6 +65,7 @@ def build_export(project: Project) -> dict[str, Any]:
         "constraints": content["constraints"],
         "glossary": content["glossary"],
         "precedence": content["precedence"],
+        "sources": content.get("sources", []),
         "requirements": content["requirements"],
         "pending": [e.model_dump(mode="json") | {"view": present(e)} for e in list_pending(project)],
         "requirements_status": requirements_status(project),
@@ -124,7 +125,7 @@ def to_yarrrml(project: Project, data: dict[str, Any]) -> tuple[dict[str, Any], 
 
 
 PAGE_DIR = Path(__file__).resolve().parent.parent / "static"
-PAGE_FILES = ("index.html", "akme.css", "app.js", "graph.js", "etapa1.js", "outras.js", "review.js", "exportar.js", "chat.js")
+PAGE_FILES = ("index.html", "akme.css", "app.js", "graph.js", "inicio.js", "etapa1.js", "outras.js", "review.js", "exportar.js", "chat.js")
 PAGE_DIRS = ("fonts", "brand")
 
 

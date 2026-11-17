@@ -386,7 +386,6 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
         for label in plan.nodes:
             _write(session, _constraint(label))
         _write(session, CONCEPT_CONSTRAINT)
-        _write(session, TERM_CONSTRAINT)
         for index in _indexes(plan):
             _write(session, index)
         session.run("CALL db.awaitIndexes(300)").consume()
@@ -475,7 +474,7 @@ def load(project: Project, plan: Plan, carga: str) -> dict[str, Any]:
                                "nada foi apagado; repetir a carga completa e seguro")
 
         # ontologia e esquema, com a trava em cada comando: 0 gravado com a marca trocada = outra carga comecou
-        log.print(f"[cyan][4/6][/] Gravando camada de ontologia (Conceito, Termo) e esquema ({len(statements)} comandos)...")
+        log.print(f"[cyan][4/6][/] Gravando camada de ontologia (Conceito) e esquema ({len(statements)} comandos)...")
         for n, statement in enumerate(statements, 1):
             text, params = statement
             try:
@@ -556,7 +555,7 @@ def _artifact(project: Project, model: dict[str, Any], plan: Plan, batches: int)
             "", _comment("1. marca do projeto com a carga em andamento (trava contra carga concorrente)"),
             MARKER_CONSTRAINT + ";", CLAIM + ";",
             "", _comment("2. restricoes e indices"),
-            *[q + ";" for q in [_constraint(label) for label in plan.nodes] + [CONCEPT_CONSTRAINT, TERM_CONSTRAINT] + _indexes(plan)],
+            *[q + ";" for q in [_constraint(label) for label in plan.nodes] + [CONCEPT_CONSTRAINT] + _indexes(plan)],
             "", _comment("3. nos, por fonte (modelo: $rows = [{id, p}] em blocos, os dados nao estao aqui;"),
             _comment("   $descricao = definicao da classe, ou null sem definicao)" if plan.descricao else
                      "   $descricao = null: _descricao desligada por neo4j.descricao_nos_dados: false no akme.yml)"),
@@ -565,7 +564,7 @@ def _artifact(project: Project, model: dict[str, Any], plan: Plan, batches: int)
             _comment("   $descricao = definicao da relacao, ou o rotulo enquanto ela nao tiver definicao)" if plan.descricao else
                      "   $descricao = null, como nos nos)"),
             *[_comment(f"{e.relation}: {_edge_query(e)}") for e in plan.edges],
-            "", _comment("5. ontologia (camadas Conceito e Termo) e esquema para o LLM na marca"),
+            "", _comment("5. ontologia (camada Conceito e atributos) e esquema para o LLM na marca"),
             *[render(s) + ";" for s in _ontology(project, plan)],
             _comment(f"{SCHEMA_SET}   // $esquema = texto de docs/publish/neo4j_schema.md"),
             "", _comment("6. sincronizacao, so depois de tudo acima dar certo e se m.carga_atual ainda for $carga (modelo)"),
@@ -614,7 +613,7 @@ def publish_neo4j(project: Project, model: dict[str, Any], dry_run: bool, plan: 
     log.print("[cyan][6/6][/] Conferindo contagens finais no Neo4j...")
     content = load_content(project)
     concepts = exported_concepts(load_graph(project.schema_path), content)
-    result["verification"] = verify(plan, project.name, len(concepts), len(term_entries(content, concepts)))
+    result["verification"] = verify(plan, project.name, len(concepts))
     if not result["verification"]["ok"]:
         raise PublishError("carga executada, mas o banco diverge do previsto: " + "; ".join(result["verification"]["divergences"]))
     log.print("  [green]\\[ok][/] conferencia concluida: contagens batem com o plano")

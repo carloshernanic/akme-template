@@ -753,6 +753,39 @@ body.is-proposing .e1-foot button, body.is-proposing .rv-bar .actions button, bo
 .ou-term-class-head { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 22px; font-weight: 600; color: var(--text-primary); margin: 0 0 12px; }
 .ou-term-sub { display: flex; flex-direction: column; gap: 10px; padding-left: 12px; border-left: 2px solid var(--border-divider); }
 
+/* menu lateral unificado por passos + destaque da Ontologia */
+.nav-group { margin-top: 14px; }
+.nav-group:first-child { margin-top: 0; }
+.nav-group-title { font-size: 11px; line-height: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); padding: 4px 10px; }
+.nav-step { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-size: 13px; line-height: 18px; color: var(--text-secondary); text-align: left; border-radius: var(--rad); transition: background var(--t), color var(--t); }
+.nav-step:hover { background: var(--overlay-hover); color: var(--text-primary); }
+.nav-step[aria-current="page"] { background: var(--fill-subtle); color: var(--text-primary); font-weight: 600; }
+.nav-step .step-marker { width: 22px; height: 22px; font-size: 11px; flex-shrink: 0; }
+.nav-step[aria-current="page"] .step-marker { background: var(--fill-active); border-color: var(--border-active); color: var(--text-inverse); }
+.nav-step[data-done="true"] .step-marker { background: #ffffff; border-color: #ffffff; color: #16181d; }
+.nav-step .count { margin-left: auto; font-size: 11px; padding: 0 6px; border-radius: 999px; background: var(--fill-muted); color: var(--text-secondary); }
+.nav-onto-wrap { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-divider); }
+.nav-onto-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text-primary); background: var(--fill-ui-2); border: 1px solid var(--border-secondary); border-left: 4px solid var(--qb-accent); border-radius: var(--rad); text-align: left; transition: background var(--t), border-color var(--t); }
+.nav-onto-btn:hover { background: var(--fill-ui-3); border-color: var(--border-primary); }
+.nav-onto-btn[aria-current="page"] { background: color-mix(in oklch, var(--qb-accent) 14%, var(--surface-primary)); border-color: var(--qb-accent); }
+
+/* tela 1 - Inicio */
+.setup-card { max-width: none; width: 100%; display: flex; flex-direction: column; gap: 18px; }
+.setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.setup-sources { display: flex; flex-direction: column; gap: 8px; }
+.setup-sources-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.setup-source-list { min-height: 320px; max-height: 460px; overflow-y: auto; border: 1px solid var(--border-secondary); border-radius: var(--rad); background: var(--fill-ui-2); padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.setup-source-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 13px; border-radius: var(--rad); cursor: pointer; }
+.setup-source-item:hover { background: var(--overlay-hover); }
+
+/* tela 9 - Exportacao / Downloads */
+.dl-wrap { max-width: 780px; display: flex; flex-direction: column; gap: 18px; }
+.dl-list { display: flex; flex-direction: column; gap: 8px; }
+.dl-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; background: var(--surface-primary); border: 1px solid var(--border-divider); border-radius: var(--rad); }
+.dl-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.dl-name { font-weight: 600; font-size: 14px; }
+.dl-desc { font-size: 13px; color: var(--text-secondary); }
+
 .e1-cqs { display: flex; flex-direction: column; gap: 12px; }
 .e1-line { display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; background: var(--surface-primary); box-shadow: var(--elevation-0); border-left: 3px solid var(--border-secondary); font-size: 15px; line-height: 22px; }
 .e1-line.ok { border-left-color: var(--status-success); }

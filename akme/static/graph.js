@@ -21,20 +21,15 @@ const MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 480;
 
 
 function termsOf(cls) { return DATA.terms.filter((t) => t.class === cls); }
-function mappingsOf(term) { return DATA.mappings.filter((m) => m.term === term); }
 function relationsOf(cls) { return DATA.relations.filter((r) => r.domain.includes(cls) || r.range.includes(cls)); }
 
 function renderStats() {
-  const v = DATA.validation;
-  const cov = v && v.coverage && v.coverage.available ? v.coverage : null;
-  const pit = v ? v.pitfalls.length : null;
+  const domainClasses = DATA.classes.filter((c) => !ROOTS.includes(c.name) && !c.pending);
   const cards = [
-    { label: "classes", value: DATA.classes.length },
-    { label: "relações", value: DATA.relations.length },
-    { label: "termos", value: DATA.terms.length },
+    { label: "entidades (classes)", value: domainClasses.length },
+    { label: "relações", value: DATA.relations.filter((r) => !r.pending).length },
+    { label: "atributos", value: DATA.terms.length },
     { label: "mapeamentos", value: DATA.mappings.length },
-    { label: "cobertura de colunas", value: cov ? Math.round(cov.ratio * 100) + "%" : "—" },
-    { label: "armadilhas", value: pit === null ? "—" : pit },
   ];
   $("#stats").innerHTML = cards.map((c) => `<div class="stat"><div class="value">${esc(c.value)}</div><div class="label">${esc(c.label)}</div></div>`).join("");
 }
@@ -106,7 +101,7 @@ function renderPanel() {
   if (!selected) {
     // o grafo ja abre centrado numa classe: o painel diz isso, em vez de "nenhuma classe escolhida"
     const f = focus && cls(focus);
-    el.innerHTML = `<div class="panel-head"><div class="rv-empty"><b>${f ? `Grafo centrado em ${esc(f.label || f.name)}` : "Nenhuma classe escolhida"}</b><span>Clique numa classe no grafo ou na lista para ver termos, mapeamentos, restrições e glossário ligados a ela.</span></div></div>`;
+    el.innerHTML = `<div class="panel-head"><div class="rv-empty"><b>${f ? `Grafo centrado em ${esc(f.label || f.name)}` : "Nenhuma classe escolhida"}</b><span>Clique numa classe no grafo ou na lista para ver atributos, relações, restrições e glossário ligados a ela.</span></div></div>`;
     return;
   }
   const c = DATA.classes.find((x) => x.name === selected);
@@ -123,10 +118,10 @@ function renderPanel() {
       <p class="p secondary">${esc(c.comment || "sem descrição")}</p>
       <code class="label tertiary">${esc(c.iri)}</code>
     </div>
-    <div class="panel-section"><h3>Termos e mapeamentos</h3>
+    <div class="panel-section"><h3>Atributos</h3>
       ${terms.length ? terms.map((t) => `<div><div class="row"><span style="font-weight:600">${esc(t.name)}</span>${t.synonyms && t.synonyms.length ? `<span class="label tertiary">${esc(t.synonyms.join(", "))}</span>` : ""}</div>
         <div class="p secondary">${esc(t.definition)}</div>
-        <div class="badges" style="margin-top:4px">${mappingsOf(t.name).map((m) => `<span class="badge ${m.role === "metric" ? "" : "badge-alt"} mono" title="${esc(m.note || m.expression || "")}">${esc(m.source)}.${esc(m.column)}</span>`).join("") || '<span class="badge badge-outline">sem mapeamento</span>'}${t.unit ? `<span class="badge badge-outline">${esc(t.unit)}</span><span class="badge badge-outline">grão: ${esc(t.grain || "")}</span><span class="badge badge-outline">${esc(t.additivity || "")}</span>` : ""}</div></div>`).join("") : '<p class="p secondary">Nenhum termo ligado a esta classe.</p>'}
+        ${t.unit ? `<div class="badges" style="margin-top:4px"><span class="badge badge-outline">${esc(t.unit)}</span>${t.grain ? `<span class="badge badge-outline">grão: ${esc(t.grain)}</span>` : ""}${t.additivity ? `<span class="badge badge-outline">${esc(t.additivity)}</span>` : ""}</div>` : ""}</div>`).join("") : '<p class="p secondary">Nenhum atributo ligado a esta classe.</p>'}
     </div>
     <div class="panel-section"><h3>Hierarquia</h3>
       <div class="row"><span class="k">superclasse</span><span>${parentsOf(c.name).map(classLink).join(", ") || '<span class="tertiary">nenhuma</span>'}</span></div>
@@ -143,11 +138,10 @@ function renderPanel() {
 function relContract(r) {
   const c = r.contract;
   if (!c) return '<span class="badge badge-outline">sem contrato</span>';
-  const join = c.join ? `${c.join.from.source}.${c.join.from.column} = ${c.join.to.source}.${c.join.to.column}` : (c.no_join_reason || "");
   const inv = c.inverse_of_contract ? `<span class="badge badge-outline">inversa de ${esc(c.inverse_of_contract)}</span>` : "";
   const fan = c.observed && c.observed.fanout ? '<span class="badge badge-warning">fanout</span>' : "";
   const orph = c.observed && c.observed.orphans ? `<span class="badge badge-warning">${c.observed.orphans} orfaos</span>` : "";
-  return `<span class="badges"><span class="badge badge-alt mono">${esc(c.multiplicity)}</span><span class="badge badge-outline mono">${esc(join)}</span>${inv}${fan}${orph}</span>`;
+  return `<span class="badges"><span class="badge badge-alt mono">${esc(c.multiplicity)}</span>${inv}${fan}${orph}</span>`;
 }
 
 function classLink(name) {
@@ -444,35 +438,29 @@ function renderGraph(opts = {}) {
 const LEVEL = { error: "erro", warning: "aviso", info: "nota", critical: "crítico", important: "importante", minor: "menor" };
 const levelOf = (l) => LEVEL[l] || l;
 function renderSummary() {
-  const v = DATA.validation;
-  const left = [];
-  if (!v) {
-    left.push(`<div class="callout callout-nota">${ICONS.info}<div><div class="t">Ainda sem validação</div><div class="b">A cobertura e as armadilhas aparecem aqui depois do validate da etapa 4.</div></div></div>`);
-  } else {
-    const cov = v.coverage && v.coverage.available ? v.coverage : null;
-    left.push(`<div class="row"><span class="status-dot ${v.ok ? "success" : "error"}"></span><span>${v.ok ? "Validação ok" : "Validação com erros"}</span><span class="label tertiary" style="margin-left:auto">${esc((v.generated_at || "").replace("T", " ").slice(0, 16))}</span></div>`);
-    if (cov) {
-      left.push(`<div><div class="row"><span>Cobertura</span><span class="secondary" style="margin-left:auto">${cov.mapped} de ${cov.columns} colunas</span></div><div class="bar ${cov.ratio >= 0.8 ? "ok" : ""}"><i style="width:${Math.round(cov.ratio * 100)}%"></i></div></div>`);
-      left.push(`<table><thead><tr><th>fonte</th><th>mapeadas</th><th>sem mapeamento</th></tr></thead><tbody>${Object.entries(cov.by_source).map(([s, x]) => `<tr><td class="mono">${esc(s)}</td><td>${x.mapped}/${x.columns}</td><td class="secondary label">${x.unmapped.length ? `<details class="onto-cols"><summary>${x.unmapped.length} ${x.unmapped.length === 1 ? "coluna" : "colunas"}</summary><span class="mono">${esc(x.unmapped.join(", "))}</span></details>` : "todas mapeadas"}</td></tr>`).join("")}</tbody></table>`);
-    } else {
-      left.push(`<div class="callout callout-atencao">${ICONS.warn}<div><div class="t">Fontes ainda não perfiladas</div><div class="b">A cobertura dos mapeamentos aparece depois do profile das fontes.</div></div></div>`);
-    }
-    if (v.findings.length) left.push(`<table><thead><tr><th>nível</th><th>verificação</th><th>mensagem</th></tr></thead><tbody>${v.findings.map((f) => `<tr><td><span class="status-dot ${f.level === "error" ? "error" : "warning"}"></span><span class="nowrap">${esc(levelOf(f.level))}</span></td><td class="mono label">${esc(f.check)}</td><td class="secondary">${esc(f.message)}</td></tr>`).join("")}</tbody></table>`);
+  const entities = DATA.classes.filter((c) => !ROOTS.includes(c.name) && !c.pending);
+  if (!entities.length) {
+    $("#summary").innerHTML = `<div class="card wide"><h2 class="h2">Entidades geradas</h2><p class="p secondary">Nenhuma entidade aplicada ainda. Aprove as classes no passo 5.</p></div>`;
+    return;
   }
-  const pit = v ? v.pitfalls : [];
-  const right = pit.length
-    ? `<table><thead><tr><th>código</th><th>nível</th><th>elemento</th><th>descrição</th></tr></thead><tbody>${pit.map((p) => `<tr><td class="mono">${esc(p.code)}</td><td><span class="status-dot ${p.level === "critical" || p.level === "important" ? "error" : "warning"}"></span><span class="nowrap">${esc(levelOf(p.level))}</span></td><td class="mono label">${esc(p.subject)}</td><td class="secondary">${esc(p.message)} <span class="tertiary">(${esc(p.source)})</span></td></tr>`).join("")}</tbody></table>`
-    : `<div class="callout callout-nota">${ICONS.info}<div><div class="t">Nenhuma armadilha</div><div class="b">Os checks nativos (P04, P08, P11, P13, P22, P41) não encontraram problemas${v && v.oops && v.oops.available === false ? ". O OOPS! remoto estava indisponível" : ""}.</div></div></div>`;
-  const req = DATA.requirements;
+  const rows = entities.map((c) => {
+    const parents = (c.subclass_of || []).join(", ") || "Entity";
+    const attrs = termsOf(c.name).map((t) => `<span class="badge badge-outline">${esc(t.name)}</span>`).join(" ");
+    return `<tr>
+      <td><b>${esc(c.label || c.name)}</b><br><span class="mono label tertiary">${esc(c.name)}</span></td>
+      <td class="mono label">${esc(parents)}</td>
+      <td class="secondary">${esc(c.comment || "—")}</td>
+      <td><div class="badges">${attrs || '<span class="label tertiary">—</span>'}</div></td>
+    </tr>`;
+  }).join("");
   $("#summary").innerHTML = `
-    <div class="card wide"><span class="kind">requisitos</span><h2 class="h2">Propósito e perguntas</h2>
-      <p class="p-lg">${esc(req.purpose || "Propósito ainda não registrado.")}</p>
-      ${req.scope ? `<p class="p secondary">${esc(req.scope)}</p>` : ""}
-      ${req.users && req.users.length ? `<div class="badges">${req.users.map((u) => `<span class="badge badge-outline">${esc(u)}</span>`).join("")}</div>` : ""}
-      ${cqList()}
-    </div>
-    <div class="card"><span class="kind">última validação</span><h2 class="h2">Cobertura e achados</h2>${left.join("")}</div>
-    <div class="card"><span class="kind">armadilhas</span><h2 class="h2">Armadilhas de modelagem</h2>${right}</div>`;
+    <div class="card wide">
+      <h2 class="h2">Entidades geradas (${entities.length})</h2>
+      <table>
+        <thead><tr><th>Entidade</th><th>Subclasse de</th><th>Descrição</th><th>Atributos</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 
