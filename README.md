@@ -112,7 +112,9 @@ Depois, a aba "Exportar" da pagina (`uv run akme review`) guia a exportacao em q
 
 Pela CLI, o caminho e este:
 
-1. Preencha no `.env` (copie de `.env.example` se ainda nao existir) as linhas do Neo4j. A senha fica so no `.env`, que o Git ignora:
+1. Conecte com o Neo4j: 
+
+   Suba a instância (Neo4j Desktop, Aura ou Docker) e atualize as variaveis de ambiente no `.env`.
 
    ```bash
    AKME_NEO4J_URI=bolt://127.0.0.1:7687
@@ -120,17 +122,7 @@ Pela CLI, o caminho e este:
    AKME_NEO4J_PASSWORD=<senha com pelo menos 8 caracteres>
    ```
 
-2. Suba o Neo4j (5.23 ou mais novo). Com Docker, na primeira vez:
-
-   ```bash
-   set -a; . ./.env; set +a
-   NEO4J_AUTH="neo4j/$AKME_NEO4J_PASSWORD" docker run -d --name akme-neo4j \
-     --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
-     --env NEO4J_AUTH --volume=akme-neo4j-data:/data \
-     neo4j:2026.10.1
-   ```
-
-   Nas proximas vezes, `docker start akme-neo4j`. Sem Docker, use o Neo4j Desktop com o endereco e a senha do `.env`.
+   
 
 3. Gere a previa (dry-run, nao toca no banco e apenas prepara a publicação):
 
