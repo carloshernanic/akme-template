@@ -171,10 +171,15 @@ def test_empty_key_is_refused(seeded):
 
 
 def test_all_problems_are_listed_together(seeded):
+    # tabela sem mapeamento nem relacao e ignorada de proposito (sources_skipped), nao vira problema
     (seeded.root / "data" / "extra.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     _rewrite_csv(seeded, "produtos.csv", "sku,ds_produto,categoria,vl_unitario,un_medida\n,Sem sku,outros,1.00,UN\n")
-    problems = build_plan(seeded).problems
-    assert any("extra" in p for p in problems) and any("chave sku vazia" in p for p in problems)
+    pedidos = seeded.root / "data" / "pedidos.csv"
+    _rewrite_csv(seeded, "pedidos.csv", pedidos.read_text(encoding="utf-8").replace("id_cliente", "cliente", 1))
+    plan = build_plan(seeded)
+    assert "extra" in plan.sources_skipped and not any("extra" in p for p in plan.problems)
+    assert any("chave sku vazia" in p for p in plan.problems)
+    assert any("pertenceA" in p and "id_cliente" in p for p in plan.problems)
 
 
 def test_orphan_foreign_key_is_a_warning(seeded):
