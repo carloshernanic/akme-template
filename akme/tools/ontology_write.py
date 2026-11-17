@@ -38,7 +38,9 @@ def propose_edit(project: Project, type: str, payload: dict[str, Any], rationale
         raise EditError(f"tipo de edicao desconhecido: {type}. Opcoes: {[t.value for t in EditType]}") from exc
     missing = [f for f in REQUIRED_FIELDS[edit_type] if not payload.get(f)]
     if missing:
-        raise EditError(f"{type} exige os campos: {', '.join(missing)}")
+        hint = (". A evidencia vai dentro do payload, como lista: payload.evidence = [{kind: source, path, locator, "
+                "quote}]; o parametro evidence (texto) nao a substitui") if "evidence" in missing else ""
+        raise EditError(f"{type} exige os campos: {', '.join(missing)}{hint}")
     if edit_type in ONTOLOGY_TYPES or edit_type in EXPORT_TYPES:
         status = requirements_status(project)
         if status["gate_active"]:
@@ -560,7 +562,8 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
         content = load_content(project)
         field, value = p["field"], p["value"]
         if isinstance(content["requirements"].get(field), list):
-            content["requirements"][field].append(value)
+            # um item solto ou uma lista inteira entram como itens, nunca como lista dentro da lista
+            content["requirements"][field].extend(value if isinstance(value, list) else [value])
         else:
             content["requirements"][field] = value
         save_content(project, content)

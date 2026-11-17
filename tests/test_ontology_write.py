@@ -78,6 +78,18 @@ def test_relation_wording_cannot_name_an_entity(project):
         ontology_write.review_edit(project, r.id, "accept", "maria", edits={"label": "pertence ao Pedido"})
 
 
+def test_missing_payload_evidence_explains_where_it_goes(project):
+    with pytest.raises(EditError, match="dentro do payload"):
+        ontology_write.propose_edit(project, "add_gap", {"question": "q", "reason": "r", "missing": "m"}, evidence="pedidos.csv")
+
+
+def test_list_requirement_value_is_not_nested(project):
+    for value in (["Gestor comercial", "Analista de dados"], "Diretoria"):
+        e = ontology_write.propose_edit(project, "add_requirement", {"field": "users", "value": value}, proposed_by="ana")
+        ontology_write.apply_edit(project, e.id, "ana")
+    assert load_content(project)["requirements"]["users"] == ["Gestor comercial", "Analista de dados", "Diretoria"]
+
+
 def test_reject_edit(project):
     _close_requirements(project)
     edit = ontology_write.propose_edit(project, "add_term", {"name": "x", "class": "Entity", "definition": "y"})

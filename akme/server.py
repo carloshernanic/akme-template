@@ -113,7 +113,10 @@ def propose_edit(type: str, payload: dict[str, Any], rationale: str = "", propos
                  requirement_id: str | None = None, evidence: str = "") -> dict[str, Any]:
     """Grava uma edicao tipada em ontology/pending/ sem alterar a ontologia. Tipos da etapa 1 (requisitos):
     add_use_case, add_competency_question, update_competency_question, remove_competency_question, add_gap,
-    update_gap, add_divergence, update_divergence, add_requirement, add_glossary. Tipos da etapa 2 (ontologia,
+    update_gap, add_divergence, update_divergence, add_requirement, add_glossary. add_competency_question e add_gap
+    levam a evidencia dentro do payload, como lista: payload.evidence = [{kind: source, path, locator, quote} ou
+    {kind: conversation, who, when}]; o parametro evidence (texto) e so uma nota de origem e nao substitui essa
+    lista. Relacao: nome, label e inverse_of descrevem o vinculo e nao podem conter nome de classe. Tipos da etapa 2 (ontologia,
     bloqueados ate os requisitos fecharem): add_class, add_relation, add_term, add_mapping, add_constraint, add_precedence.
     add_relation exige multiplicity (de domain para range) e join {from: {source, column}, to: {source, column}} ou
     no_join_reason; o dado e lido e a proposta e recusada se contradizer a multiplicidade. add_term de classe Metric
