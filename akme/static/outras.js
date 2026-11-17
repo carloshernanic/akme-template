@@ -456,7 +456,20 @@
       ${can ? '<button type="button" class="btn btn-outline" data-o="ncls">+ Nova Classe</button>' : ""}</span></div>`;
     const groups = groupKeys(M).map((g) => {
       const its = M.items.filter((it) => it.v.group === g);
-      return its.length ? `<h3 class="e1-sub">${esc(GROUP_LABEL[g] || g)} <span class="ou-n">${its.length}</span></h3><div class="e1-cqs">${its.map(card).join("")}</div>` : "";
+      if (!its.length) return "";
+      if (g === "term") {
+        const byCls = new Map();
+        its.forEach((it) => {
+          const cls = ((it.p && it.p.payload && it.p.payload.class) || "").trim() || "Sem classe";
+          if (!byCls.has(cls)) byCls.set(cls, []);
+          byCls.get(cls).push(it);
+        });
+        const sections = Array.from(byCls.entries()).map(([cls, items]) =>
+          `<section class="ou-term-class"><h4 class="ou-term-class-head"><span>${esc(cls)}</span><span class="ou-n">${items.length}</span></h4><div class="ou-term-sub">${items.map(card).join("")}</div></section>`
+        ).join("");
+        return `<h3 class="e1-sub">${esc(GROUP_LABEL[g] || g)} <span class="ou-n">${its.length}</span></h3>${sections}`;
+      }
+      return `<h3 class="e1-sub">${esc(GROUP_LABEL[g] || g)} <span class="ou-n">${its.length}</span></h3><div class="e1-cqs">${its.map(card).join("")}</div>`;
     }).join("");
     const own = M.own.length ? `<h3 class="e1-sub">Suas alterações <span class="ou-n">${M.own.length}</span></h3><div class="e1-cqs">${M.own.map(ownLine).join("")}</div>` : "";
     const st = M.stage || {};

@@ -749,6 +749,9 @@ dialog.e1-dlg::backdrop { background: oklch(20.64% 0.0205 271.56 / 0.35); backdr
 .e1-proposing-banner .spinner { width: 16px; height: 16px; border: 2px solid var(--border-secondary); border-top-color: var(--status-information); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 body.is-proposing .e1-foot button, body.is-proposing .rv-bar .actions button, body.is-proposing .unsaved button, body.is-proposing [data-e1="save"], body.is-proposing [data-o="save"], body.is-proposing .cq-decide, body.is-proposing [data-e1="uc"], body.is-proposing [data-e1="req-ok"], body.is-proposing [data-e1="req-edit"], body.is-proposing [data-e1="draft-on"], body.is-proposing [data-e1="nouc-on"], body.is-proposing [data-o="all"], body.is-proposing [data-o="ncq"] { pointer-events: none; opacity: 0.55; }
+.ou-term-class { margin: 14px 0 18px; padding: 14px 16px; background: var(--fill-ui-2); border: 1px solid var(--border-divider); border-left: 4px solid var(--qb-accent); }
+.ou-term-class-head { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 22px; font-weight: 600; color: var(--text-primary); margin: 0 0 12px; }
+.ou-term-sub { display: flex; flex-direction: column; gap: 10px; padding-left: 12px; border-left: 2px solid var(--border-divider); }
 
 .e1-cqs { display: flex; flex-direction: column; gap: 12px; }
 .e1-line { display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; background: var(--surface-primary); box-shadow: var(--elevation-0); border-left: 3px solid var(--border-secondary); font-size: 15px; line-height: 22px; }
