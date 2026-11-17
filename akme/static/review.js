@@ -23,10 +23,8 @@
   // motivos de rejeicao de pergunta: o rotulo vira o reason; "outro" pede texto livre
   const WHY = [["clara", "Pouco clara"], ["escopo", "Fora do caso de uso"], ["dados", "Os dados não respondem"], ["repetida", "Repetida"], ["outro", "Outro motivo"]];
   const GAP_DECISIONS = [
-    ["request_from_client", "Pedir o dado ao cliente"],
-    ["reformulate", "Reformular a pergunta"],
-    ["drop", "Descartar"],
-    ["open", "Deixar em aberto"],
+    ["explain", "Explicar Lacuna"],
+    ["ignore", "Ignorar Lacuna"],
   ];
   const DIV_OTHER = [
     ["distinct_terms", "São conceitos distintos"],

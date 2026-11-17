@@ -34,7 +34,7 @@ class EditType(str, Enum):
 CQ_TYPES = ("classificacao_hierarquia", "relacao_entre_conceitos", "atributos", "quantidade_agregacao", "tempo_estado", "regras_restricoes")
 CQ_STATUSES = ("proposed", "approved", "reserved", "rejected", "deprecated")
 PRIORITIES = ("high", "medium", "low")
-GAP_DECISIONS = ("request_from_client", "reformulate", "drop", "open")
+GAP_DECISIONS = ("explain", "ignore")
 DIVERGENCE_DECISIONS = ("precedence", "distinct_terms", "ask_expert", "dismiss", "open")
 EVIDENCE_KINDS = ("source", "conversation")
 

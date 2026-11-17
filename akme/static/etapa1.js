@@ -13,11 +13,10 @@
   const GL_WHY = [["errada", "Significado errado"], ["nao_usada", "Não é usada"], ["repetida", "Repetida"], ["outro", "Outro motivo"]];
   const GL_WHY_L = Object.fromEntries(GL_WHY);
   // escolhas da tela 3; o terceiro valor diz que texto a escolha pede ("" = nenhum)
-  const GAP_OPTS = [["request_from_client", "Pedir o dado ao cliente", ""], ["reformulate", "Reformular a pergunta", "new"],
-    ["drop", "Descartar", "why"], ["open", "Deixar em aberto", "why"]];
+  const GAP_OPTS = [["explain", "Explicar Lacuna", "explain"], ["ignore", "Ignorar Lacuna", ""]];
   const DIV_OTHER = [["distinct_terms", "São coisas diferentes", "diff"], ["ask_expert", "Perguntar ao especialista", ""],
     ["dismiss", "Descartar", "why"], ["open", "Deixar em aberto", "why"]];
-  const NEED_LABEL = { new: "Como fica a pergunta?", why: "Por quê?", diff: "O que diferencia?" };
+  const NEED_LABEL = { explain: "Explique a lacuna", new: "Como fica a pergunta?", why: "Por quê?", diff: "O que diferencia?" };
   const GAP_L = Object.fromEntries(GAP_OPTS.map(([v, l]) => [v, l]));
   const DIV_L = Object.fromEntries(DIV_OTHER.map(([v, l]) => [v, l]));
   // motivos gravados quando o revisor nao escolhe algo da IA
@@ -354,8 +353,9 @@
   const divTitle = (pl) => `Qual definição de “${pl.topic || "?"}” vale?`;
   function gdLine(c) {
     const t = c.kind === "gap" ? c.payload.question : divTitle(c.payload);
+    const note = c.choice !== "ignore" && c.text.trim() ? ": " + c.text.trim() : "";
     return `<div class="e1-line ok" data-gd="${esc(c.edit_id)}"><span class="i" aria-hidden="true">✓</span><span class="q">${esc(t)}</span>
-      <span class="m">${esc(gdLabel(c))}${c.text.trim() ? ": " + esc(c.text.trim()) : ""}</span>
+      <span class="m">${esc(gdLabel(c))}${esc(note)}</span>
       <button type="button" class="lnk" data-e1="gd-open" data-id="${esc(c.edit_id)}" aria-label="Rever: ${esc(t)}">rever</button></div>`;
   }
   function evList(evs) {
@@ -421,7 +421,7 @@
     const aplicadas = ap.length ? `<details class="e1-more"><summary>Já aplicadas (${ap.length})</summary>${ap.map(([q, d]) => `<div class="e1-line mute"><span class="q">${esc(q)}</span><span class="m">${esc(d || "")}</span></div>`).join("")}
       <p class="p secondary">Para alterar, use <button type="button" class="lnk" data-e1="outras">Outras propostas</button>.</p></details>` : "";
     if (!M.gds.length) return `<div class="e1-empty"><b>Nada a decidir</b><span>Nenhuma lacuna ou divergência pendente.</span></div>${aplicadas}`;
-    return `${gaps.length ? `<h3 class="e1-sub">Lacunas</h3><div class="e1-cqs">${gaps.map(gapCard).join("")}</div>` : ""}
+    return `${gaps.length ? `<h3 class="e1-sub">Lacunas</h3><p class="p secondary" style="margin-bottom:12px">Lacunas são perguntas de negócio que os dados e documentos atuais não respondem por falta de informação nas fontes.</p><div class="e1-cqs">${gaps.map(gapCard).join("")}</div>` : ""}
       ${divs.length ? `<h3 class="e1-sub">Divergências</h3><div class="e1-cqs">${divs.map(divCard).join("")}</div>` : ""}${aplicadas}`;
   }
   function focusAfterGd(id) {
@@ -868,7 +868,7 @@
       body: { type: "add_competency_question", payload: { question: o.q, type: o.type, concepts: o.concepts, priority: o.prio, status: "approved" } } }));
     M.gds.forEach((c) => {
       const edits = { decision: c.choice };
-      if (c.kind === "gap") { if (c.text.trim()) edits.note = c.choice === "reformulate" ? "Nova pergunta: " + c.text.trim() : c.text.trim(); }
+      if (c.kind === "gap") { if (c.choice !== "ignore" && c.text.trim()) edits.note = c.choice === "reformulate" ? "Nova pergunta: " + c.text.trim() : c.text.trim(); }
       else { if (c.choice === "precedence") edits.winner = c.winner; else if (c.text.trim()) edits.reason = c.text.trim(); }
       rv(c, "accept", { edits }, c.kind === "gap" ? `lacuna “${c.payload.question}”` : `divergência “${c.payload.topic}”`);
     });

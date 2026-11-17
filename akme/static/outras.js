@@ -25,7 +25,7 @@
   const TYPE_L = Object.fromEntries(CQ_TYPES);
   const PRIO = [["high", "Alta"], ["medium", "Média"], ["low", "Baixa"]];
   const PRIO_L = Object.fromEntries(PRIO);
-  const GAP_OPTS = [["request_from_client", "Pedir o dado ao cliente"], ["reformulate", "Reformular a pergunta"], ["drop", "Descartar"], ["open", "Deixar em aberto"]];
+  const GAP_OPTS = [["explain", "Explicar Lacuna"], ["ignore", "Ignorar Lacuna"]];
   const DIV_OTHER = [["distinct_terms", "São coisas diferentes"], ["ask_expert", "Perguntar ao especialista"], ["dismiss", "Descartar"], ["open", "Deixar em aberto"]];
   const GAP_L = Object.fromEntries(GAP_OPTS);
   const DIV_L = Object.assign({ precedence: "Precedência" }, Object.fromEntries(DIV_OTHER));
@@ -606,14 +606,16 @@
       let filled;
       if (need === "prio") filled = !!D.prio;
       else if (need === "choice") filled = !!D.choice;
-      else if (need === "why") filled = D.choice === "open" || filledEl("#ou-d-why");
+      else if (need === "why") filled = D.choice === "open" || D.choice === "ignore" || filledEl("#ou-d-why");
       else filled = filledEl("#" + need);
       tag.hidden = filled;
       const el = need === "prio" ? d0("#ou-d-p") : need === "choice" ? d0("[data-c]") && d0("[data-c]").parentElement : d0(need === "why" ? "#ou-d-why" : "#" + need);
       if (el && filled) el.classList.remove("miss");
     });
     const opt = d0('label[for="ou-d-why"] .opt');
-    if (opt) opt.hidden = D.choice !== "open";
+    if (opt) opt.hidden = D.choice !== "open" && D.choice !== "ignore";
+    const whyWrap = d0("#ou-d-why") && d0("#ou-d-why").closest(".field");
+    if (whyWrap && D.kind === "agap") whyWrap.hidden = D.choice === "ignore";
     const note = d0("[data-open-note]");
     if (note) note.hidden = D.choice !== "open";
   }
@@ -762,9 +764,9 @@
       if (!reason) return dlgFail([["#ou-d-why", "o motivo"]]);
       o = { kind: "rcq", id: D.ref, label: findApplied(k, D.ref).question, reason };
     } else if (k === "agap" || k === "adiv") {
-      const why = val("#ou-d-why"), falta = [];
+      const why = D.choice === "ignore" ? "" : val("#ou-d-why"), falta = [];
       if (!D.choice) falta.push([".e1-opts", "a decisão"]);
-      else if (D.choice !== "open" && !why) falta.push(["#ou-d-why", "o porquê (só Deixar em aberto dispensa)"]);
+      else if (D.choice !== "open" && D.choice !== "ignore" && !why) falta.push(["#ou-d-why", k === "agap" ? "a explicação" : "o porquê (só Deixar em aberto dispensa)"]);
       if (falta.length) return dlgFail(falta);
       const cur = findApplied(k, D.ref);
       if (k === "agap") o = { kind: "agap", id: D.ref, label: cur.question, decision: D.choice, note: why };
