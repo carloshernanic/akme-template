@@ -65,6 +65,6 @@ def test_skill_asks_decision_mode_first_and_describes_auto_mode():
 def test_skill_asks_use_case_on_the_page_first():
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assert "de 2 a 3 casos de uso" in skill
-    assert "rodada unica" in skill.lower()
+    assert "Primeira rodada: so os casos de uso" in skill and "Segunda rodada" in skill
     assert "Nao pergunte o caso de uso no chat" in skill
     assert "1. Pergunte o caso de uso" not in skill

@@ -154,6 +154,8 @@
   }
 
   const noUcOk = (M) => !!(M.noUc && M.noUc.ok);
+  const hasNoUc = (M) => noUcOk(M) || !!M.appliedReq.no_use_case;
+  const ucSaved = (M) => !M.ucs.length && (M.applied.ucs.length > 0 || !!M.appliedReq.no_use_case);
   // casos que valem: marcados agora, ja aprovados antes e os escritos pelo revisor
   function chosenUcs(M) {
     const out = M.applied.ucs.map((u) => ({ id: u.id, name: u.name }));
@@ -167,7 +169,7 @@
     const m = [];
     if (step === 0) {
       if (M.noUc && !noUcOk(M)) m.push("confirmar por que não há caso de uso");
-      else if (!chosenUcs(M).length && !noUcOk(M)) m.push("escolher um caso de uso");
+      else if (!chosenUcs(M).length && !hasNoUc(M)) m.push("escolher um caso de uso");
       if (M.reqs.length && !reqsOk(M)) m.push("aceitar Sobre o projeto");
       M.reqs.filter((x) => x.ok && !x.value.trim()).forEach((x) => m.push(REQ_LABEL[x.field].toLowerCase() + " está vazio"));
     } else if (step === 1) {
@@ -178,7 +180,7 @@
       if (und) m.push("decidir " + n(und, "pergunta", "perguntas"));
       if (np) m.push("prioridade de " + n(np, "pergunta", "perguntas"));
       if (nr) m.push("motivo de " + n(nr, "rejeição", "rejeições"));
-      const lost = M.ownCqs.filter((o) => !noUcOk(M) && !chosenUcs(M).some((u) => u.id === o.uc)).length;
+      const lost = M.ownCqs.filter((o) => !hasNoUc(M) && !chosenUcs(M).some((u) => u.id === o.uc)).length;
       if (lost) m.push("caso de uso de " + n(lost, "pergunta sua", "perguntas suas"));
       const anyOk = ai.some((c) => c.dec === "ok") || M.ownCqs.length || M.applied.cqs.some((q) => q.status === "approved");
       if (!anyOk) m.push("aceitar ou escrever pelo menos uma pergunta");
@@ -202,7 +204,7 @@
   const cqDone = (c) => (c.dec === "ok" && !!c.prio) || (c.dec === "rej" && !!reasonOf(c));
   // agrupa pelas escolhas da tela 1; sem caso de uso escolhido ("nao temos"), tudo fica num grupo so
   function cqGroups(M) {
-    const all = noUcOk(M), chosen = all ? [] : chosenUcs(M);
+    const all = hasNoUc(M), chosen = all ? [] : chosenUcs(M);
     const groups = chosen.map((u) => ({ id: u.id, name: u.name, ai: [], own: [] }));
     const byUc = Object.fromEntries(groups.map((g) => [g.id, g]));
     const none = { id: "", name: all ? "Perguntas" : "Sem caso de uso", ai: [], own: [] };
@@ -317,7 +319,7 @@
       if (M.reqs.some((r) => !r.ok)) n += 1; // "Sobre o projeto" e um card so
     }
     // antes de escolher o caso de uso, todas as perguntas contam; depois, so as dos casos escolhidos
-    const choice = chosenUcs(M).length || noUcOk(M);
+    const choice = chosenUcs(M).length || hasNoUc(M);
     if (vis.includes(1)) n += (choice ? cqGroups(M).groups.flatMap((g) => g.ai) : M.cqs).filter((c) => !cqDone(c)).length;
     if (vis.includes(2)) n += M.gds.filter((c) => !gdDone(c)).length;
     if (vis.includes(3)) n += M.gls.filter((g) => !glDone(g)).length;
@@ -490,6 +492,7 @@
 
   function noUcBlock(M) {
     const n = M.noUc;
+    if (!n && M.appliedReq.no_use_case) return `<p class="e1-nouc-ok"><b>Sem caso de uso:</b> ${esc(M.appliedReq.no_use_case)} <span class="src">já aprovado</span></p>`;
     if (!n) return `<button type="button" class="lnk e1-nouc" data-e1="nouc-on">Não temos caso de uso</button>`;
     if (n.ok) return `<p class="e1-nouc-ok"><b>Sem caso de uso:</b> ${esc(n.text)} <button type="button" class="lnk" data-e1="nouc-off">desfazer</button></p>`;
     return `<div class="e1-nouc-f"><label class="field-label" for="e1-nouc">Por que não há caso de uso? ${req(n.text.trim())}</label>
@@ -547,19 +550,23 @@
     const vis = visibleSteps(M);
     return vis.map((i, k) => {
       const s = STEPS[i], cur = i === M.step, done = !cur && !missing(M, i).length;
+      const title = i === 0 && ucSaved(M) && M.reqs.length ? "Sobre o projeto" : s.title;
       return `<button type="button" class="${cur ? "cur" : done ? "done" : ""}" data-e1="go" data-step="${i}"${cur ? ' aria-current="step"' : ""}>
-        <span class="n">${done ? "✓" : k + 1}</span><span class="lbl">${esc(s.title)}</span></button>`;
+        <span class="n">${done ? "✓" : k + 1}</span><span class="lbl">${esc(title)}</span></button>`;
     }).join("");
   }
   const nextStep = (M) => { const v = visibleSteps(M); return v[v.indexOf(M.step) + 1]; };
   const prevStep = (M) => { const v = visibleSteps(M); return v[v.indexOf(M.step) - 1]; };
   function screenHtml(M) {
     const s = STEPS[M.step];
+    const lead = M.step === 0 && ucSaved(M) && M.reqs.length
+      ? "Confira o propósito, escopo e usuários. O caso de uso já está salvo."
+      : s.lead;
     const body = M.step === 0 ? screenUc(M) : M.step === 1 ? screenCq(M) : M.step === 2 ? screenGd(M) : screenGl(M);
     const ns = isAuto() || !E.ctx.api ? 0 : unsavedOf(M);
     const aviso = ns ? `<div class="unsaved" role="status"><span><b>${ns === 1 ? "1 decisão ainda não salva" : ns + " decisões ainda não salvas"}.</b> Só entram na ontologia depois de conferir e salvar.</span>
       <button type="button" class="btn" data-e1="save">Conferir e salvar</button></div>` : "";
-    return `<p class="e1-lead">${esc(s.lead)}</p>${aviso}${body}`;
+    return `<p class="e1-lead">${esc(lead)}</p>${aviso}${body}`;
   }
   function footHtml(M) {
     const nx = nextStep(M);
@@ -791,7 +798,7 @@
   }
   function openCq(i) {
     const d = cqDlg(), M = E.M, o = i === null ? { q: "", uc: "", type: "", concepts: [], prio: "" } : M.ownCqs[i];
-    const ucs = noUcOk(M) ? [] : chosenUcs(M);
+    const ucs = hasNoUc(M) ? [] : chosenUcs(M);
     Q.i = i; Q.prio = o.prio;
     q0("#e1-cq-dlg-t").textContent = i === null ? "Nova pergunta" : "Editar pergunta";
     q0('[data-d="ok"]').textContent = i === null ? "Adicionar" : "Salvar";
@@ -878,8 +885,8 @@
   function summaryHtml(M) {
     const sec = (title, rows) => (rows.length ? `<h3 class="e1-sub">${esc(title)}</h3><ul class="e1-sum">${rows.join("")}</ul>` : "");
     const li = (t, m, cls) => `<li class="${cls || ""}"><span class="q">${esc(t)}</span>${m ? `<span class="m">${esc(m)}</span>` : ""}</li>`;
-    const noUc = noUcOk(M), { groups, out } = cqGroups(M), ai = groups.flatMap((g) => g.ai);
-    const ucRows = noUc ? [li("Sem caso de uso", M.noUc.text)]
+    const noUc = noUcOk(M), allNoUc = hasNoUc(M), { groups, out } = cqGroups(M), ai = groups.flatMap((g) => g.ai);
+    const ucRows = allNoUc ? [li("Sem caso de uso", (M.noUc && M.noUc.text) || M.appliedReq.no_use_case)]
       : chosenUcs(M).map((u) => li(u.name, M.owns.some((o) => o.tmp === u.id) ? "seu" : M.applied.ucs.some((a) => a.id === u.id) ? "já aprovado" : "escolhido"));
     const notChosen = M.ucs.filter((u) => noUc || !u.sel).map((u) => li(u.payload.name, "fica de fora", "off"));
     const reqRows = M.reqs.map((r) => li(REQ_LABEL[r.field] || r.field, r.value.trim() !== r.proposed ? "aceito com ajuste" : "aceito"));
