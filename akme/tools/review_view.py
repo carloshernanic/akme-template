@@ -26,7 +26,7 @@ GROUP = {
 
 GROUP_LABEL = {
     "cq": "Perguntas de competência", "gap": "Lacunas", "div": "Divergências", "uc": "Caso de uso e requisitos",
-    "glossary": "Glossário", "class": "Classes", "relation": "Relações", "term": "Termos",
+    "glossary": "Glossário", "class": "Classes", "relation": "Relações", "term": "Atributos",
     "mapping": "Mappings", "constraint": "Restrições", "precedence": "Precedências", "source": "Exportação Neo4j",
 }
 TYPE_LABEL = {"string": "texto", "integer": "inteiro", "float": "decimal", "date": "data"}
@@ -45,7 +45,7 @@ CQ_TYPE_LABEL = {
     "tempo_estado": "Tempo e estado", "regras_restricoes": "Regras e restrições",
 }
 
-_MAPPING_LABEL = {"term": "Termo", "source": "Tabela", "column": "Coluna", "role": "Papel",
+_MAPPING_LABEL = {"term": "Atributo", "source": "Tabela", "column": "Coluna", "role": "Papel",
                   "expression": "Expressão SQL", "note": "Nota"}
 
 
@@ -223,7 +223,7 @@ def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]
             _field("Multiplicidade mantida apesar do dado", p.get("override_reason")),
         )
     elif t == EditType.add_term:
-        title, subtitle = f"Termo {p.get('name')}", f"da classe {p.get('class')}"
+        title, subtitle = f"Atributo {p.get('name')}", f"da classe {p.get('class')}"
         fields = _fields(
             _field("Definição", p.get("definition")), _field("Sinônimos", p.get("synonyms")),
             _field("Unidade", p.get("unit")), _field("Grão", p.get("grain")),

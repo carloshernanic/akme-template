@@ -141,6 +141,10 @@ def ontology_statements(project: Project, published: set[str], labels: dict[str,
     rels = {r["name"]: r for r in relations(g)}
     out: list[Statement] = []
 
+    by_cls_terms: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    for cls, term, props in term_entries(content, names):
+        by_cls_terms.setdefault(cls, []).append((term, props))
+
     for c in cls_list:
         props: dict[str, Any] = {"nome": c["name"], "name": c["name"], "rotulo": c["label"], "definicao": c["comment"],
                                  "iri": c["iri"]}
@@ -148,6 +152,16 @@ def ontology_statements(project: Project, published: set[str], labels: dict[str,
         if kind:
             props["tipo"] = kind
         props["publicada_nos_dados"] = c["name"] in with_data
+        cls_attrs = by_cls_terms.get(c["name"], [])
+        if cls_attrs:
+            props["atributos"] = [t_name for t_name, _ in cls_attrs]
+            details = []
+            for t_name, t_props in cls_attrs:
+                loc = f"{t_props['fonte']}.{t_props['coluna']}" if t_props.get("fonte") and t_props.get("coluna") else ""
+                desc = t_props.get("definicao") or ""
+                part = f"{t_name} ({loc})" if loc else t_name
+                details.append(f"{part}: {desc}" if desc else part)
+            props["atributos_detalhes"] = details
         if is_metric_class(g, c["name"]):
             props |= _metric_props(content, contracts, c["name"], labels)
             props["publicada_nos_dados"] = _metric_published(content, c["name"], labels)
@@ -194,12 +208,6 @@ def ontology_statements(project: Project, published: set[str], labels: dict[str,
         # diferentes evitam que o mapa nativo (db.schema.visualization) desenhe setas entre labels de dado que nao existem
         out.append((f"MATCH {_A}, {_B} MERGE (a)-[r:{ONTOLOGY_TYPE} {{nome: $rel}}]->(b) SET r = $props, r._carga = $carga",
                     {"de": dom, "para": rng, "rel": rel, "props": props}))
-
-    for cls, term, props in term_entries(content, names):
-        out.append((f"MERGE {_TERMO} SET t = $props, t._projeto = $projeto, t._carga = $carga",
-                    {"nome": term, "props": props}))
-        out.append(("MATCH (c:Conceito {_projeto: $projeto, nome: $classe}), " + _TERMO
-                    + " MERGE (c)-[l:TEM_TERMO]->(t) SET l._carga = $carga", {"classe": cls, "nome": term}))
     return out
 
 

@@ -10,7 +10,7 @@
   const GROUP_ORDER = ["cq", "gap", "div", "uc", "glossary", "class", "relation", "term", "mapping", "constraint", "precedence", "source", "other"];
   const ONTO_GROUPS = new Set(["class", "relation", "term", "mapping", "constraint", "precedence", "source"]);
   const GROUP_LABEL = {
-    class: "Classes", relation: "Relações", term: "Termos", mapping: "Mapeamentos", constraint: "Restrições",
+    class: "Classes", relation: "Relações", term: "Atributos", mapping: "Mapeamentos", constraint: "Restrições",
     precedence: "Precedências", source: "Exportação Neo4j", cq: "Perguntas de competência", gap: "Lacunas",
     div: "Divergências", uc: "Caso de uso e requisitos", glossary: "Glossário", other: "Outros",
   };
@@ -36,7 +36,7 @@
   // campos de texto corrido: aparecem como frase, nao como etiqueta e valor
   const PROSE = new Set(["Comentário", "Definição", "Regra", "Motivo", "Significado", "Descrição", "Valor", "Nota", "Hipótese da IA"]);
   // campos de um mapping, na ordem em que aparecem no antes e depois das correcoes
-  const MAP_L = { term: "Termo", source: "Tabela", column: "Coluna", role: "Papel", expression: "Expressão SQL", note: "Nota" };
+  const MAP_L = { term: "Atributo", source: "Tabela", column: "Coluna", role: "Papel", expression: "Expressão SQL", note: "Nota" };
   const ROLE_L = { dimension: "dimensão", metric: "métrica", key: "chave" };
   const MAP_TYPES = new Set(["update_mapping", "remove_mapping"]);
   const mapKey = (m) => [m.term, m.source, m.column].map((x) => String(x ?? "")).join("|");
@@ -113,6 +113,27 @@
       else localStorage.removeItem(draftKey(M.project));
     } catch (e) { /* sem armazenamento: o rascunho fica so na memoria */ }
   }
+  const FILTER_GROUPS = {
+    classes: new Set(["class", "term"]),
+    rels: new Set(["relation"]),
+    mapping: new Set(["mapping", "constraint", "precedence", "source"]),
+  };
+  function allowedGroups() {
+    const f = O.ctx && O.ctx.groupFilter;
+    return f && FILTER_GROUPS[f] ? FILTER_GROUPS[f] : null;
+  }
+  function countFor(data, filter) {
+    const grp = FILTER_GROUPS[filter];
+    return ((data && data.pending) || []).filter((p) => covers(p) && (!grp || grp.has(viewOf(p).group))).length;
+  }
+  function visItems(M) {
+    const grp = allowedGroups();
+    return grp ? M.items.filter((it) => grp.has(it.v.group)) : M.items;
+  }
+  function visOwn(M) {
+    const f = O.ctx && O.ctx.groupFilter;
+    return !f ? M.own : M.own.filter((o) => (f === "classes" ? o.kind === "ncls" : false));
+  }
   function buildModel(data, prev) {
     const old = (prev && prev.byId) || {};
     const project = (data && data.project) || "";
@@ -120,6 +141,13 @@
     const draft = prev ? {} : readDraft(project), dItems = draft.items || {};
     const M = { items: [], byId: {}, own: prev ? prev.own : Array.isArray(draft.own) ? draft.own : [], apOpen: prev ? prev.apOpen : false, ctxOpen: prev ? prev.ctxOpen : false, project };
     M.req = (data && data.requirements) || {};
+    // itens ja aplicados na ontologia para manter visiveis em cada aba correspondente
+    M.classes = (data && data.classes) || [];
+    M.terms = (data && data.terms) || [];
+    M.relations = (data && data.relations) || [];
+    M.constraints = (data && data.constraints) || [];
+    M.precedence = (data && data.precedence) || [];
+    M.sources = (data && data.sources) || [];
     // mappings ja aplicados e colunas de cada tabela do profile: base da lista "Mapeamentos aplicados"
     M.maps = ((data && data.mappings) || []).slice().sort((a, b) => mapKey(a).localeCompare(mapKey(b)));
     M.cols = (data && data.source_columns) || {};
@@ -127,12 +155,13 @@
     M.stage = (data && data.stage) || {};
     for (const p of (data && data.pending) || []) {
       if (!covers(p)) continue;
+      const v = viewOf(p);
       const rv = p.review, was = old[p.id];
       const fromDraft = !was && !rv && dItems[p.id] ? Object.assign({ open: false, det: false, editing: false }, dItems[p.id], { id: p.id }) : null;
       const it = was || fromDraft || { id: p.id, dec: rv ? (rv.decision === "reject" ? "rej" : "ok") : null, why: "",
         reason: rv && rv.decision === "reject" ? rv.reason || "" : "", open: false, det: false, editing: false, vals: editVals(p) };
       if (!was && !fromDraft && it.reason) { const k = WHY.find(([, l]) => l === it.reason); it.why = k ? k[0] : "outro"; }
-      Object.assign(it, { p, v: viewOf(p), saved: !!rv });
+      Object.assign(it, { p, v, saved: !!rv });
       M.items.push(it); M.byId[p.id] = it;
     }
     const gi = (it) => { const i = GROUP_ORDER.indexOf(it.v.group); return i < 0 ? GROUP_ORDER.length : i; };
@@ -161,19 +190,19 @@
   const REQUIRED_TEXT = new Set(["label", "comment", "definition", "rule", "reason", "meaning", "value", "name", "description"]);
   const emptied = (it) => Object.entries(diffOf(it)).some(([k, v]) => REQUIRED_TEXT.has(k) && !Array.isArray(v) && !v);
   function missing(M) {
-    const m = [];
-    const und = M.items.filter((it) => !it.dec).length;
-    const nr = M.items.filter((it) => it.dec === "rej" && !reasonOf(it)).length;
-    const ne = M.items.filter((it) => it.dec === "ok" && emptied(it)).length;
+    const items = visItems(M), m = [];
+    const und = items.filter((it) => !it.dec).length;
+    const nr = items.filter((it) => it.dec === "rej" && !reasonOf(it)).length;
+    const ne = items.filter((it) => it.dec === "ok" && emptied(it)).length;
     if (und) m.push("decidir " + plural(und, "proposta", "propostas"));
     if (nr) m.push("motivo de " + plural(nr, "rejeição", "rejeições"));
     if (ne) m.push(plural(ne, "texto ajustado está vazio", "textos ajustados estão vazios"));
     return m;
   }
   // decididas aqui mas ainda nao gravadas no servidor (e perguntas/alteracoes escritas pelo revisor)
-  const unsavedOf = (M) => M.items.filter((it) => done(it) && !it.saved).length + M.own.length;
+  const unsavedOf = (M) => visItems(M).filter((it) => done(it) && !it.saved).length + visOwn(M).length;
   // o numero da aba so cai depois de salvar: decidir sem salvar nao muda nada na ontologia
-  const remainingOf = (M) => M.items.filter((it) => !done(it)).length + unsavedOf(M);
+  const remainingOf = (M) => visItems(M).filter((it) => !done(it)).length + unsavedOf(M);
   function pendingCount(data) {
     return ((data && data.pending) || []).filter(covers).length;
   }
@@ -191,7 +220,7 @@
   function titleText(it) {
     const pl = it.p.payload || {}, t = it.p.type;
     if (t === "add_class" || t === "add_relation") return labelOf(it) || it.v.title;
-    if (t === "add_term") return `${pl.name} (termo de ${pl.class})`;
+    if (t === "add_term") return `${pl.name} (atributo de ${pl.class})`;
     if (t === "add_mapping" || MAP_TYPES.has(t)) return `${pl.term} → ${pl.source}.${pl.column}`;
     if (t === "rename_class") return `${pl.name} → ${pl.new_name}`;
     return it.v.title;
@@ -202,7 +231,7 @@
       const lab = labelOf(it);
       return `${esc(lab || v.title)}${pl.name && lab && lab !== pl.name ? ` <span class="ou-ident mono">${esc(pl.name)}</span>` : ""}`;
     }
-    if (t === "add_term") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">termo de ${esc(pl.class)}</span>`;
+    if (t === "add_term") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">atributo de ${esc(pl.class)}</span>`;
     if (t === "add_mapping" || MAP_TYPES.has(t)) return `<span class="mono">${esc(pl.term)}</span> <span class="ou-ident">→ ${esc(pl.source)}.${esc(pl.column)}</span>`;
     if (t === "rename_class") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">→</span> <span class="mono">${esc(pl.new_name)}</span>`;
     if (/^(update|remove)_/.test(t)) return esc(v.title);
@@ -400,7 +429,7 @@
   function mapBusy(M, key) {
     return M.items.some((it) => MAP_TYPES.has(it.p.type) && mapKey(it.p.payload || {}) === key) ? "correção pendente acima" : "";
   }
-  function mapSection(M) {
+  function mapSection(M, alwaysOpen) {
     const maps = M.maps;
     if (!maps.length) return "";
     const can = !isAuto() && !!O.ctx.api, nt = new Set(maps.map((m) => m.source)).size;
@@ -411,8 +440,59 @@
       return `<div class="e1-line ok ou-ap"><span class="i" aria-hidden="true">✓</span><span class="q"><span class="mono">${esc(m.term)}</span> <span class="ou-ident">→ <span class="mono">${esc(m.source)}.${esc(m.column)}</span></span></span>
         <span class="ou-ap-meta">${esc(ROLE_L[m.role] || m.role || "")}</span>${acts}</div>`;
     }).join("");
+    if (alwaysOpen) {
+      return `<div class="e1-applied"><h3 class="e1-sub">Mapeamentos aplicados <span class="ou-n">${maps.length}</span></h3><div class="e1-cqs">${rows}</div></div>`;
+    }
     return `<details class="e1-more ou-ap-wrap" data-od="map"${M.mapOpen ? " open" : ""}><summary><b>Mapeamentos aplicados</b> <span class="ou-ap-n">${maps.length}</span><span class="ou-ap-hint">${esc(plural(nt, "tabela", "tabelas"))}; dá para corrigir ou remover cada um</span></summary>
       ${rows}<p class="p secondary">A correção vira uma proposta sua na fila acima e só entra na ontologia quando você conferir e salvar.</p></details>`;
+  }
+  function appliedTabSection(M, f) {
+    if (f === "classes") {
+      const domainCls = (M.classes || []).filter((c) => !["Entity", "Relation", "Rule", "Metric"].includes(c.name));
+      const byCls = new Map();
+      domainCls.forEach((c) => byCls.set(c.name, { cls: c, terms: [] }));
+      (M.terms || []).forEach((t) => {
+        const cname = (t.class || "").trim() || "Sem classe";
+        if (!byCls.has(cname)) byCls.set(cname, { cls: { name: cname, label: cname, comment: "" }, terms: [] });
+        byCls.get(cname).terms.push(t);
+      });
+      if (!byCls.size) return "";
+      const blocks = Array.from(byCls.values()).map(({ cls: c, terms }) => `
+        <section class="ou-term-class">
+          <div class="ou-term-class-head"><span>${esc(c.label || c.name)}</span><span class="ou-ident mono">${esc(c.name)}</span><span class="ou-n">${terms.length}</span></div>
+          ${c.comment ? `<p class="p secondary" style="margin:0 0 10px">${esc(c.comment)}</p>` : ""}
+          ${terms.length ? `<div class="ou-term-sub">${terms.map((t) => `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q"><span class="mono">${esc(t.name)}</span>${t.definition ? ` <span class="ou-ident">· ${esc(t.definition)}</span>` : ""}</span></div>`).join("")}</div>` : '<p class="p secondary" style="margin:0">Nenhum atributo ligado ainda.</p>'}
+        </section>`).join("");
+      return `<div class="e1-applied"><h3 class="e1-sub">Classes e atributos aplicados <span class="ou-n">${domainCls.length}</span></h3>${blocks}</div>`;
+    }
+    if (f === "rels") {
+      const rels = M.relations || [];
+      if (!rels.length) return "";
+      const rows = rels.map((r) => {
+        const mult = r.contract && r.contract.multiplicity ? ` (${r.contract.multiplicity})` : "";
+        const dom = list(r.domain).join(", "), rng = list(r.range).join(", ");
+        return `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q"><b>${esc(r.label || r.name)}</b> <span class="mono">${esc(r.name)}</span> <span class="ou-ident">${esc(dom)} → ${esc(rng)}${esc(mult)}</span></span>${r.comment ? `<span class="m">${esc(cut(r.comment, 90))}</span>` : ""}</div>`;
+      }).join("");
+      return `<div class="e1-applied"><h3 class="e1-sub">Relacionamentos aplicados <span class="ou-n">${rels.length}</span></h3><div class="e1-cqs">${rows}</div></div>`;
+    }
+    if (f === "mapping") {
+      const parts = [];
+      if ((M.maps || []).length) parts.push(mapSection(M, true));
+      if ((M.sources || []).length) {
+        const rows = M.sources.map((s) => `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q"><span class="mono">${esc(s.source || s.name || "")}</span> <span class="ou-ident">${s.key ? `chave: ${esc(s.key)}` : ""}</span></span><span class="m">${esc((s.label || "") + (s.mode ? " · " + s.mode : ""))}</span></div>`).join("");
+        parts.push(`<div class="e1-applied"><h3 class="e1-sub">Chaves e fontes Neo4j aprovadas <span class="ou-n">${M.sources.length}</span></h3><div class="e1-cqs">${rows}</div></div>`);
+      }
+      if ((M.constraints || []).length) {
+        const rows = M.constraints.map((k) => `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q"><span class="mono">${esc(k.term || k.id || "")}</span> <span class="ou-ident">· ${esc(k.rule || "")}</span></span><span class="m">${esc(k.severity || "")}</span></div>`).join("");
+        parts.push(`<div class="e1-applied"><h3 class="e1-sub">Restrições aplicadas <span class="ou-n">${M.constraints.length}</span></h3><div class="e1-cqs">${rows}</div></div>`);
+      }
+      if ((M.precedence || []).length) {
+        const rows = M.precedence.map((p) => `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q">${esc(p.topic || "")} <span class="ou-ident">· vale ${esc(p.winner || "")} sobre ${esc(p.over || "")}</span></span></div>`).join("");
+        parts.push(`<div class="e1-applied"><h3 class="e1-sub">Precedências aplicadas <span class="ou-n">${M.precedence.length}</span></h3><div class="e1-cqs">${rows}</div></div>`);
+      }
+      return parts.join("");
+    }
+    return "";
   }
   function sourcesRead(M) {
     const counts = new Map(), add = (path) => { if (path) counts.set(path, (counts.get(path) || 0) + 1); };
@@ -446,16 +526,19 @@
   }
 
   // ---------- render ----------
-  function groupKeys(M) {
-    return GROUP_ORDER.concat(Array.from(new Set(M.items.map((it) => it.v.group))).filter((g) => !GROUP_ORDER.includes(g)));
+  function groupKeys(M, items) {
+    const listItems = items || visItems(M);
+    return GROUP_ORDER.concat(Array.from(new Set(listItems.map((it) => it.v.group))).filter((g) => !GROUP_ORDER.includes(g)));
   }
   function screenHtml(M) {
-    const auto = isAuto(), und = M.items.filter((it) => !it.dec).length, can = !auto && !!O.ctx.api, ns = unsavedOf(M);
-    const bar = `<div class="e1-cqbar"><span class="e1-count">${und ? `<b>${und}</b> ${und === 1 ? "proposta para avaliar" : "propostas para avaliar"}` : M.items.length ? "Todas decididas" : "Nada pendente da IA"}</span>
+    const auto = isAuto(), items = visItems(M), ownList = visOwn(M), und = items.filter((it) => !it.dec).length, can = !auto && !!O.ctx.api;
+    const f = O.ctx && O.ctx.groupFilter;
+    const showNewClass = can && (!f || f === "classes");
+    const bar = `<div class="e1-cqbar"><span class="e1-count">${und ? `<b>${und}</b> ${und === 1 ? "proposta para avaliar" : "propostas para avaliar"}` : items.length ? "Todas decididas" : "Nada pendente da IA"}</span>
       <span class="e1-cqbar-a">${und && can ? `<button type="button" class="btn btn-outline" data-o="all" title="Aceita as ${und} propostas ainda sem decisão, como a IA propôs. Dá para rever cada uma antes de salvar.">✓ Aceitar tudo (${und})</button>` : ""}
-      ${can ? '<button type="button" class="btn btn-outline" data-o="ncls">+ Nova Classe</button>' : ""}</span></div>`;
-    const groups = groupKeys(M).map((g) => {
-      const its = M.items.filter((it) => it.v.group === g);
+      ${showNewClass ? '<button type="button" class="btn btn-outline" data-o="ncls">+ Nova Classe</button>' : ""}</span></div>`;
+    const groups = groupKeys(M, items).map((g) => {
+      const its = items.filter((it) => it.v.group === g);
       if (!its.length) return "";
       if (g === "term") {
         const byCls = new Map();
@@ -464,26 +547,32 @@
           if (!byCls.has(cls)) byCls.set(cls, []);
           byCls.get(cls).push(it);
         });
-        const sections = Array.from(byCls.entries()).map(([cls, items]) =>
-          `<section class="ou-term-class"><h4 class="ou-term-class-head"><span>${esc(cls)}</span><span class="ou-n">${items.length}</span></h4><div class="ou-term-sub">${items.map(card).join("")}</div></section>`
+        const sections = Array.from(byCls.entries()).map(([cls, listIts]) =>
+          `<section class="ou-term-class"><h4 class="ou-term-class-head"><span>${esc(cls)}</span><span class="ou-n">${listIts.length}</span></h4><div class="ou-term-sub">${listIts.map(card).join("")}</div></section>`
         ).join("");
         return `<h3 class="e1-sub">${esc(GROUP_LABEL[g] || g)} <span class="ou-n">${its.length}</span></h3>${sections}`;
       }
       return `<h3 class="e1-sub">${esc(GROUP_LABEL[g] || g)} <span class="ou-n">${its.length}</span></h3><div class="e1-cqs">${its.map(card).join("")}</div>`;
     }).join("");
-    const own = M.own.length ? `<h3 class="e1-sub">Suas alterações <span class="ou-n">${M.own.length}</span></h3><div class="e1-cqs">${M.own.map(ownLine).join("")}</div>` : "";
-    const st = M.stage || {};
-    const nada = !M.items.length && !M.own.length
-      ? `<div class="e1-empty"><b>Nada a decidir</b><span>${esc([st.label, stepText(st.next_step)].filter(Boolean).join(". ") || "Quando o agente propuser algo, aparece aqui.")}</span></div>` : "";
-    const aviso = ns && can ? `<div class="unsaved" role="status"><span><b>${plural(ns, "decisão ainda não salva", "decisões ainda não salvas")}.</b> Só entram na ontologia depois de conferir e salvar.</span>
-      <button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : "";
-    return `${bar}${aviso}${nada}${groups}${own}${appliedSection(M)}${mapSection(M)}${contextSection(M)}`;
+    const own = ownList.length ? `<h3 class="e1-sub">Suas alterações <span class="ou-n">${ownList.length}</span></h3><div class="e1-cqs">${ownList.map((o) => ownLine(o, M.own.indexOf(o))).join("")}</div>` : "";
+    const apTab = f ? appliedTabSection(M, f) : "";
+    const nada = !items.length && !ownList.length && !apTab
+      ? `<div class="e1-empty"><b>Nada a decidir</b><span>Quando o agente propuser itens desta etapa, eles aparecerão aqui.</span></div>` : "";
+    const extraHtml = f ? apTab : `${mapSection(M, false)}${appliedSection(M)}${contextSection(M)}`;
+    return `${bar}${nada}${groups}${own}${extraHtml}`;
   }
   function render(focusSel) {
     if (!O.el || !O.M) return;
-    const M = O.M, auto = isAuto(), any = M.items.length || M.own.length;
+    const M = O.M, auto = isAuto();
+    const otherE1 = (window.AkmeEtapa1 && window.AkmeEtapa1.collectOps) ? window.AkmeEtapa1.collectOps(O.ctx.data) : [];
+    const any = visItems(M).length || visOwn(M).length || planOps(M, true).length || otherE1.length;
+    const f = O.ctx && O.ctx.groupFilter;
+    const lead = f === "classes" ? "Revise, edite ou adicione classes e seus atributos."
+      : f === "rels" ? "Defina e revise os relacionamentos entre classes."
+      : f === "mapping" ? "Revise mapeamentos entre colunas e atributos, além de chaves e tipos do Neo4j."
+      : M.items.length ? "Aceite ou rejeite cada proposta da IA. No fim, confira e salve." : "As propostas aparecem aqui.";
     O.el.innerHTML = `<div class="e1 ou${auto ? " is-auto" : ""}">${auto ? '<p class="e1-auto">Modo automático: a IA decide e aplica. Aqui você acompanha.</p>' : ""}
-      <p class="e1-lead">${M.items.length ? "Aceite ou rejeite cada proposta da IA. No fim, confira e salve." : "As propostas das etapas 2 a 5 aparecem aqui."}</p>
+      <p class="e1-lead">${lead}</p>
       <section class="e1-screen" data-screen="outras">${screenHtml(M)}</section>
       ${any && !auto ? `<div class="e1-foot"><span class="e1-msg" id="ou-msg" role="status" aria-live="polite"></span><button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : ""}</div>`;
     if (focusSel) { const t = $(focusSel, O.el); if (t) t.focus({ preventScroll: true }); }
@@ -501,7 +590,7 @@
   function focusAfter(id) {
     const it = O.M.byId[id];
     if (!it || !done(it) || it.open) return null;
-    const next = O.M.items.find((x) => !done(x) && x.id !== id);
+    const next = visItems(O.M).find((x) => !done(x) && x.id !== id);
     return next ? `[data-o="dec"][data-id="${next.id}"][data-v="ok"]` : `[data-o="open"][data-id="${id}"]`;
   }
 
@@ -535,7 +624,7 @@
         if (it.editing && it.dec === "rej") { it.dec = null; it.why = ""; it.reason = ""; }
         return render(it.editing ? `[data-of="val"][data-id="${id}"]` : `[data-o="edit"][data-id="${id}"]`);
       }
-      case "all": M.items.forEach((x) => { if (!x.dec) { x.dec = "ok"; x.open = false; } }); return render('[data-o="save"]');
+      case "all": visItems(M).forEach((x) => { if (!x.dec) { x.dec = "ok"; x.open = false; } }); return render('[data-o="save"]');
       case "save": return onSave();
       case "ncq": return openDlg("ncq", { from: '[data-o="ncq"]' });
       case "ncls": return openDlg("ncls", { from: '[data-o="ncls"]' });
@@ -864,10 +953,10 @@
 
   // ---------- conferir e salvar ----------
   function onSave() {
-    const M = O.M, falta = missing(M);
+    const M = O.M, falta = missing(M), curItems = visItems(M);
     if (falta.length) {
       // leva ao primeiro item que falta, aberto
-      const first = M.items.find((it) => !done(it) || (it.dec === "ok" && emptied(it)));
+      const first = curItems.find((it) => !done(it) || (it.dec === "ok" && emptied(it)));
       if (first) {
         first.open = true;
         if (first.dec === "ok") { first.det = true; first.editing = true; }
@@ -879,7 +968,9 @@
       msg(`<b>Falta:</b> ${falta.map(esc).join("; ")}`, "warn");
       return;
     }
-    if (!M.items.length && !M.own.length) { msg("Nada para salvar."); return; }
+    const e1Ops = (window.AkmeEtapa1 && window.AkmeEtapa1.collectOps) ? window.AkmeEtapa1.collectOps(O.ctx.data) : [];
+    const ouOps = planOps(M);
+    if (!ouOps.length && !e1Ops.length) { msg("Nada para salvar."); return; }
     if (isAuto()) { msg("No modo automático, quem salva é a IA."); return; }
     if (document.body && document.body.classList.contains("is-proposing")) {
       msg("Aguarde o agente concluir todas as propostas da rodada antes de salvar.");
@@ -888,13 +979,16 @@
     openSave();
   }
   // traduz as escolhas para as mesmas chamadas de sempre: /api/review e /api/propose, depois /api/apply
-  function planOps(M) {
+  function planOps(M, onlyOther) {
     const ops = [];
+    const curSet = onlyOther ? new Set() : new Set(visItems(M).map((it) => it.id));
     M.items.forEach((it) => {
+      const inCur = curSet.has(it.id);
+      if (!inCur && (!done(it) || emptied(it) || it.saved)) return;
       const label = `${(GROUP_LABEL[it.v.group] || "proposta").toLowerCase()}: “${cut(titleText(it), 60)}”`;
-      if (it.dec === "rej") { ops.push({ label, path: "/api/review", body: { edit_id: it.id, decision: "reject", reason: reasonOf(it) } }); return; }
+      if (it.dec === "rej") { ops.push({ it, label, path: "/api/review", body: { edit_id: it.id, decision: "reject", reason: reasonOf(it) } }); return; }
       const edits = diffOf(it);
-      ops.push({ label, path: "/api/review", body: Object.assign({ edit_id: it.id, decision: "accept" }, Object.keys(edits).length ? { edits } : {}) });
+      ops.push({ it, label, path: "/api/review", body: Object.assign({ edit_id: it.id, decision: "accept" }, Object.keys(edits).length ? { edits } : {}) });
     });
     M.own.forEach((o) => {
       const label = `“${cut(ownText(o), 60)}”`;
@@ -909,16 +1003,28 @@
     });
     return ops;
   }
+  function collectOps(data) {
+    const M = O.M || buildModel(data || (O.ctx && O.ctx.data) || {}, null);
+    return M ? planOps(M, true) : [];
+  }
+  function clearExternalDraft(project) {
+    try { localStorage.removeItem(draftKey(project || (O.M && O.M.project) || "")); } catch (e) { /* sem armazenamento */ }
+    O.M = null;
+  }
   function summaryHtml(M) {
     const li = (t, m, cls) => `<li class="${cls || ""}"><span class="q">${esc(t)}</span>${m ? `<span class="m">${esc(m)}</span>` : ""}</li>`;
     let html = "";
-    groupKeys(M).forEach((g) => {
-      const its = M.items.filter((it) => it.v.group === g);
+    const ops = planOps(M);
+    const itemsToShow = ops.filter((o) => o.it).map((o) => o.it);
+    groupKeys(M, itemsToShow).forEach((g) => {
+      const its = itemsToShow.filter((it) => it.v.group === g);
       if (!its.length) return;
       const rows = its.map((it) => (it.dec === "rej" ? li(titleText(it), "rejeitada: " + reasonOf(it), "off") : li(titleText(it), Object.keys(diffOf(it)).length ? "aceita com ajuste" : "aceita")));
       html += `<h3 class="e1-sub">${esc(GROUP_LABEL[g] || g)}</h3><ul class="e1-sum">${rows.join("")}</ul>`;
     });
     if (M.own.length) html += `<h3 class="e1-sub">Suas alterações</h3><ul class="e1-sum">${M.own.map((o) => li(ownText(o), cut(ownSummary(o), 80))).join("")}</ul>`;
+    const e1Ops = (window.AkmeEtapa1 && window.AkmeEtapa1.collectOps) ? window.AkmeEtapa1.collectOps(O.ctx.data) : [];
+    if (e1Ops.length) html += `<h3 class="e1-sub">Especificação decidida</h3><ul class="e1-sum">${e1Ops.map((o) => li(o.label, o.body && o.body.decision === "reject" ? "rejeitada" : "decidida")).join("")}</ul>`;
     return html;
   }
   function readName() {
@@ -940,13 +1046,15 @@
       d.addEventListener("submit", (e) => { e.preventDefault(); doSave(); });
     }
     const name = (O.ctx.reviewer || readName() || "").trim(), M = O.M;
-    const acc = M.items.filter((it) => it.dec === "ok").length, rej = M.items.length - acc;
-    const gate = (M.stage || {}).gate_active && M.items.some((it) => ONTO_GROUPS.has(it.v.group));
+    const ouOps = planOps(M);
+    const e1Ops = (window.AkmeEtapa1 && window.AkmeEtapa1.collectOps) ? window.AkmeEtapa1.collectOps(O.ctx.data) : [];
+    const totalAcc = ouOps.filter((o) => o.it && o.it.dec === "ok").length + e1Ops.filter((o) => !o.own && !o.ownCq && o.body && o.body.decision !== "reject").length;
+    const totalRej = ouOps.filter((o) => o.it && o.it.dec === "rej").length + e1Ops.filter((o) => o.body && o.body.decision === "reject").length;
+    const totalOwn = M.own.length + e1Ops.filter((o) => o.own || o.ownCq).length;
     d.innerHTML = `<form method="dialog" class="dlg-body" novalidate>
       <h2 class="h3-semibold" id="ou-save-t">Conferir e salvar</h2>
-      <p class="p secondary">${plural(acc, "aceita", "aceitas")}, ${plural(rej, "rejeitada", "rejeitadas")}${M.own.length ? ` e ${plural(M.own.length, "alteração sua", "alterações suas")}` : ""}.</p>
+      <p class="p secondary">${plural(totalAcc, "aceita", "aceitas")}, ${plural(totalRej, "rejeitada", "rejeitadas")}${totalOwn ? ` e ${plural(totalOwn, "alteração sua", "alterações suas")}` : ""}.</p>
       <div class="e1-sum-wrap">${summaryHtml(M)}</div>
-      ${gate ? '<p class="ou-alert">Os requisitos ainda estão abertos: classes, relações e termos ficam esperando a etapa 1 fechar.</p>' : ""}
       <div class="field"><label class="field-label" for="ou-save-name">Seu nome <span class="req"${name ? " hidden" : ""}>obrigatório</span></label>
         <input id="ou-save-name" class="input" type="text" autocomplete="name" value="${esc(name)}" placeholder="quem aprova"></div>
       <p class="e1-dlg-msg" id="ou-save-msg" role="status" aria-live="polite">Salvar grava as decisões e aplica na ontologia. A validação roda antes; se aparecer erro novo, nada muda.</p>
@@ -971,7 +1079,9 @@
     btns.forEach((b) => { b.disabled = true; }); O.saving = true;
     // enquanto grava, o poll da pagina nao redesenha nem anuncia as proprias propostas como novas
     if (O.ctx.setBusy) O.ctx.setBusy(true);
-    const ops = planOps(M);
+    const e1Ops = (window.AkmeEtapa1 && window.AkmeEtapa1.collectOps) ? window.AkmeEtapa1.collectOps(O.ctx.data) : [];
+    const ouOps = planOps(M);
+    const ops = e1Ops.concat(ouOps);
     let i = 0, applying = false;
     try {
       for (const o of ops) {
@@ -979,7 +1089,7 @@
         ok.textContent = `Salvando ${i} de ${ops.length}…`;
         await api.post(o.path, Object.assign({ reviewer: name }, o.body));
         // proposta feita sai da lista local; um novo clique nao duplica
-        if (o.own) M.own.splice(M.own.indexOf(o.own), 1);
+        if (o.own && M.own.includes(o.own)) M.own.splice(M.own.indexOf(o.own), 1);
       }
       ok.textContent = "Aplicando…"; applying = true;
       const out = await api.post("/api/apply", { approved_by: name, stage: "all" });
@@ -987,6 +1097,9 @@
       O.saving = false;
       if (O.ctx.setBusy) O.ctx.setBusy(false);
       try { localStorage.removeItem(draftKey(M.project)); } catch (e) { /* sem armazenamento */ }
+      if (e1Ops.length && window.AkmeEtapa1 && window.AkmeEtapa1.clearExternalDraft) {
+        window.AkmeEtapa1.clearExternalDraft(M.project);
+      }
       d.querySelector("form").innerHTML = `<h2 class="h3-semibold" id="ou-save-t">Salvo e aplicado</h2>
         <div class="e1-empty"><b>${plural(n, "decisão entrou", "decisões entraram")} na ontologia</b>
           <span>${nr ? plural(nr, "rejeição ficou registrada", "rejeições ficaram registradas") + " no changelog. " : ""}${held ? plural(held, "proposta ficou", "propostas ficaram") + " esperando a etapa 1 fechar. " : ""}${window.AkmeChannel ? window.AkmeChannel.after() : "Volte para o chat: o agente segue para o próximo passo."}${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
@@ -1034,5 +1147,5 @@
     if (O.M) O.M.apOpen = true; else O.showApplied = true;
   }
 
-  window.AkmeOutras = { mount, remaining, pendingCount, covers, showApplied };
+  window.AkmeOutras = { mount, remaining, pendingCount, covers, showApplied, countFor, collectOps, clearExternalDraft };
 })();

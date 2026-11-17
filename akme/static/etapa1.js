@@ -104,6 +104,7 @@
     M.applied.cqs = r.competency_questions || [];
     M.applied.gaps = r.gaps || [];
     M.applied.divs = r.divergences || [];
+    M.applied.gl = (data && data.glossary) || [];
     M.appliedReq = { purpose: r.purpose || "", scope: r.scope || "", users: list(r.users).join(", "), no_use_case: r.no_use_case || "" };
     for (const p of (data && data.pending) || []) {
       if (!covers(p)) continue;
@@ -285,10 +286,11 @@
     const body = groups.map((g) => `<h3 class="e1-sub">${esc(g.name)}</h3><div class="e1-cqs">${g.ai.map(cqCard).join("")}${g.own.map(({ o, i }) => ownCqLine(o, i)).join("")}</div>`).join("");
     const fora = out.length ? `<details class="e1-more"><summary>Fora dos casos escolhidos (${out.length})</summary>${out.map((c) => `<div class="e1-line mute"><span class="q">${esc(c.q)}</span></div>`).join("")}<p class="p secondary">Não pedem decisão: ficam de fora junto com o caso de uso.</p></details>` : "";
     const ap = M.applied.cqs;
-    const aplicadas = ap.length ? `<details class="e1-more"><summary>Já aplicadas (${ap.length})</summary>${ap.map((q) => `<div class="e1-line mute"><span class="q">${esc(q.question)}${q.status === "reserved" ? ' <span class="e1-seu">teste</span>' : ""}</span><span class="m">${esc(PRIO_L[q.priority] || q.status || "")}${q.reviewed_by ? " · " + esc(q.reviewed_by) : ""}</span></div>`).join("")}
-      <p class="p secondary">Para alterar ou excluir, use <button type="button" class="lnk" data-e1="outras">Outras propostas</button>.</p></details>` : "";
-    const nada = !groups.length ? `<div class="e1-empty"><b>Nada a decidir</b><span>Escreva uma pergunta se quiser.</span></div>` : "";
-    return `${bar}${nada}${body}${fora}${aplicadas}`;
+    const aplicadas = ap.length ? `<div class="e1-applied"><h3 class="e1-sub">Perguntas aplicadas (${ap.length})</h3><div class="e1-cqs">${ap.map((q) => `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q">${esc(q.question)}${q.status === "reserved" ? ' <span class="e1-seu">teste</span>' : ""}</span><span class="m">${esc(PRIO_L[q.priority] || q.status || "")}${q.reviewed_by ? " · " + esc(q.reviewed_by) : ""}</span></div>`).join("")}</div></div>` : "";
+    const apGl = (!M.gls.length && (M.applied.gl || []).length)
+      ? `<div class="e1-applied"><h3 class="e1-sub">Glossário aplicado (${M.applied.gl.length})</h3><div class="e1-gl">${M.applied.gl.map((g) => `<div class="e1-gl-row ok"><span class="ac">${esc(g.acronym)}</span><div class="body"><span class="mean">${esc(g.meaning || "")}</span>${g.convention ? `<span class="conv">${esc(g.convention)}</span>` : ""}</div></div>`).join("")}</div></div>` : "";
+    const nada = !groups.length ? `<div class="e1-empty"><b>Nada pendente para decidir</b><span>${ap.length ? "As perguntas aprovadas aparecem abaixo." : "Escreva uma pergunta se quiser."}</span></div>` : "";
+    return `${bar}${nada}${body}${fora}${aplicadas}${apGl}`;
   }
   // depois de decidir um card, o foco vai para o proximo que ainda espera decisao
   function focusAfter(id) {
@@ -300,14 +302,25 @@
   }
 
   // ---------- quais telas aparecem ----------
-  // so as telas com algo a decidir; a primeira rodada (so casos de uso) fica so com a tela 1
+  // quando stepFilter esta definido ("uc" | "cq" | "gd"), o menu lateral controla o passo ativo
   function visibleSteps(M) {
+    const f = E.ctx && E.ctx.stepFilter;
+    if (f === "uc") return [0];
+    if (f === "cq") return M.gls.length ? [1, 3] : [1];
+    if (f === "gd") return [2];
     const v = [];
     if (M.ucs.length || M.reqs.length || M.noUcIds.length || M.owns.length || M.noUc || (!M.applied.ucs.length && !M.appliedReq.no_use_case)) v.push(0);
     if (M.cqs.length || M.ownCqs.length) v.push(1);
     if (M.gds.length) v.push(2);
     if (M.gls.length) v.push(3);
     return v.length ? v : [0];
+  }
+  function countFor(data, filter) {
+    const pend = ((data && data.pending) || []).filter(covers);
+    if (filter === "uc") return pend.filter((p) => p.type === "add_use_case" || p.type === "add_requirement").length;
+    if (filter === "cq") return pend.filter((p) => p.type === "add_competency_question" || p.type === "add_glossary").length;
+    if (filter === "gd") return pend.filter((p) => p.type === "add_gap" || p.type === "add_divergence").length;
+    return pend.length;
   }
   // quanto falta decidir: alimenta o numero do seletor "Etapa 1"
   function remainingOf(M) {
@@ -418,9 +431,8 @@
     const gaps = M.gds.filter((c) => c.kind === "gap"), divs = M.gds.filter((c) => c.kind === "div");
     const ap = M.applied.gaps.map((g) => [g.question, GAP_L[g.decision] || g.decision])
       .concat(M.applied.divs.map((d) => [divTitle(d), d.decision === "precedence" ? `Vale ${d.winner}` : DIV_L[d.decision] || d.decision]));
-    const aplicadas = ap.length ? `<details class="e1-more"><summary>Já aplicadas (${ap.length})</summary>${ap.map(([q, d]) => `<div class="e1-line mute"><span class="q">${esc(q)}</span><span class="m">${esc(d || "")}</span></div>`).join("")}
-      <p class="p secondary">Para alterar, use <button type="button" class="lnk" data-e1="outras">Outras propostas</button>.</p></details>` : "";
-    if (!M.gds.length) return `<div class="e1-empty"><b>Nada a decidir</b><span>Nenhuma lacuna ou divergência pendente.</span></div>${aplicadas}`;
+    const aplicadas = ap.length ? `<div class="e1-applied"><h3 class="e1-sub">Lacunas e divergências aplicadas (${ap.length})</h3><div class="e1-cqs">${ap.map(([q, d]) => `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q">${esc(q)}</span><span class="m">${esc(d || "")}</span></div>`).join("")}</div></div>` : "";
+    if (!M.gds.length) return `<div class="e1-empty"><b>Nada pendente para decidir</b><span>${ap.length ? "Os itens já aplicados aparecem abaixo." : "Nenhuma lacuna ou divergência pendente."}</span></div>${aplicadas}`;
     return `${gaps.length ? `<h3 class="e1-sub">Lacunas</h3><p class="p secondary" style="margin-bottom:12px">Lacunas são perguntas de negócio que os dados e documentos atuais não respondem por falta de informação nas fontes.</p><div class="e1-cqs">${gaps.map(gapCard).join("")}</div>` : ""}
       ${divs.length ? `<h3 class="e1-sub">Divergências</h3><div class="e1-cqs">${divs.map(divCard).join("")}</div>` : ""}${aplicadas}`;
   }
@@ -458,9 +470,11 @@
   }
   function screenGl(M) {
     const left = M.gls.filter((g) => !g.dec).length;
+    const apGl = (M.applied.gl || []).length
+      ? `<div class="e1-applied"><h3 class="e1-sub">Glossário aplicado (${M.applied.gl.length})</h3><div class="e1-gl">${M.applied.gl.map((g) => `<div class="e1-gl-row ok"><span class="ac">${esc(g.acronym)}</span><div class="body"><span class="mean">${esc(g.meaning || "")}</span>${g.convention ? `<span class="conv">${esc(g.convention)}</span>` : ""}</div></div>`).join("")}</div></div>` : "";
     return `<div class="e1-cqbar"><span class="e1-count">${left ? `<b>${left}</b> ${left === 1 ? "sigla para conferir" : "siglas para conferir"}` : "Todas conferidas"}</span>
       ${left ? `<button type="button" class="btn btn-outline" data-e1="gl-all">✓ Aceitar tudo (${left})</button>` : ""}</div>
-      <div class="e1-gl">${M.gls.map(glRow).join("")}</div>`;
+      <div class="e1-gl">${M.gls.map(glRow).join("")}</div>${apGl}`;
   }
 
   // ---------- tela 1: caso de uso ----------
@@ -493,7 +507,7 @@
   function noUcBlock(M) {
     const n = M.noUc;
     if (!n && M.appliedReq.no_use_case) return `<p class="e1-nouc-ok"><b>Sem caso de uso:</b> ${esc(M.appliedReq.no_use_case)} <span class="src">já aprovado</span></p>`;
-    if (!n) return `<button type="button" class="lnk e1-nouc" data-e1="nouc-on">Não temos caso de uso</button>`;
+    if (!n) return `<button type="button" class="lnk e1-nouc" data-e1="nouc-on">Sem caso de uso</button>`;
     if (n.ok) return `<p class="e1-nouc-ok"><b>Sem caso de uso:</b> ${esc(n.text)} <button type="button" class="lnk" data-e1="nouc-off">desfazer</button></p>`;
     return `<div class="e1-nouc-f"><label class="field-label" for="e1-nouc">Por que não há caso de uso? ${req(n.text.trim())}</label>
       <div class="row"><input id="e1-nouc" class="input${n.tried && !n.text.trim() ? " miss" : ""}" type="text" data-e1f="nouc" value="${esc(n.text)}" placeholder="Ex.: o cliente ainda não definiu quem vai usar">
@@ -563,10 +577,7 @@
       ? "Confira o propósito, escopo e usuários. O caso de uso já está salvo."
       : s.lead;
     const body = M.step === 0 ? screenUc(M) : M.step === 1 ? screenCq(M) : M.step === 2 ? screenGd(M) : screenGl(M);
-    const ns = isAuto() || !E.ctx.api ? 0 : unsavedOf(M);
-    const aviso = ns ? `<div class="unsaved" role="status"><span><b>${ns === 1 ? "1 decisão ainda não salva" : ns + " decisões ainda não salvas"}.</b> Só entram na ontologia depois de conferir e salvar.</span>
-      <button type="button" class="btn" data-e1="save">Conferir e salvar</button></div>` : "";
-    return `<p class="e1-lead">${esc(lead)}</p>${aviso}${body}`;
+    return `<p class="e1-lead">${esc(lead)}</p>${body}`;
   }
   function footHtml(M) {
     const nx = nextStep(M);
@@ -580,7 +591,8 @@
     const M = E.M;
     if (!visibleSteps(M).includes(M.step)) M.step = visibleSteps(M)[0];
     const auto = isAuto();
-    E.el.innerHTML = `<div class="e1${auto ? " is-auto" : ""}">${auto ? '<p class="e1-auto">Modo automático: a IA decide e aplica. Aqui você acompanha.</p>' : ""}<nav class="e1-steps" aria-label="Etapa 1">${stepperHtml(M)}</nav>
+    const filtered = !!(E.ctx && E.ctx.stepFilter);
+    E.el.innerHTML = `<div class="e1${auto ? " is-auto" : ""}">${auto ? '<p class="e1-auto">Modo automático: a IA decide e aplica. Aqui você acompanha.</p>' : ""}${filtered ? "" : `<nav class="e1-steps" aria-label="Etapa 1">${stepperHtml(M)}</nav>`}
       <section class="e1-screen" data-screen="${STEPS[M.step].id}">${screenHtml(M)}</section>
       <div class="e1-foot">${footHtml(M)}</div></div>`;
     if (focusSel) { const t = $(focusSel, E.el); if (t) t.focus({ preventScroll: true }); }
@@ -838,24 +850,27 @@
   }
   // ---------- conferir e salvar ----------
   // traduz as escolhas para as mesmas chamadas de sempre: /api/review, /api/propose e, no fim, /api/apply
-  function planOps(M) {
-    const ops = [], noUc = noUcOk(M);
+  function planOps(M, onlyDecided) {
+    const ops = [], noUc = noUcOk(M), vis = onlyDecided ? new Set() : new Set(visibleSteps(M));
     const rv = (c, decision, extra, label) => ops.push({ label, path: "/api/review", body: Object.assign({ edit_id: c.edit_id, decision }, extra) });
-    // casos escritos pelo revisor primeiro: as perguntas dele usam o id que o servidor devolve
-    if (!noUc) M.owns.forEach((o) => ops.push({ label: `caso de uso “${o.name}”`, path: "/api/propose", own: o,
-      body: { type: "add_use_case", payload: Object.assign({ name: o.name, description: o.desc }, o.who ? { actors: [o.who] } : {}) } }));
-    M.ucs.forEach((u) => rv(u, !noUc && u.sel ? "accept" : "reject", !noUc && u.sel ? {} : { reason: R_UC }, `caso de uso “${u.payload.name}”`));
-    const noUcPend = M.noUcIds.map((id) => ({ edit_id: id }));
-    if (noUc && noUcPend.length) {
-      rv(noUcPend[0], "accept", { edits: { value: M.noUc.text } }, "sem caso de uso");
-      noUcPend.slice(1).forEach((x) => rv(x, "reject", { reason: "repetido" }, "sem caso de uso"));
-    } else {
-      if (noUc) ops.push({ label: "sem caso de uso", path: "/api/propose", body: { type: "add_requirement", payload: { field: "no_use_case", value: M.noUc.text } } });
-      noUcPend.forEach((x) => rv(x, "reject", { reason: R_NOUC }, "sem caso de uso"));
+    const step0Ready = !missing(M, 0).length && (M.owns.length || noUc || M.ucs.some((u) => !u.saved && u.sel) || M.reqs.some((r) => !r.saved && r.ok));
+    if (vis.has(0) || step0Ready) {
+      if (!noUc) M.owns.forEach((o) => ops.push({ label: `caso de uso “${o.name}”`, path: "/api/propose", own: o,
+        body: { type: "add_use_case", payload: Object.assign({ name: o.name, description: o.desc }, o.who ? { actors: [o.who] } : {}) } }));
+      M.ucs.forEach((u) => rv(u, !noUc && u.sel ? "accept" : "reject", !noUc && u.sel ? {} : { reason: R_UC }, `caso de uso “${u.payload.name}”`));
+      const noUcPend = M.noUcIds.map((id) => ({ edit_id: id }));
+      if (noUc && noUcPend.length) {
+        rv(noUcPend[0], "accept", { edits: { value: M.noUc.text } }, "sem caso de uso");
+        noUcPend.slice(1).forEach((x) => rv(x, "reject", { reason: "repetido" }, "sem caso de uso"));
+      } else {
+        if (noUc) ops.push({ label: "sem caso de uso", path: "/api/propose", body: { type: "add_requirement", payload: { field: "no_use_case", value: M.noUc.text } } });
+        noUcPend.forEach((x) => rv(x, "reject", { reason: R_NOUC }, "sem caso de uso"));
+      }
+      M.reqs.forEach((r) => rv(r, "accept", r.value.trim() !== r.proposed ? { edits: { value: r.value.trim() } } : {}, REQ_LABEL[r.field] || r.field));
     }
-    M.reqs.forEach((r) => rv(r, "accept", r.value.trim() !== r.proposed ? { edits: { value: r.value.trim() } } : {}, REQ_LABEL[r.field] || r.field));
-    const { groups, out } = cqGroups(M);
-    groups.flatMap((g) => g.ai).forEach((c) => {
+    const { groups, out } = cqGroups(M), ai = groups.flatMap((g) => g.ai);
+    const cqList = vis.has(1) ? ai : ai.filter((c) => cqDone(c) && !c.saved);
+    cqList.forEach((c) => {
       if (c.dec === "rej") return rv(c, "reject", { reason: reasonOf(c) }, `pergunta “${c.q}”`);
       const pl = c.payload, edits = { status: "approved", priority: c.prio };
       if (c.q.trim() !== String(pl.question || "")) edits.question = c.q.trim();
@@ -863,16 +878,20 @@
       if (c.concepts.join("|") !== list(pl.concepts).join("|")) edits.concepts = c.concepts;
       rv(c, "accept", { edits }, `pergunta “${c.q}”`);
     });
-    out.forEach((c) => rv(c, "reject", { reason: R_OUT }, `pergunta “${c.q}”`));
+    if (vis.has(1) && (vis.has(0) || step0Ready)) {
+      out.forEach((c) => rv(c, "reject", { reason: R_OUT }, `pergunta “${c.q}”`));
+    }
     M.ownCqs.forEach((o) => ops.push({ label: `pergunta “${o.q}”`, path: "/api/propose", ownCq: o,
       body: { type: "add_competency_question", payload: { question: o.q, type: o.type, concepts: o.concepts, priority: o.prio, status: "approved" } } }));
-    M.gds.forEach((c) => {
+    const gdList = vis.has(2) ? M.gds : M.gds.filter((c) => gdDone(c) && !c.saved);
+    gdList.forEach((c) => {
       const edits = { decision: c.choice };
       if (c.kind === "gap") { if (c.choice !== "ignore" && c.text.trim()) edits.note = c.choice === "reformulate" ? "Nova pergunta: " + c.text.trim() : c.text.trim(); }
       else { if (c.choice === "precedence") edits.winner = c.winner; else if (c.text.trim()) edits.reason = c.text.trim(); }
       rv(c, "accept", { edits }, c.kind === "gap" ? `lacuna “${c.payload.question}”` : `divergência “${c.payload.topic}”`);
     });
-    M.gls.forEach((g) => {
+    const glList = vis.has(3) ? M.gls : M.gls.filter((g) => glDone(g) && !g.saved);
+    glList.forEach((g) => {
       const pl = g.payload, label = `sigla ${pl.acronym}`;
       if (g.dec === "rej") return rv(g, "reject", { reason: glReason(g) }, label);
       const edits = {};
@@ -882,21 +901,37 @@
     });
     return ops;
   }
+  function collectOps(data) {
+    const M = E.M || buildModel(data || (E.ctx && E.ctx.data) || {}, null);
+    return M ? planOps(M, true) : [];
+  }
+  function clearExternalDraft(project) {
+    clearDraft(project || (E.M && E.M.project) || "");
+    E.M = null;
+  }
   function summaryHtml(M) {
     const sec = (title, rows) => (rows.length ? `<h3 class="e1-sub">${esc(title)}</h3><ul class="e1-sum">${rows.join("")}</ul>` : "");
     const li = (t, m, cls) => `<li class="${cls || ""}"><span class="q">${esc(t)}</span>${m ? `<span class="m">${esc(m)}</span>` : ""}</li>`;
     const noUc = noUcOk(M), allNoUc = hasNoUc(M), { groups, out } = cqGroups(M), ai = groups.flatMap((g) => g.ai);
-    const ucRows = allNoUc ? [li("Sem caso de uso", (M.noUc && M.noUc.text) || M.appliedReq.no_use_case)]
-      : chosenUcs(M).map((u) => li(u.name, M.owns.some((o) => o.tmp === u.id) ? "seu" : M.applied.ucs.some((a) => a.id === u.id) ? "já aprovado" : "escolhido"));
-    const notChosen = M.ucs.filter((u) => noUc || !u.sel).map((u) => li(u.payload.name, "fica de fora", "off"));
-    const reqRows = M.reqs.map((r) => li(REQ_LABEL[r.field] || r.field, r.value.trim() !== r.proposed ? "aceito com ajuste" : "aceito"));
-    const cqRows = ai.filter((c) => c.dec === "ok").map((c) => li(c.q, PRIO_L[c.prio]))
+    const vis = new Set(visibleSteps(M));
+    const ucRows = (vis.has(0) || (!missing(M, 0).length && (M.owns.length || noUc || M.ucs.some((u) => !u.saved && u.sel))))
+      ? (allNoUc ? [li("Sem caso de uso", (M.noUc && M.noUc.text) || M.appliedReq.no_use_case)]
+        : chosenUcs(M).map((u) => li(u.name, M.owns.some((o) => o.tmp === u.id) ? "seu" : M.applied.ucs.some((a) => a.id === u.id) ? "já aprovado" : "escolhido")))
+        .concat(M.ucs.filter((u) => noUc || !u.sel).map((u) => li(u.payload.name, "fica de fora", "off")))
+      : [];
+    const reqRows = (vis.has(0) ? M.reqs : M.reqs.filter((r) => !r.saved && r.ok)).map((r) => li(REQ_LABEL[r.field] || r.field, r.value.trim() !== r.proposed ? "aceito com ajuste" : "aceito"));
+    const cqsShow = vis.has(1) ? ai : ai.filter((c) => cqDone(c) && !c.saved);
+    const cqRows = cqsShow.filter((c) => c.dec === "ok").map((c) => li(c.q, PRIO_L[c.prio]))
       .concat(M.ownCqs.map((o) => li(o.q, `${PRIO_L[o.prio]} · sua`)))
-      .concat(ai.filter((c) => c.dec === "rej").map((c) => li(c.q, "rejeitada: " + reasonOf(c), "off")))
-      .concat(out.map((c) => li(c.q, "fora dos casos escolhidos", "off")));
-    const gdRows = M.gds.map((c) => li(c.kind === "gap" ? c.payload.question : divTitle(c.payload), gdLabel(c) + (c.text.trim() ? ": " + c.text.trim() : "")));
-    return sec("Caso de uso", ucRows.concat(notChosen)) + sec("Sobre o projeto", reqRows) + sec("Perguntas", cqRows) + sec("Lacunas e divergências", gdRows)
-      + sec("Glossário", M.gls.map((g) => (g.dec === "rej" ? li(g.payload.acronym, "rejeitada: " + glReason(g), "off") : li(`${g.payload.acronym} · ${g.meaning}`, ""))));
+      .concat(cqsShow.filter((c) => c.dec === "rej").map((c) => li(c.q, "rejeitada: " + reasonOf(c), "off")))
+      .concat(vis.has(1) ? out.map((c) => li(c.q, "fora dos casos escolhidos", "off")) : []);
+    const gdsShow = vis.has(2) ? M.gds : M.gds.filter((c) => gdDone(c) && !c.saved);
+    const gdRows = gdsShow.map((c) => li(c.kind === "gap" ? c.payload.question : divTitle(c.payload), gdLabel(c) + (c.text.trim() ? ": " + c.text.trim() : "")));
+    const glsShow = vis.has(3) ? M.gls : M.gls.filter((g) => glDone(g) && !g.saved);
+    const ouOps = (window.AkmeOutras && window.AkmeOutras.collectOps) ? window.AkmeOutras.collectOps(E.ctx.data) : [];
+    return sec("Caso de uso", ucRows) + sec("Sobre o projeto", reqRows) + sec("Perguntas", cqRows) + sec("Lacunas e divergências", gdRows)
+      + sec("Glossário", glsShow.map((g) => (g.dec === "rej" ? li(g.payload.acronym, "rejeitada: " + glReason(g), "off") : li(`${g.payload.acronym} · ${g.meaning}`, ""))))
+      + sec("Outras abas decididas", ouOps.map((o) => li(o.label, o.body && o.body.decision === "reject" ? "rejeitada" : "decidida")));
   }
   function readName() {
     try { return localStorage.getItem("akme-reviewer") || ""; } catch (e) { return ""; }
@@ -943,7 +978,9 @@
     try { localStorage.setItem("akme-reviewer", name); } catch (e) { /* sem armazenamento: segue */ }
     const btns = d.querySelectorAll("button"), ok = d.querySelector('[data-s="ok"]');
     btns.forEach((b) => { b.disabled = true; }); E.saving = true;
-    const ops = planOps(M);
+    const e1Ops = planOps(M);
+    const ouOps = (window.AkmeOutras && window.AkmeOutras.collectOps) ? window.AkmeOutras.collectOps(E.ctx.data) : [];
+    const ops = e1Ops.concat(ouOps);
     let i = 0, applying = false;
     try {
       for (const o of ops) {
@@ -966,11 +1003,14 @@
         if (o.ownCq) M.ownCqs.splice(M.ownCqs.indexOf(o.ownCq), 1);
       }
       ok.textContent = "Aplicando…"; applying = true;
-      const out = await api.post("/api/apply", { approved_by: name, stage: "requirements" });
+      const out = await api.post("/api/apply", { approved_by: name, stage: ouOps.length ? "all" : "requirements" });
       const after = (out && out.stage_after) || {};
       E.saving = false;
       clearDraft(E.M.project);
-      d.querySelector("form").innerHTML = `<h2 class="h3-semibold" id="e1-save-t">Etapa 1 salva e aplicada</h2>
+      if (ouOps.length && window.AkmeOutras && window.AkmeOutras.clearExternalDraft) {
+        window.AkmeOutras.clearExternalDraft(E.M.project);
+      }
+      d.querySelector("form").innerHTML = `<h2 class="h3-semibold" id="e1-save-t">Alterações salvas e aplicadas</h2>
         <div class="e1-empty"><b>${(out.applied || []).length} ${(out.applied || []).length === 1 ? "decisão entrou" : "decisões entraram"} na ontologia</b>
           <span>${window.AkmeChannel ? window.AkmeChannel.after() : "Volte para o chat: o agente segue para o próximo passo."}${after.label ? " Agora: " + esc(after.label) + "." : ""}</span></div>
         <div class="dlg-actions"><button type="button" class="btn" data-s="done">Fechar</button></div>`;
@@ -1039,5 +1079,5 @@
     }
   }
 
-  window.AkmeEtapa1 = { mount, pendingCount, remaining, covers, aboutCard };
+  window.AkmeEtapa1 = { mount, pendingCount, remaining, covers, aboutCard, countFor, collectOps, clearExternalDraft };
 })();

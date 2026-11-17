@@ -123,25 +123,40 @@ def detect_conventions(sources: list[SourceProfile], docs: list[dict[str, str]])
     }
 
 
-def profile(project: Project, sample_size: int = 500) -> Profile:
-    adapter = load_adapter(project.adapter_name, project.adapter_options())
+def profile(project: Project, sample_size: int = 500, sources: list[str] | None = None) -> Profile:
+    if sources is not None:
+        source_names: list[str] | None = list(dict.fromkeys(str(s).strip() for s in sources if str(s).strip()))
+    else:
+        cfg_selected = project.config.get("profile_sources")
+        source_names = (
+            list(dict.fromkeys(str(s).strip() for s in cfg_selected if str(s).strip()))
+            if isinstance(cfg_selected, list) and cfg_selected
+            else None
+        )
+    opts = project.adapter_options()
+    if project.adapter_name == "local_folder" and opts.get("path"):
+        raw_p = opts["path"]
+        opts["path"] = [str(project.resolve(x)) for x in raw_p] if isinstance(raw_p, list) else str(project.resolve(str(raw_p)))
+    adapter = load_adapter(project.adapter_name, opts)
     try:
-        sources = []
-        for name in adapter.list_sources():
+        profiled = []
+        # evita discover/list_sources completo quando as tabelas ja foram escolhidas
+        targets = source_names if source_names is not None else adapter.list_sources()
+        for name in targets:
             schema = adapter.read_schema(name)
             rows = adapter.read_sample(name, sample_size)
             columns = [c["name"] for c in schema["columns"]]
             loc = adapter.source_location(name)
             origin = f"{loc['path']}#{loc['sheet']}" if loc and loc.get("sheet") else (loc or {}).get("path", "")
-            sources.append(profile_source(name, columns, rows, origin))
+            profiled.append(profile_source(name, columns, rows, origin))
         docs = adapter.read_docs()
     finally:
         adapter.close()
     result = Profile(
-        adapter=project.adapter_name, sources=sources,
+        adapter=project.adapter_name, sources=profiled,
         docs=[{"name": d["name"], "pages": len(d.get("pages") or [d]), "chars": len(d["text"]),
                "excerpt": d["text"][:1500]} for d in docs],
-        conventions=detect_conventions(sources, docs),
+        conventions=detect_conventions(profiled, docs),
     )
     project.profile_path.parent.mkdir(parents=True, exist_ok=True)
     project.profile_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")

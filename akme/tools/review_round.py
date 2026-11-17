@@ -135,3 +135,30 @@ def wait_for_review(project: Project, round_id: str | None = None, timeout: floa
                     "undecided": sum(1 for e in pending if e.review is None),
                     "hint": "O humano ainda nao aplicou. Chame wait_for_review de novo com o mesmo round_id."}
         time.sleep(poll)
+
+
+def wait_for_setup(project: Project, timeout: float = WAIT_DEFAULT, poll: float = 1.0) -> dict[str, Any]:
+    """Espera o humano preencher e salvar o passo 1 (Inicio) na pagina web."""
+    from .decision_mode import read_mode
+
+    timeout = max(0.0, min(float(timeout), WAIT_MAX))
+    deadline = time.monotonic() + timeout
+    while True:
+        proj = Project(project.root)
+        mode = read_mode(proj)
+        if mode["chosen"] and proj.name and proj.name != "akme-template":
+            return {
+                "status": "ready",
+                "project": proj.name,
+                "decision_mode": mode,
+                "profile_sources": list(proj.config.get("profile_sources") or []),
+                "profiled": proj.profile_path.exists(),
+            }
+        if time.monotonic() >= deadline:
+            return {
+                "status": "waiting",
+                "project": proj.name,
+                "decision_mode": mode,
+                "hint": "O usuario ainda nao salvou a configuracao inicial na aba Inicio. Chame wait_for_setup de novo.",
+            }
+        time.sleep(poll)

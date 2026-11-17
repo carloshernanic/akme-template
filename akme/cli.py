@@ -159,35 +159,16 @@ def validate(oops: bool = typer.Option(False, help="chama o OOPS! remoto alem do
 
 
 def _publish_neo4j(release: str | None) -> None:
-    """Mostra destino e avisos antes de confirmar; a carga termina com erro se o banco divergir."""
+    """Publica diretamente no banco Neo4j exibindo apenas logs de progresso."""
     project = _project()
     try:
         typer.echo(f"destino: {neo4j_tool.destination()}")
-        plan = neo4j_plan_tool.build_plan(project)  # um plano so: previa, estado do banco e carga o reaproveitam
+        plan = neo4j_plan_tool.build_plan(project)
         preview = publish_tool.publish(project, "neo4j", True, None, plan)
         if preview["problems"]:
-            for line in neo4j_tool.preview_lines(preview):
-                typer.echo(line)
+            for problem in preview["problems"]:
+                typer.echo(f"problema: {problem}")
             raise typer.Exit(1)
-        typer.echo("consultando estado atual do banco Neo4j...")
-        state = neo4j_tool.destination_state(project, plan)
-        for line in neo4j_tool.preview_lines(preview, state):
-            typer.echo(line)
-        described, refusal = neo4j_tool.check_destination(state, project.name)
-        typer.echo(f"banco: {described}")
-        if refusal:
-            typer.echo(f"erro: {refusal}. Nada foi gravado")
-            raise typer.Exit(1)
-        if not typer.confirm("Executar no alvo neo4j? Esta acao altera a plataforma do cliente."):
-            raise typer.Abort()
-        removed = neo4j_tool.large_removal(preview, state)
-        if removed:  # remocao grande: origem truncada por engano apagaria o label; pede o numero, nao um y
-            typed = typer.prompt(f"A sincronizacao apaga mais de {neo4j_tool.LARGE_REMOVAL:.0%} de algum label. "
-                                 f"Para confirmar, digite {removed} (total previsto de nos removidos)",
-                                 default="", show_default=False)
-            if typed.strip() != str(removed):
-                typer.echo(f"erro: confirmacao diferente de {removed}; nada foi gravado")
-                raise typer.Exit(1)
         typer.echo("iniciando publicacao no Neo4j...")
         result = publish_tool.publish(project, "neo4j", False, release, plan)
         _dump(result)

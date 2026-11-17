@@ -55,9 +55,10 @@ def find_in_sources(query: str, whole_word: bool = True, case_sensitive: bool = 
 
 
 @mcp.tool()
-def profile(sample_size: int = 500) -> dict[str, Any]:
-    """Perfila as fontes: colunas, tipos, nulos, cardinalidade, chaves candidatas e convencoes. Grava docs/profile.json."""
-    return profile_tool.profile(project(), sample_size).model_dump()
+def profile(sample_size: int = 500, sources: list[str] | None = None) -> dict[str, Any]:
+    """Perfila as fontes (ou apenas as selecionadas na aba Inicio / parametro sources): colunas, tipos, nulos,
+    cardinalidade, chaves candidatas e convencoes. Grava docs/profile.json."""
+    return profile_tool.profile(project(), sample_size, sources).model_dump()
 
 
 @mcp.tool()
@@ -211,9 +212,10 @@ async def choose_decision_mode(ctx: Context, mode: str = "", authorized_by: str 
 def open_review(ctx: Context, port: int = 8765, open_browser: bool = True) -> dict[str, Any]:
     """Roda export, garante a pagina de revisao servindo em 127.0.0.1 (sobe em segundo plano se preciso) e
     abre o navegador apenas se ainda nao estiver aberta. Se ja estiver aberta, os dados e a visao do usuario
-    sao atualizados automaticamente via SSE/long-polling. Devolve a URL, a etapa atual e quantos pendentes
-    esperam decisao. Chame em toda parada em que o humano precisa decidir propostas; diga a URL ao humano em uma linha."""
+    sao atualizados automaticamente via SSE/long-polling. Devolve a URL, a etapa atual, setup_required e quantos
+    pendentes esperam decisao. Chame logo ao iniciar a ontologia (para a aba 1 - Inicio) e em toda parada de revisao."""
     from .review_server import ensure_running, is_running
+    from .tools.decision_mode import read_mode
     from .tools.review_round import harness_label, open_round
     from .tools.stage import current_stage
     p = project()
@@ -225,12 +227,23 @@ def open_review(ctx: Context, port: int = 8765, open_browser: bool = True) -> di
         client = ctx.session.client_params.clientInfo.name
     except AttributeError:
         client = ""
-    rnd = open_round(p, harness_label(client))
+    dm = read_mode(p)
+    setup_required = not dm["chosen"] or not p.name or p.name == "akme-template"
+    rnd = open_round(p, harness_label(client)) if not setup_required else {"id": ""}
     st = current_stage(p)
-    return {"url": url, "round_id": rnd["id"], "stage": st["label"], "next_step": st["next_step"],
-            "undecided": st["undecided"], "pending": st["counts"]["pending"], "checklist": st["checklist"],
-            "browser_opened": should_open_browser,
-            "then": "Diga a URL ao humano em uma linha e chame wait_for_review com este round_id."}
+    next_hint = ("Diga a URL ao humano para preencher o passo 1 - Inicio e chame wait_for_setup."
+                 if setup_required else "Diga a URL ao humano em uma linha e chame wait_for_review com este round_id.")
+    return {"url": url, "round_id": rnd["id"], "setup_required": setup_required, "stage": st["label"],
+            "next_step": st["next_step"], "undecided": st["undecided"], "pending": st["counts"]["pending"],
+            "checklist": st["checklist"], "browser_opened": should_open_browser, "then": next_hint}
+
+
+@mcp.tool()
+def wait_for_setup(timeout_seconds: float = 540) -> dict[str, Any]:
+    """Espera o usuario preencher e salvar a aba 1 - Inicio (modo de decisao, nome do projeto, nome do usuario e
+    tabelas a perfilar) na pagina web. Bloqueia ate status ready ou timeout."""
+    from .tools.review_round import wait_for_setup as wait_setup
+    return wait_setup(project(), timeout_seconds)
 
 
 @mcp.tool()

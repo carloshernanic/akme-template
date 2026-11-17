@@ -42,7 +42,7 @@
   const GROUP_ORDER = ["uc", "cq", "gap", "div", "glossary", "class", "relation", "term", "mapping", "constraint", "precedence", "source", "other"];
   const GROUP_LABEL = {
     uc: "Caso de uso e requisitos", cq: "Perguntas de competência", gap: "Lacunas", div: "Divergências", glossary: "Glossário",
-    class: "Classes", relation: "Relações", term: "Termos", mapping: "Mapeamentos", constraint: "Restrições", precedence: "Precedências", source: "Exportação Neo4j", other: "Outros",
+    class: "Classes", relation: "Relações", term: "Atributos", mapping: "Mapeamentos", constraint: "Restrições", precedence: "Precedências", source: "Exportação Neo4j", other: "Outros",
   };
   const I = {
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -68,29 +68,39 @@
   const S = {
     data: null, api: null, hooks: {}, drafts: {}, newKeys: [], newSeq: 0, cards: {}, order: [], reviewer: "",
     busy: false, invalid: new Set(), editing: new Set(), open: new Set(), selected: null, scope: "pending", group: null,
-    tab: null, wired: false, token: null, polling: false, mode: "outras",
+    tab: null, step: "inicio", wired: false, token: null, polling: false, mode: "outras",
   };
-  // a etapa 1 tem tela propria (etapa1.js); o que ela cobre sai da caixa de entrada
+  const FLOW_GROUPS = [
+    { group: "Configuração", items: [{ id: "inicio", num: "1", label: "Início" }] },
+    { group: "Especificar", items: [
+      { id: "uc", num: "2", label: "Caso de uso" },
+      { id: "cq", num: "3", label: "CQs" },
+      { id: "gd", num: "4", label: "Lacunas e divergências" },
+    ] },
+    { group: "Conceitualizar", items: [
+      { id: "classes", num: "5", label: "Classes e atributos" },
+      { id: "rels", num: "6", label: "Relacionamentos" },
+    ] },
+    { group: "Codificar", items: [{ id: "mapping", num: "7", label: "Mapeamento" }] },
+    { group: "Publicação", items: [
+      { id: "neo4j", num: "8", label: "Neo4j" },
+      { id: "exports", num: "9", label: "Exportação" },
+    ] },
+  ];
+  const E1_STEPS = new Set(["uc", "cq", "gd"]);
+  const OU_STEPS = new Set(["classes", "rels", "mapping"]);
+  const ALL_STEPS = new Set(["inicio", "uc", "cq", "gd", "classes", "rels", "mapping", "neo4j", "exports", "ontologia"]);
   const E1 = () => window.AkmeEtapa1 || null;
   const coveredByE1 = (p) => !!(E1() && E1().covers(p));
-  // e1Has decide se a etapa 1 abre; e1Count e o numero mostrado, que cai conforme o revisor decide
-  const e1Has = () => (E1() ? E1().pendingCount(S.data) : 0);
-  const e1Count = () => (E1() ? (E1().remaining || E1().pendingCount)(S.data) : 0);
-  function updateE1Count() {
-    const c = $('#rv-mode [data-value="etapa1"] .count');
-    if (c) c.textContent = String(e1Count());
-    renderNav();
-  }
-  // outras propostas tem tela propria no padrao novo (outras.js); sem ela, fica a caixa de entrada antiga
   const OU = () => window.AkmeOutras || null;
-  const ouCount = () => (OU() ? OU().remaining(S.data) : 0);
-  // tela no padrao novo: a fila lateral, a barra de baixo e os atalhos da caixa antiga nao valem
-  const lean = () => S.mode === "etapa1" || !!OU();
-  function updateOuCount(n) {
-    const c = $('#rv-mode [data-value="outras"] .count');
-    if (c) c.textContent = String(n);
-    renderNav();
+  const lean = () => E1_STEPS.has(S.step) || (OU_STEPS.has(S.step) && !!OU());
+  function stepCount(id) {
+    if (E1_STEPS.has(id) && E1() && E1().countFor) return E1().countFor(S.data, id);
+    if (OU_STEPS.has(id) && OU() && OU().countFor) return OU().countFor(S.data, id);
+    return 0;
   }
+  function updateE1Count() { renderFlowNav(); renderNav(); }
+  function updateOuCount() { renderFlowNav(); renderNav(); }
 
   // ---------- utilidades ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -138,75 +148,95 @@
       editable: [], rejectable: true, origin: p.proposed_by === "agent" ? "IA" : p.proposed_by, requirement_id: p.requirement_id || "", rationale: p.rationale || "" };
   }
 
-  // ---------- abas e etapa ----------
-  function setTab(name, persist = true) {
-    if (name !== "ontologia" && name !== "exportar") name = "revisao";
-    S.tab = name;
-    $("#view-exportar").hidden = name !== "exportar";
-    $("#tab-exportar").setAttribute("aria-selected", String(name === "exportar"));
-    $("#view-ontologia").hidden = name !== "ontologia";
-    $("#view-revisao").hidden = name !== "revisao";
-    $("#tab-ontologia").setAttribute("aria-selected", String(name === "ontologia"));
-    $("#tab-revisao").setAttribute("aria-selected", String(name === "revisao"));
-    $("#ont-nav").hidden = name !== "ontologia";
-    $("#rv-nav").hidden = name !== "revisao";
-    $("#sidebar-mode").textContent = name === "ontologia" ? "ontologia" : name === "exportar" ? "exportar" : "revisão";
-    const bar = $("#rv-bar");
-    if (bar) bar.hidden = name !== "revisao" || lean();
-    if (persist) store("akme-tab", name);
-    if (name === "ontologia" && window.AkmeGraph) { window.AkmeGraph.show(); dispatchEvent(new Event("resize")); }
-    if (name === "exportar" && window.AkmeExport) window.AkmeExport.show();
+  // ---------- navegação lateral unificada ----------
+  function stepDone(id) {
+    const r = req();
+    const domainClasses = (S.data.classes || []).filter((c) => !["Entity", "Relation", "Rule", "Metric"].includes(c.name));
+    if (id === "inicio") return Boolean(S.setupSaved || (S.data.decision_mode && S.data.decision_mode.authorized_by));
+    if (id === "uc") return Boolean((r.use_cases || []).length || r.no_use_case);
+    if (id === "cq") return Boolean((r.competency_questions || []).length);
+    if (id === "gd") return Boolean((r.gaps || []).length || (r.divergences || []).length || (domainClasses.length && stepCount("gd") === 0));
+    if (id === "classes") return Boolean(domainClasses.length);
+    if (id === "rels") return Boolean((S.data.relations || []).length);
+    if (id === "mapping") return Boolean((S.data.mappings || []).length || (S.data.sources || []).length);
+    if (id === "neo4j") return read("akme-step-neo4j") === "1";
+    if (id === "exports") return read("akme-step-exports") === "1";
+    return false;
   }
 
-  // ids citados em "pendentes da etapa 1 sem revisao: a, b"
-  function pendingIdsOf(missing) {
-    const m = missing.find((x) => /^pendentes da etapa 1 sem revisao/.test(x));
-    return m ? (String(m).split(":")[1] || "").split(",").map((x) => x.trim()).filter(Boolean) : [];
+  function renderFlowNav() {
+    const nav = $("#flow-nav");
+    if (!nav) return;
+    const groupsHtml = FLOW_GROUPS.map((g) => `
+      <div class="nav-group">
+        <div class="nav-group-title">${esc(g.group)}</div>
+        ${g.items.map((it) => {
+          const n = stepCount(it.id);
+          const cur = S.step === it.id;
+          const done = stepDone(it.id);
+          return `<button type="button" class="nav-step" data-nav-step="${it.id}"${cur ? ' aria-current="page"' : ""}${done ? ' data-done="true"' : ""}>
+            <span class="step-marker">${esc(it.num)}</span>
+            <span>${esc(it.label)}</span>${n ? `<span class="count">${n}</span>` : ""}
+          </button>`;
+        }).join("")}
+      </div>`).join("");
+    const ontoCount = ((S.data && S.data.classes) || []).filter((c) => !["Entity", "Relation", "Rule", "Metric"].includes(c.name)).length;
+    const ontoHtml = `<div class="nav-onto-wrap">
+      <button type="button" class="nav-onto-btn" data-nav-step="ontologia"${S.step === "ontologia" ? ' aria-current="page"' : ""}>
+        <span>Ontologia</span>${ontoCount ? `<span class="badge badge-sm badge-accent">${ontoCount}</span>` : ""}
+      </button>
+    </div>`;
+    nav.innerHTML = groupsHtml + ontoHtml;
   }
-  // "CQ-008: alteração da pergunta" ou o texto do item, para o revisor achar na tela
-  function pendingLabel(p) {
-    const pl = p.payload || {}, t = p.type;
-    const kind = { update_competency_question: "alteração da pergunta", remove_competency_question: "exclusão da pergunta",
-      update_gap: "alteração da lacuna", update_divergence: "alteração da divergência" }[t];
-    if (kind) return `${pl.id}: ${kind}`;
-    const txt = pl.question || pl.topic || pl.name || pl.value || p.id;
-    return `“${String(txt).length > 70 ? String(txt).slice(0, 69) + "…" : txt}”`;
+
+  function setStep(name, persist = true) {
+    if (!ALL_STEPS.has(name)) name = "inicio";
+    S.step = name;
+    S.tab = name === "ontologia" ? "ontologia" : name === "neo4j" ? "exportar" : "revisao";
+    const vInicio = $("#view-inicio"), vRev = $("#view-revisao"), vOnt = $("#view-ontologia"), vExp = $("#view-exportar"), vDl = $("#view-downloads");
+    if (vInicio) vInicio.hidden = name !== "inicio";
+    if (vRev) vRev.hidden = !(E1_STEPS.has(name) || OU_STEPS.has(name));
+    if (vOnt) vOnt.hidden = name !== "ontologia";
+    if (vExp) vExp.hidden = name !== "neo4j";
+    if (vDl) vDl.hidden = name !== "exports";
+    const ontNav = $("#ont-nav");
+    if (ontNav) ontNav.hidden = name !== "ontologia";
+    const bar = $("#rv-bar");
+    if (bar) bar.hidden = !(E1_STEPS.has(name) || OU_STEPS.has(name)) || lean();
+    renderFlowNav();
+    if (persist) store("akme-step", name);
+    if (name === "inicio" && window.AkmeInicio) {
+      window.AkmeInicio.mount(vInicio, { api: S.api, onSaved: async (st) => {
+        S.setupSaved = true;
+        if (st && st.project) $("#project-title").textContent = st.project;
+        if (st && st.decision_mode) {
+          document.body.dataset.decisionMode = st.decision_mode.mode || "human";
+          if (st.decision_mode.authorized_by) { S.reviewer = st.decision_mode.authorized_by; store("akme-reviewer", S.reviewer); }
+        }
+        try { await reload(); } catch (e) {}
+        render();
+      } });
+    } else if (name === "ontologia" && window.AkmeGraph) {
+      window.AkmeGraph.show(); dispatchEvent(new Event("resize"));
+    } else if (name === "neo4j" && window.AkmeExport) {
+      store("akme-step-neo4j", "1");
+      renderFlowNav();
+      window.AkmeExport.show();
+    } else if (name === "exports" && window.AkmeExport && window.AkmeExport.showDownloads) {
+      store("akme-step-exports", "1");
+      renderFlowNav();
+      window.AkmeExport.showDownloads();
+    } else if (E1_STEPS.has(name) || OU_STEPS.has(name)) {
+      renderMode();
+    }
   }
-  // traduz o "missing" do servidor (escrito para o agente, com ids) para uma frase ao revisor
-  function humanMissing(m) {
-    const n = (txt) => (String(txt).split(":")[1] || "").split(",").filter((x) => x.trim()).length;
-    const pl = (k, um, varios) => `${k} ${k === 1 ? um : varios}`;
-    if (/^sem caso de uso/.test(m)) return "Escolher um caso de uso (ou dizer que não há)";
-    if (/^CQs ainda em proposed/.test(m)) return `Decidir ${pl(n(m), "pergunta", "perguntas")}`;
-    if (/^pendentes da etapa 1 sem revisao/.test(m)) return `Decidir ${pl(n(m), "item da etapa 1", "itens da etapa 1")}`;
-    if (/^nenhuma CQ approved/.test(m)) return "Aprovar ao menos uma pergunta";
-    if (/^lacunas ou divergencias em open/.test(m)) return `Decidir ${pl(n(m), "lacuna ou divergência", "lacunas ou divergências")}`;
-    if (/^purpose ou scope vazios/.test(m)) return "Registrar propósito e escopo";
-    return String(m).replace(/\bmapping\b/g, "mapeamento").replace(/\bvalidate\b/g, "validação");
+  function setTab(name, persist = true) {
+    if (name === "ontologia") return setStep("ontologia", persist);
+    if (name === "exportar") return setStep("neo4j", persist);
+    return setStep(E1_STEPS.has(S.step) || OU_STEPS.has(S.step) ? S.step : "uc", persist);
   }
-    function renderStage() {
-    const st = stage();
-    const stepper = $("#stepper"), chip = $("#stage-chip"), banner = $("#gate-banner");
-    if (!st) { stepper.innerHTML = ""; chip.textContent = ""; banner.hidden = true; return; }
-    stepper.innerHTML = (st.stages || []).map((s) => `<li class="step" data-status="${esc(s.status)}" ${s.status === "active" ? 'aria-current="step"' : ""} title="${esc(s.description)}">
-      <div class="step-rail"><span class="step-marker">${s.status === "completed" ? I.check : s.number}</span><span class="step-sep"></span></div>
-      <div class="step-body"><span class="step-title">${esc(s.name)}</span></div></li>`).join("");
-    chip.innerHTML = `<span class="status-dot ${st.gate_active ? "warning" : "information"}"></span>${esc(st.label)}`;
-    chip.title = window.AkmeChannel ? window.AkmeChannel.step(st.next_step) : st.next_step || "";
-    // a faixa so aparece quando os requisitos estao abertos: e o unico caso em que o humano precisa ler o que falta
-    const raw = st.missing || [], ids = pendingIdsOf(raw);
-    const missing = raw.filter((m) => !/^pendentes da etapa 1 sem revisao/.test(m)).map(humanMissing);
-    const items = ids.map((id) => pending().find((p) => p.id === id)).filter(Boolean)
-      .map((p) => `<li>Decidir ${esc(pendingLabel(p))} <button type="button" class="lnk" data-act="goto" data-id="${esc(p.id)}">ver</button></li>`);
-    // depois da etapa 1, um item dela pendente trava as etapas seguintes: o topo volta para "Etapa 1"
-    const why = ids.length && raw.some((m) => /^pendentes da etapa 1/.test(m)) && (st.counts || {}).classes
-      ? '<p class="p secondary">Enquanto este item não for decidido e salvo, a etapa volta para 1 e as propostas das etapas seguintes esperam.</p>' : "";
-    banner.className = "callout callout-atencao";
-    banner.innerHTML = `${I.warn}<div><div class="t">Requisitos abertos</div><div class="b">${items.length || missing.length ? `<ul>${items.join("")}${missing.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>${why}` : esc(st.next_step || "")}</div></div>`;
-    // aparece sempre que a etapa 1 esta aberta (nao so com a ontologia vazia): e o que explica o topo voltar para "Etapa 1";
-    // na aba Etapa 1 so quando o item que falta mora em Outras propostas
-    const outside = ids.some((id) => { const p = pending().find((x) => x.id === id); return p && !coveredByE1(p); });
-    banner.hidden = st.requirements_closed || !(items.length || missing.length) || (S.mode === "etapa1" && !outside);
+  function renderStage() {
+    renderFlowNav();
   }
 
   // ---------- modelo de cartões ----------
@@ -593,7 +623,7 @@
     if ((t === "add_relation" || t === "add_class") && human) {
       return `<h2 class="title">${esc(human)} <span class="ident mono">${esc(pl.name)}</span></h2>`;
     }
-    if (t === "add_term") return `<h2 class="title"><span class="mono">${esc(pl.name)}</span> <span class="ident">termo de ${esc(pl.class)}</span></h2>`;
+    if (t === "add_term") return `<h2 class="title"><span class="mono">${esc(pl.name)}</span> <span class="ident">atributo de ${esc(pl.class)}</span></h2>`;
     if (t === "add_mapping") return `<h2 class="title"><span class="mono">${esc(pl.term)}</span> <span class="ident">→ ${esc(pl.source)}.${esc(pl.column)}</span></h2>`;
     if (t === "add_glossary") return `<h2 class="title"><span class="mono">${esc(pl.acronym)}</span> <span class="ident">${esc(pl.meaning || "")}</span></h2>`;
     return `<h2 class="title">${esc(v.title)}</h2>${v.subtitle && t !== "add_relation" ? `<p class="subtitle">${esc(v.subtitle)}</p>` : ""}`;
@@ -960,19 +990,7 @@
     el.innerHTML = cardHtml(S.selected);
   }
   function renderNav() {
-    const n = counts();
-    const nav = $("#rv-nav");
-    const badgeEl = $("#tab-revisao-count");
-    const total = (OU() ? ouCount() : n.todo) + e1Count();
-    badgeEl.textContent = total ? String(total) : "";
-    badgeEl.hidden = !total;
-    if (lean()) { nav.innerHTML = ""; return; }
-    const item = (scope, label, count, hot) => `<button type="button" class="nav-item" data-act="scope" data-scope="${scope}" aria-current="${S.scope === scope && !S.group}">${esc(label)}<span class="count${hot && count ? " hot" : ""}">${count}</span></button>`;
-    const groups = GROUP_ORDER.filter((g) => S.order.some((k) => S.cards[k].group === g && !S.cards[k].applied));
-    nav.innerHTML = `<div class="group-label">Fila</div>
-      ${item("todo", "A decidir", n.todo, true)}${item("decided", "Decididas", n.decided, false)}${item("applied", "Aplicadas", n.applied, false)}
-      ${groups.length ? `<div class="group-label" style="margin-top:12px">Por tipo</div>${groups.map((g) => `<button type="button" class="nav-item nav-sub" data-act="group" data-group="${g}" aria-current="${S.group === g}">${GROUP_ICON[g] || ""}${esc(GROUP_LABEL[g])}<span class="count">${n.byGroup[g] || 0}</span></button>`).join("")}` : ""}
-      <div class="group-label" style="margin-top:12px">Contexto</div>${item("context", "Caso de uso e fontes", (req().use_cases || []).length, false)}`;
+    renderFlowNav();
   }
   function renderBar() {
     const n = counts();
@@ -990,52 +1008,46 @@
     discardBtn.disabled = S.busy || !Object.keys(S.drafts).length;
     bar.hidden = S.tab !== "revisao" || lean();
   }
-  // aviso da rodada: o agente no chat espera o humano aplicar, e depois segue sozinho
+  // aviso da rodada: apenas quando o modelo esta processando ou esperando resposta do usuario
   function renderRound() {
     const el = $("#rv-round");
     if (!el) return;
-    const r = round(), n = counts();
+    const r = round();
     let html = "";
     if (S.api && r.status === "proposing") {
-      html = `<div class="e1-proposing-banner"><span class="spinner" aria-hidden="true"></span><div><div class="t">IA propondo edições…</div><div class="b">O agente está gerando propostas. Aguarde a conclusão da rodada para revisar e aplicar.</div></div></div>`;
+      html = `<div class="e1-proposing-banner"><span class="spinner" aria-hidden="true"></span><div><div class="t">IA propondo edições…</div><div class="b">Aguarde a conclusão da rodada para revisar e aplicar.</div></div></div>`;
     } else if (S.api && r.status === "waiting") {
-      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando você aplicar</div><div class="b">${lean() ? "Decida e clique em <b>Conferir e salvar</b>" : "Decida, salve e clique em <b>Aplicar decididas</b>"}. ${channel() ? "Depois disso o agente segue sozinho no painel Conversa, aqui nesta página." : `Depois volte para ${esc(agentChat())}: o agente segue sozinho, sem você precisar escrever nada.`}</div></div></div>`;
-    } else if (S.api && r.status === "applied" && !n.todo) {
-      html = `<div class="callout callout-ok">${I.ok}<div><div class="t">${channel() ? "Decisões aplicadas" : `Volte para ${esc(agentChat())}`}</div><div class="b">Decisões aplicadas${r.approved_by ? " por " + esc(r.approved_by) : ""}. O agente já recebeu o resultado e está seguindo para o próximo passo${channel() ? " no painel Conversa desta página" : ""}.</div></div></div>`;
+      html = `<div class="callout callout-nota">${I.info}<div><div class="t">O agente está esperando sua resposta</div><div class="b">Revise os itens desta etapa e clique em <b>Conferir e salvar</b>.</div></div></div>`;
     }
     el.innerHTML = html;
     el.hidden = !html;
   }
-  // seletor no topo: Etapa 1 (tres telas) ou Outras propostas (caixa de entrada)
   function renderMode() {
     const el = $("#rv-mode"), root = $("#e1-root"), one = $("#rv-one"), ouRoot = $("#ou-root");
-    const ou = S.mode !== "etapa1" && !!OU();
-    if (ouRoot) ouRoot.hidden = !ou;
-    if (ou) OU().mount(ouRoot, { data: S.data, api: S.api, reviewer: S.reviewer, toast, onDone: afterOu, onCount: updateOuCount,
-      setBusy: (v) => { S.busy = !!v; }, refresh: async () => { try { await reload(); } catch (e) { /* o poll tenta de novo */ } render(); } });
-    if (!E1()) { el.hidden = true; root.hidden = true; one.hidden = ou; S.mode = "outras"; return; }
-    const outras = OU() ? ouCount() : S.order.filter((k) => !S.cards[k].applied).length;
-    const btn = (m, label, n) => `<button type="button" data-act="mode" data-value="${m}" aria-pressed="${S.mode === m}">${esc(label)} <span class="count">${n}</span></button>`;
-    el.hidden = false;
-    el.innerHTML = `<div class="seg" role="group" aria-label="O que revisar">${btn("etapa1", "Etapa 1", e1Count())}${btn("outras", "Outras propostas", outras)}</div>`;
-    const e1 = S.mode === "etapa1";
-    root.hidden = !e1; one.hidden = e1 || ou;
-    if (e1) E1().mount(root, { data: S.data, api: S.api, reviewer: S.reviewer, toast, onDone: afterE1, onCount: updateE1Count, onOutras: () => { if (OU()) OU().showApplied(); S.mode = "outras"; render(); renderBar(); } });
+    if (el) el.hidden = true;
+    const isE1 = E1_STEPS.has(S.step) && !!E1();
+    const isOu = OU_STEPS.has(S.step) && !!OU();
+    if (root) root.hidden = !isE1;
+    if (ouRoot) ouRoot.hidden = !isOu;
+    if (one) one.hidden = isE1 || isOu;
+    if (isE1) {
+      E1().mount(root, { data: S.data, api: S.api, reviewer: S.reviewer, stepFilter: S.step, toast, onDone: afterE1, onCount: updateE1Count,
+        onOutras: () => setStep("classes") });
+    } else if (isOu) {
+      OU().mount(ouRoot, { data: S.data, api: S.api, reviewer: S.reviewer, groupFilter: S.step, toast, onDone: afterOu, onCount: updateOuCount,
+        setBusy: (v) => { S.busy = !!v; }, refresh: async () => { try { await reload(); } catch (e) {} render(); } });
+    }
   }
   async function afterE1() {
     await reload();
-    S.mode = defaultMode();
     render();
   }
   async function afterOu() {
-    try { await reload(); } catch (e) { /* o poll tenta de novo */ }
-    S.mode = defaultMode();
+    try { await reload(); } catch (e) {}
     render();
   }
   function defaultMode() {
-    if (!E1()) return "outras";
-    const st = stage() || {};
-    return st.requirements_closed || !e1Has() ? "outras" : "etapa1";
+    return E1_STEPS.has(S.step) ? "etapa1" : "outras";
   }
   function render() {
     if (document.body) {
@@ -1093,7 +1105,6 @@
     const st = stage();
     $("#rv-dialog-body").innerHTML = `<h2 class="h3-semibold">Aplicar decisões na ontologia</h2>
       <p class="p">${plural(acc, "aceita", "aceitas")} e ${plural(rej, "rejeitada", "rejeitadas")}. O validate roda antes; se houver erro novo, nada muda.</p>
-      ${st && st.gate_active ? `<div class="callout callout-atencao">${I.warn}<div><div class="t">Requisitos ainda abertos</div><div class="b">Classes, relações e termos ficam de fora até a etapa 1 fechar.</div></div></div>` : ""}
       <div class="field"><label class="field-label" for="rv-approver">Quem aprova</label><input id="rv-approver" class="input" type="text" autocomplete="name" value="${esc(S.reviewer)}" placeholder="seu nome"></div>
       <div class="dlg-actions"><button type="button" class="btn btn-outline" data-act="dlg-close">Cancelar</button><button type="button" class="btn" data-act="dlg-apply">Aplicar ${saved.length}</button></div>`;
     dlg.showModal();
@@ -1340,33 +1351,31 @@
     S.api = api || null;
     S.hooks = hooks || {};
     S.token = (data && data.token) || null;
-    S.reviewer = read("akme-reviewer") || "";
+    const dm = (data && data.stage && data.stage.decision_mode) || {};
+    S.reviewer = read("akme-reviewer") || dm.authorized_by || "";
+    if (S.reviewer) store("akme-reviewer", S.reviewer);
     renderShell();
     if (!S.wired) {
       const viewEl = $("#view-revisao");
       viewEl.addEventListener("click", onClick);
       viewEl.addEventListener("input", onInput);
       viewEl.addEventListener("change", onInput);
-      $("#rv-nav").addEventListener("click", onClick);
-      $("#gate-banner").addEventListener("click", onClick); // "ver" do pendente que trava a etapa
-      $("#tab-ontologia").addEventListener("click", () => setTab("ontologia"));
-      $("#tab-revisao").addEventListener("click", () => setTab("revisao"));
-      $("#tab-exportar").addEventListener("click", () => setTab("exportar"));
+      const flowNav = $("#flow-nav");
+      if (flowNav) flowNav.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-nav-step]");
+        if (b) setStep(b.dataset.navStep);
+      });
       document.addEventListener("keydown", onKey);
       document.addEventListener("akme:mode", () => render());
-      // o chat descobre o modo canal depois da primeira pintura: refaz os textos
       window.addEventListener("akme-channel", () => { if (S.data) { render(); renderBar(); } });
       S.wired = true;
     }
-    const n = counts();
-    const saved = read("akme-tab");
     buildCards();
-    const c0 = counts();
-    S.mode = defaultMode();
-    S.scope = c0.todo ? "todo" : c0.pending ? "decided" : "todo";
-    setTab(c0.todo || S.mode === "etapa1" ? "revisao" : saved || "revisao", false);
+    const setupDone = !!(dm.chosen && data.project && data.project !== "akme-template");
+    const saved = read("akme-step");
+    const initialStep = !setupDone ? "inicio" : (saved && ALL_STEPS.has(saved) ? saved : "uc");
+    setStep(initialStep, false);
     render();
-    void n;
     if (S.api) poll();
   }
 

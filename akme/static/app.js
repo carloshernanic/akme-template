@@ -49,15 +49,12 @@
 
   detectApi().then((api) => load(api).then((data) => {
     $("#project-title").textContent = data.project || "Akme";
-    $("#version").textContent = "v" + (data.version || "0.0.0");
-    $("#tabs").hidden = false;
     const mode = data.stage && data.stage.decision_mode && data.stage.decision_mode.mode;
     if (mode) document.body.dataset.decisionMode = mode;
     window.AkmeGraph.init(data);
-    window.AkmeExport.init(api);  // antes da revisao: ela pode abrir direto na aba Exportar
-    window.AkmeReview.init(data, api, { onData: (d) => window.AkmeGraph.update(d) });
+    window.AkmeExport.init(api, data);
+    window.AkmeReview.init(data, api, { onData: (d) => { window.AkmeGraph.update(d); window.AkmeExport.update(d); } });
   })).catch((err) => {
-    $("#tabs").hidden = false;
     $("#view-ontologia").hidden = false;
     $("#graph-empty").hidden = false;
     $("#graph-empty").innerHTML = `<div><div class="p-lg" style="font-weight:600">Não foi possível carregar os dados</div><div class="p secondary">${esc(err.message)}. Rode <code>uv run akme review</code>, que gera os dados e abre esta página.</div></div>`;

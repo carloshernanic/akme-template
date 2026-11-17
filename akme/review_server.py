@@ -25,13 +25,13 @@ from urllib.parse import parse_qs, urlparse
 
 from .models import now_iso
 from .ontology import load_content
-from .project import Project
+from .project import CONFIG_FILE, Project, read_yaml, write_yaml
 from .tools import chat, ontology_read, ontology_write
 from .tools.batch import BatchError
 from .tools.connect import find_in_sources
-from .tools.decision_mode import mode_path, read_mode
+from .tools.decision_mode import mode_path, read_mode, set_mode
 from .tools.export import build_export, export
-from .tools.profile import load_profile
+from .tools.profile import load_profile, profile as run_profile
 from . import __version__
 from .tools.neo4j_guide import GUIDE_FILE, GUIDE_ROUTE
 from .tools.neo4j_page import LoadRefused, export_load, export_status, reload_env
@@ -44,6 +44,7 @@ from .tools.stage import current_stage
 PROPOSE_TYPES = {
     "add_competency_question", "update_competency_question", "remove_competency_question",
     "update_gap", "update_divergence", "add_use_case", "add_requirement",
+    "add_class", "add_relation", "add_term", "add_mapping",
     # correcao de mapping ja aplicado, feita pelo revisor na lista "Mappings aplicados"
     "update_mapping", "remove_mapping",
 }
@@ -88,7 +89,8 @@ def _pending_view(project: Project) -> list[dict[str, Any]]:
 def state_token(project: Project) -> str:
     """Assinatura do estado em disco que a pagina observa: pendentes, conteudo, schema, validate."""
     h = hashlib.sha1()
-    paths: list[Path] = [project.content_path, project.schema_path, project.changelog_path,
+    paths: list[Path] = [project.root / CONFIG_FILE, mode_path(project),
+                         project.content_path, project.schema_path, project.changelog_path,
                          project.validation_path, project.questions_path, round_path(project)]
     if project.pending_dir.exists():
         paths += sorted(project.pending_dir.glob("*.yml"))
@@ -186,7 +188,14 @@ def make_handler(project: Project):
                     return self._json(200, _pending_view(project))
                 if url.path == "/api/requirements":
                     return self._json(200, ontology_read.get_requirements(project))
+                if url.path == "/api/setup":
+                    return self._json(200, self._setup_state())
+                if url.path == "/api/exports":
+                    return self._json(200, self._exports_list())
+                if url.path == "/api/download":
+                    return self._download(parse_qs(url.query))
                 if url.path == "/api/data":
+                    project.config = project._load()
                     data = build_export(project)
                     data["pending"] = _pending_view(project)
                     data["stage"] = current_stage(project)
@@ -352,6 +361,8 @@ def make_handler(project: Project):
             try:
                 if path == "/api/review":
                     return self._json(200, self._review(self._body()))
+                if path == "/api/setup":
+                    return self._json(200, self._save_setup(self._body()))
                 if path == "/api/propose":
                     return self._json(200, self._propose(self._body()))
                 if path == "/api/apply":
@@ -427,6 +438,140 @@ def make_handler(project: Project):
             export(project)
             out["stage_after"] = current_stage(project)
             return out
+
+        @staticmethod
+        def _clean_source_name(val: Any) -> str:
+            if isinstance(val, dict):
+                return str(val.get("full_name") or val.get("name") or "").strip()
+            s = str(val or "").strip()
+            if "'full_name':" in s or '"full_name":' in s:
+                import ast
+                brace = s.find("{")
+                if brace >= 0:
+                    try:
+                        parsed = ast.literal_eval(s[brace:])
+                        if isinstance(parsed, dict) and parsed.get("full_name"):
+                            return str(parsed["full_name"]).strip()
+                    except Exception:
+                        pass
+            return s
+
+        def _available_sources(self) -> list[str]:
+            if project.catalog_path.is_file():
+                try:
+                    cat = json.loads(project.catalog_path.read_text(encoding="utf-8"))
+                    opts = project.adapter_options()
+                    wanted_cat = opts.get("catalog")
+                    wanted_sch = opts.get("schema")
+                    found = []
+                    for c in cat.get("catalogs") or []:
+                        if wanted_cat and c.get("name") != wanted_cat:
+                            continue
+                        for s in c.get("schemas") or []:
+                            if wanted_sch and s.get("name") != wanted_sch:
+                                continue
+                            for t in s.get("tables") or []:
+                                full = t.get("full_name") if isinstance(t, dict) else f"{c['name']}.{s['name']}.{t}"
+                                if full:
+                                    found.append(str(full))
+                    if found:
+                        return sorted(set(found))
+                except (OSError, ValueError):
+                    pass
+            try:
+                from .adapters import load_adapter
+                opts = project.adapter_options()
+                if project.adapter_name == "local_folder" and opts.get("path"):
+                    raw_p = opts["path"]
+                    opts["path"] = [str(project.resolve(x)) for x in raw_p] if isinstance(raw_p, list) else str(project.resolve(str(raw_p)))
+                adp = load_adapter(project.adapter_name, opts)
+                try:
+                    return adp.list_sources()
+                finally:
+                    adp.close()
+            except Exception:
+                return []
+
+        def _setup_state(self) -> dict[str, Any]:
+            project.config = project._load()
+            dm = read_mode(project)
+            sources = self._available_sources()
+            raw_selected = project.config.get("profile_sources")
+            if not isinstance(raw_selected, list):
+                selected = sources
+            else:
+                selected = [self._clean_source_name(s) for s in raw_selected if self._clean_source_name(s)]
+            return {
+                "project": project.name,
+                "adapter": project.adapter_name,
+                "decision_mode": dm,
+                "available_sources": sources,
+                "selected_sources": selected,
+                "profiled": project.profile_path.exists(),
+                "setup_done": bool(dm["chosen"] and project.name and project.name != "akme-template"),
+            }
+
+        def _save_setup(self, body: dict[str, Any]) -> dict[str, Any]:
+            proj_name = str(body.get("project") or "").strip()
+            if not proj_name:
+                raise _HttpError(400, "Informe o nome do projeto")
+            mode = str(body.get("mode") or "human").strip()
+            user_name = str(body.get("user_name") or "").strip()
+            if not user_name:
+                raise _HttpError(400, "Informe o seu nome")
+            raw_sources = body.get("selected_sources")
+            selected = [self._clean_source_name(s) for s in raw_sources if self._clean_source_name(s)] if isinstance(raw_sources, list) else []
+            cfg_path = project.root / CONFIG_FILE
+            cfg = read_yaml(cfg_path) if cfg_path.exists() else {}
+            cfg["project"] = proj_name
+            cfg["profile_sources"] = selected
+            write_yaml(cfg_path, cfg)
+            project.config = cfg
+            # executa o perfilamento deterministico (sem IA) antes de liberar o wait_for_setup
+            try:
+                prof = run_profile(project, sources=selected)
+            except Exception as exc:
+                raise _HttpError(500, f"Erro ao perfilar as tabelas selecionadas: {exc}") from exc
+            set_mode(project, mode, user_name)
+            export(project)
+            return self._setup_state() | {"profile": {"sources": len(prof.sources), "docs": len(prof.docs)}}
+
+        def _export_catalog(self) -> list[dict[str, Any]]:
+            candidates = [
+                ("schema_ttl", "schema.ttl", "Ontologia", "Esquema OWL/Turtle com classes, propriedades e axiomas", project.schema_path),
+                ("content_yml", "content.yml", "Ontologia", "Termos, perguntas de competência, contratos e mapeamentos", project.content_path),
+                ("ontology_json", "ontology.json", "Ontologia", "Resumo estruturado da ontologia em JSON", project.docs_dir / "ontology.json"),
+                ("ontology_mmd", "ontology.mmd", "Ontologia", "Diagrama de classes em Mermaid", project.docs_dir / "ontology.mmd"),
+                ("yarrrml", "mappings.yarrrml.yml", "Mapeamentos", "Regras de mapeamento R2RML/YARRRML", project.ontology_dir / "mappings.yarrrml.yml"),
+                ("neo4j_cypher", "neo4j.cypher", "Publicação", "Script Cypher puro gerado para o Neo4j", project.docs_dir / "publish" / "neo4j.cypher"),
+                ("neo4j_consultas", "neo4j_consultas.csv", "Publicação", "Consultas Cypher prontas do projeto", project.docs_dir / "publish" / "neo4j_consultas.csv"),
+                ("semantic_yml", "semantic.yml", "Publicação", "Camada semântica genérica em YAML", project.docs_dir / "publish" / "semantic.yml"),
+                ("snowflake_sql", "snowflake.sql", "Publicação", "Semantic View SQL para Snowflake", project.docs_dir / "publish" / "snowflake.sql"),
+                ("databricks_sql", "databricks.sql", "Publicação", "Comentários Unity Catalog SQL para Databricks", project.docs_dir / "publish" / "databricks.sql"),
+            ]
+            out = []
+            for fid, name, group, desc, path in candidates:
+                if path.is_file():
+                    out.append({"id": fid, "name": name, "group": group, "description": desc,
+                                "size": path.stat().st_size, "path": path})
+            return out
+
+        def _exports_list(self) -> list[dict[str, Any]]:
+            return [{"id": x["id"], "name": x["name"], "group": x["group"],
+                     "description": x["description"], "size": x["size"]} for x in self._export_catalog()]
+
+        def _download(self, q: dict[str, list[str]]) -> None:
+            fid = (q.get("file") or [""])[0]
+            item = next((x for x in self._export_catalog() if x["id"] == fid), None)
+            if not item:
+                return self._json(404, {"error": "arquivo nao encontrado"})
+            data = item["path"].read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{item["name"]}"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
 
     return Handler
 
