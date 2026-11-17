@@ -124,7 +124,8 @@ def propose_edit(type: str, payload: dict[str, Any], rationale: str = "", propos
     aplicado (mesma revisao e aprovacao humana): update_mapping {term, source, column, set: {term|source|column|role|
     expression|note: valor novo}} troca um mapping aplicado, identificado por term, source e column atuais;
     remove_mapping {term, source, column, reason} apaga; rename_class {name, new_name, label (opcional)} troca o nome
-    da classe no schema.ttl e em termos, relacoes, perguntas e propostas pendentes. Tipo da etapa 5 (so para exportar ao
+    da classe no schema.ttl e em termos, relacoes, perguntas e propostas pendentes; rename_relation {name, new_name,
+    label (opcional)} troca o nome da relacao (ou da inversa) no schema.ttl, nos contratos e nas propostas pendentes. Tipo da etapa 5 (so para exportar ao
     Neo4j): add_source {source, key: [colunas], types: {coluna: string|integer|float|date}, caption: coluna} ou
     {source, exclude: motivo}; caption (opcional) e a coluna cujo valor vira a legenda do no no Neo4j Browser (nome,
     titulo, descricao). O dado e lido e a proposta e recusada se a chave repetir ou um valor nao converter. Use

@@ -15,7 +15,9 @@ from ..models import (
 from ..ontology import (
     ROOT_CLASSES, add_class, add_relation, class_names, is_metric_class, load_content, load_graph, save_content, save_graph,
 )
+from ..ontology import relations as graph_relations
 from ..ontology import rename_class as rename_class_in_graph
+from ..ontology import rename_relation as rename_relation_in_graph
 from ..project import Project, read_yaml, remove_file, write_yaml
 from .contracts import check_join_shape, contradictions, observe_join
 from .neo4j_values import reserved_problem
@@ -159,6 +161,8 @@ def _validate_payload(project: Project, edit_type: EditType, payload: dict[str, 
         p = _checked_mapping_change(project, edit_type, p)
     elif edit_type == EditType.rename_class:
         p = _checked_rename(project, p)
+    elif edit_type == EditType.rename_relation:
+        p = _checked_rename_relation(project, p)
     elif edit_type == EditType.add_source:
         if any(e.type == EditType.add_source and e.payload.get("source") == p["source"] for e in list_pending(project)):
             raise EditError(f"a fonte {p['source']} ja tem proposta pendente; decida ou rejeite a anterior")
@@ -379,6 +383,62 @@ def _apply_rename(project: Project, p: dict[str, Any]) -> dict[str, Any]:
     return {"renamed": counts}
 
 
+def _checked_rename_relation(project: Project, p: dict[str, Any]) -> dict[str, Any]:
+    name, new_name = str(p["name"]), str(p["new_name"])
+    g = load_graph(project.schema_path)
+    rels = {r["name"]: r for r in graph_relations(g)}
+    if name not in rels:
+        raise EditError(f"relacao nao encontrada no schema.ttl: {name}")
+    if not re.fullmatch(r"[a-z][A-Za-z0-9]*", new_name):
+        raise EditError(f"nome de relacao invalido: {new_name}. Use lowerCamelCase, sem espaco nem pontuacao")
+    if new_name in rels or new_name in class_names(g):
+        raise EditError(f"ja existe uma relacao ou classe chamada {new_name}")
+    problem = reserved_problem("relation", new_name)
+    if problem:
+        raise EditError(problem)
+    rel = rels[name]
+    _check_relation_wording(project, {"new_name": new_name, "label": p.get("label"),
+                                      "domain": (rel["domain"] or [None])[0], "range": (rel["range"] or [None])[0]},
+                            ("new_name", "label"))
+    for e in list_pending(project):
+        if e.type == EditType.rename_relation and (e.payload.get("name") == name or e.payload.get("new_name") == new_name):
+            raise EditError(f"ja ha uma troca de nome pendente para {name} ou {new_name} ({e.id})")
+        if e.type == EditType.add_relation and new_name in (e.payload.get("name"), e.payload.get("inverse_of")):
+            raise EditError(f"ha uma proposta pendente que cria a relacao {new_name} ({e.id})")
+    return p
+
+
+def _apply_rename_relation(project: Project, p: dict[str, Any]) -> dict[str, Any]:
+    """Troca o nome no schema.ttl (inclusive o inverseOf da outra ponta), nos contratos e nas propostas pendentes."""
+    name, new_name = p["name"], p["new_name"]
+    g = load_graph(project.schema_path)
+    rels = {r["name"] for r in graph_relations(g)}
+    if name not in rels:
+        raise EditError(f"relacao nao encontrada no schema.ttl: {name} (mudou depois da proposta)")
+    if new_name in rels:
+        raise EditError(f"ja existe a relacao {new_name} (criada depois da proposta)")
+    counts = {"schema_triples": rename_relation_in_graph(g, name, new_name, p.get("label"))}
+    content = load_content(project)
+    counts["relation_contracts"] = 0
+    for c in content["relation_contracts"]:
+        if name in (c.get("relation"), c.get("inverse_of")):
+            counts["relation_contracts"] += 1
+            for field in ("relation", "inverse_of"):
+                if c.get(field) == name:
+                    c[field] = new_name
+    counts["pending"] = 0
+    for e in list_pending(project):
+        if e.type == EditType.add_relation and name in (e.payload.get("name"), e.payload.get("inverse_of")):
+            for field in ("name", "inverse_of"):
+                if e.payload.get(field) == name:
+                    e.payload[field] = new_name
+            counts["pending"] += 1
+            write_yaml(_pending_path(project, e.id), e.model_dump(mode="json"))
+    save_graph(g, project.schema_path)
+    save_content(project, content)
+    return {"renamed": counts}
+
+
 def _checked_rename_target(project: Project, name: str, new_name: str) -> None:
     names = class_names(load_graph(project.schema_path))
     if name not in names:
@@ -585,6 +645,8 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
         extra = _apply_mapping_change(project, edit)
     elif edit.type == EditType.rename_class:
         extra = _apply_rename(project, p)
+    elif edit.type == EditType.rename_relation:
+        extra = _apply_rename_relation(project, p)
     elif edit.type == EditType.add_source:
         content = load_content(project)
         decided = {k: v for k, v in p.items() if k not in ("checked", "class") and not (k == "caption" and not v)}

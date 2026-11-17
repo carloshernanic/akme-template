@@ -22,6 +22,7 @@ GROUP = {
     EditType.add_mapping: "mapping", EditType.add_constraint: "constraint", EditType.add_precedence: "precedence",
     EditType.add_source: "source",
     EditType.update_mapping: "mapping", EditType.remove_mapping: "mapping", EditType.rename_class: "class",
+    EditType.rename_relation: "relation",
 }
 
 GROUP_LABEL = {
@@ -249,6 +250,10 @@ def present(edit: Edit, current: dict[str, Any] | None = None) -> dict[str, Any]
         title, subtitle = f"Renomear a classe {p.get('name')}", f"passa a se chamar {p.get('new_name')}"
         fields = _fields(_field("Rótulo novo", p.get("label")),
                          _field("O que muda", "o nome no schema.ttl e em tudo que cita a classe: termos, relações, perguntas e propostas pendentes"))
+    elif t == EditType.rename_relation:
+        title, subtitle = f"Renomear a relação {p.get('name')}", f"passa a se chamar {p.get('new_name')}"
+        fields = _fields(_field("Rótulo novo", p.get("label")),
+                         _field("O que muda", "o nome no schema.ttl (inclusive na inversa), nos contratos de relação e nas propostas pendentes"))
     elif t == EditType.add_constraint:
         title, subtitle = f"Restrição sobre {p.get('term')}", _s(p.get("id"))
         fields = _fields(_field("Regra", p.get("rule")), _field("Severidade", SEVERITY_LABEL.get(p.get("severity"), p.get("severity"))))

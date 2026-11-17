@@ -1,4 +1,4 @@
-"""Corrigir o que ja foi aplicado: update_mapping, remove_mapping e rename_class."""
+"""Corrigir o que ja foi aplicado: update_mapping, remove_mapping, rename_class e rename_relation."""
 from __future__ import annotations
 
 import pytest
@@ -31,7 +31,8 @@ def _other_column(project, m):
 
 
 def test_the_new_types_belong_to_the_ontology_stages():
-    for t, stage in ((EditType.update_mapping, 3), (EditType.remove_mapping, 3), (EditType.rename_class, 2)):
+    for t, stage in ((EditType.update_mapping, 3), (EditType.remove_mapping, 3), (EditType.rename_class, 2),
+                     (EditType.rename_relation, 2)):
         assert t in ONTOLOGY_TYPES and EDIT_STAGE[t] == stage
 
 
@@ -144,6 +145,45 @@ def test_rename_class_refusals(seeded):
     _propose(seeded, "rename_class", {"name": names[0], "new_name": "NomeNovo"})
     with pytest.raises(EditError, match="troca de nome pendente"):
         _propose(seeded, "rename_class", {"name": names[0], "new_name": "OutroNome"})
+
+
+def test_rename_relation_changes_schema_inverse_and_contracts(seeded):
+    from akme.ontology import relations
+    pending = _propose(seeded, "add_relation", {"name": "atendidoPor", "domain": "Pedido", "range": "Cliente",
+                                               "label": "atendido por", "inverse_of": "possui",
+                                               "multiplicity": "many_to_one", "no_join_reason": "conceitual"})
+    edit = _propose(seeded, "rename_relation", {"name": "possui", "new_name": "fez"})
+    assert "possui" in {r["name"] for r in relations(load_graph(seeded.schema_path))}, "propor nao altera a ontologia"
+    assert present(edit)["group"] == "relation" and present(edit)["stage"] == 2
+    entry = ontology_write.apply_edit(seeded, edit.id, approved_by="maria")
+
+    rels = {r["name"]: r for r in relations(load_graph(seeded.schema_path))}
+    assert "possui" not in rels and rels["fez"]["label"] == "fez"
+    assert rels["pertenceA"]["inverse_of"] == ["fez"] and rels["fez"]["inverse_of"] == ["pertenceA"]
+    contract = next(c for c in load_content(seeded)["relation_contracts"] if c["relation"] == "pertenceA")
+    assert contract["inverse_of"] == "fez"
+    assert ontology_write._load_pending(seeded, pending.id).payload["inverse_of"] == "fez"
+    assert entry["renamed"] == {"schema_triples": entry["renamed"]["schema_triples"], "relation_contracts": 1, "pending": 1}
+
+    ontology_write.apply_edit(seeded, _propose(seeded, "rename_relation",
+                                               {"name": "pertenceA", "new_name": "feitoPor", "label": "feito por"}).id, "maria")
+    rels = {r["name"]: r for r in relations(load_graph(seeded.schema_path))}
+    assert rels["feitoPor"]["label"] == "feito por" and rels["fez"]["inverse_of"] == ["feitoPor"]
+    assert any(c["relation"] == "feitoPor" for c in load_content(seeded)["relation_contracts"])
+
+
+def test_rename_relation_refusals(seeded):
+    with pytest.raises(EditError, match="nao encontrada"):
+        _propose(seeded, "rename_relation", {"name": "naoExiste", "new_name": "outra"})
+    with pytest.raises(EditError, match="lowerCamelCase"):
+        _propose(seeded, "rename_relation", {"name": "possui", "new_name": "Fez Pedido"})
+    with pytest.raises(EditError, match="ja existe"):
+        _propose(seeded, "rename_relation", {"name": "possui", "new_name": "contem"})
+    with pytest.raises(EditError, match="nome da entidade Pedido"):
+        _propose(seeded, "rename_relation", {"name": "possui", "new_name": "fezPedido"})
+    _propose(seeded, "rename_relation", {"name": "possui", "new_name": "fez"})
+    with pytest.raises(EditError, match="troca de nome pendente"):
+        _propose(seeded, "rename_relation", {"name": "possui", "new_name": "realizou"})
 
 
 def test_validate_warns_when_a_table_gets_terms_of_two_classes(seeded):

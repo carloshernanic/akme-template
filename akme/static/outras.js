@@ -193,7 +193,7 @@
     if (t === "add_class" || t === "add_relation") return labelOf(it) || it.v.title;
     if (t === "add_term") return `${pl.name} (termo de ${pl.class})`;
     if (t === "add_mapping" || MAP_TYPES.has(t)) return `${pl.term} → ${pl.source}.${pl.column}`;
-    if (t === "rename_class") return `${pl.name} → ${pl.new_name}`;
+    if (t === "rename_class" || t === "rename_relation") return `${pl.name} → ${pl.new_name}`;
     return it.v.title;
   }
   function titleHtml(it) {
@@ -204,7 +204,7 @@
     }
     if (t === "add_term") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">termo de ${esc(pl.class)}</span>`;
     if (t === "add_mapping" || MAP_TYPES.has(t)) return `<span class="mono">${esc(pl.term)}</span> <span class="ou-ident">→ ${esc(pl.source)}.${esc(pl.column)}</span>`;
-    if (t === "rename_class") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">→</span> <span class="mono">${esc(pl.new_name)}</span>`;
+    if (t === "rename_class" || t === "rename_relation") return `<span class="mono">${esc(pl.name)}</span> <span class="ou-ident">→</span> <span class="mono">${esc(pl.new_name)}</span>`;
     if (/^(update|remove)_/.test(t)) return esc(v.title);
     return `${esc(v.title)}${v.subtitle ? ` <span class="ou-ident">${esc(v.subtitle)}</span>` : ""}`;
   }
@@ -218,6 +218,7 @@
     if (t === "update_mapping") return "correção de mapeamento";
     if (t === "remove_mapping") return "remoção de mapeamento";
     if (t === "rename_class") return "renomear classe";
+    if (t === "rename_relation") return "renomear relação";
     return "";
   }
   function srcLine(it) {
@@ -264,6 +265,7 @@
     if (t === "update_mapping") return mapDiff(pl);
     if (t === "remove_mapping") return `<p class="ou-gist"><b>Motivo da remoção:</b> ${esc(reasonOrPl(it))}</p>`;
     if (t === "rename_class") return `${pl.label ? `<p class="ou-gist">Rótulo: ${esc(pl.label)}</p>` : ""}<p class="p secondary">O nome muda também nos termos, relações e perguntas que citam a classe.</p>`;
+    if (t === "rename_relation") return `${pl.label ? `<p class="ou-gist">Rótulo: ${esc(pl.label)}</p>` : ""}<p class="p secondary">O nome muda também na inversa, nos contratos e nas propostas pendentes que citam a relação.</p>`;
     if (/^update_/.test(t)) return diffTable(it.p.current, pl);
     if (t === "remove_competency_question") return `<p class="ou-gist"><b>Motivo da exclusão:</b> ${esc(pl.reason || "—")}</p>`;
     const f = (it.v.fields || []).find((x) => PROSE.has(x.label));

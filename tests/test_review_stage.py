@@ -54,6 +54,7 @@ def test_present_covers_every_edit_type():
                                   "before": {"term": "t", "source": "s", "column": "c"}, "after": {"term": "t", "source": "s", "column": "d"}},
         EditType.remove_mapping: {"term": "t", "source": "s", "column": "c", "reason": "tabela errada"},
         EditType.rename_class: {"name": "A", "new_name": "B"},
+        EditType.rename_relation: {"name": "a", "new_name": "b"},
     }
     assert set(samples) == set(EditType)
     for t, payload in samples.items():

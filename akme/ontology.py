@@ -141,6 +141,19 @@ def rename_class(g: Graph, name: str, new_name: str, label: str | None = None) -
     return len(touched)
 
 
+def rename_relation(g: Graph, name: str, new_name: str, label: str | None = None) -> int:
+    """Troca o IRI da relacao em todas as triplas, inclusive o owl:inverseOf da outra ponta. O rotulo que era igual
+    ao nome antigo (o das inversas criadas pelo inverse_of) acompanha o nome novo. Devolve quantas triplas mudaram."""
+    ns = base_ns(g)
+    old, new = ns[name], ns[new_name]
+    old_label = _text(g, old, RDFS.label)
+    touched = rename_class(g, name, new_name)
+    if label or old_label == name:
+        g.remove((new, RDFS.label, None))
+        g.add((new, RDFS.label, Literal(label or new_name, lang="pt")))
+    return touched
+
+
 def add_relation(g: Graph, name: str, domain: str, range_: str, label: str,
                  comment: str = "", inverse_of: str | None = None, multiplicity: str | None = None) -> URIRef:
     ns = base_ns(g)
