@@ -796,12 +796,12 @@
     if (editing) {
       decide = `<section class="rv-section rv-decide"><h3>Decisão</h3>
         <div class="choice"><span class="field-label">O que fazer com esta lacuna</span>${seg(key, "choice", GAP_DECISIONS, (x) => v.choice === x, { col: true, label: "Decisão da lacuna" })}
-          ${v.choice === "request_from_client" ? '<span class="choice-help">Entra no pedido de dados ao cliente.</span>' : ""}</div>
+          ${v.choice === "explain" ? '<span class="choice-help">Entra no pedido de dados ao cliente.</span>' : ""}</div>
         ${textField(key, "note", "Motivo da decisão", v.note, { placeholder: v.choice === "open" ? "opcional" : "obrigatório" })}
         ${isPending ? savedNote(p) : `<div class="row"><button type="button" class="btn btn-ghost btn-sm" data-act="cancel" data-key="${esc(key)}">Cancelar</button></div>`}</section>`;
     } else {
       decide = `<section class="rv-section rv-decide"><h3>Decisão registrada</h3><dl class="kv"><dt>Decisão</dt><dd>${esc(LABELS.gap[g.decision] || g.decision || "—")}</dd>
-        <dt>Pedido de dados</dt><dd>${g.decision === "request_from_client" ? "Sim" : "Não"}</dd>${g.note ? `<dt>Motivo</dt><dd>${esc(g.note)}</dd>` : ""}</dl>
+        <dt>Pedido de dados</dt><dd>${g.decision === "explain" ? "Sim" : "Não"}</dd>${g.note ? `<dt>Motivo</dt><dd>${esc(g.note)}</dd>` : ""}</dl>
         ${g.decided_by ? `<p class="label secondary">Decidida por ${esc(g.decided_by)} em ${esc(fmtDate(g.decided_at))}</p>` : ""}
         <div class="row"><button type="button" class="btn btn-outline btn-sm" data-act="alter" data-key="${esc(key)}"${disPropose()}>Propor alteração</button></div></section>`;
     }

@@ -59,7 +59,7 @@ def test_skill_asks_decision_mode_first_and_describes_auto_mode():
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assert "## Modo de decisao" in skill and "choose_decision_mode" in skill
     assert 'reviewer: "IA"' in skill and 'approved_by: "IA"' in skill
-    assert "--no-dry-run" in skill and "request_from_client" in skill
+    assert "--no-dry-run" in skill and "Lacuna vira `explain`" in skill
 
 
 def test_skill_asks_use_case_on_the_page_first():

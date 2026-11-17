@@ -76,7 +76,7 @@ def test_accept_cq_without_status_defaults_to_approved_and_needs_priority(projec
 
 def test_review_refuses_reject_for_gap_and_divergence_and_id_in_edits(project):
     g = ontology_write.propose_edit(project, "add_gap", {"question": "q", "reason": "r", "missing": "m", "evidence": [{"kind": "source", "path": "a", "locator": "1", "quote": "x"}]})
-    with pytest.raises(EditError, match="drop"): ontology_write.review_edit(project, g.id, "reject", "ana", reason="nao")
+    with pytest.raises(EditError, match="ignore"): ontology_write.review_edit(project, g.id, "reject", "ana", reason="nao")
     d = ontology_write.propose_edit(project, "add_divergence", {"topic": "t", "sources": [{"label": "A", "path": "a", "locator": "1", "quote": "x"}, {"label": "B", "path": "b", "locator": "2", "quote": "y"}]})
     with pytest.raises(EditError, match="dismiss"): ontology_write.review_edit(project, d.id, "reject", "ana", reason="nao")
     c = ontology_write.propose_edit(project, "add_competency_question", CQ)

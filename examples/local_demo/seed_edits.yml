@@ -73,7 +73,8 @@ edits:
       missing: data de entrega por pedido
       evidence:
         - {kind: source, path: pedidos.csv, locator: "cabecalho", quote: "id_pedido,id_cliente,dt_pedido,status,vl_total"}
-      decision: request_from_client
+      decision: explain
+      note: pedir ao cliente a data de entrega por pedido
     evidence: pedidos.csv
 
   - type: add_divergence

@@ -94,7 +94,7 @@ def mirror_reserved(project: Project) -> None:
 def data_request(project: Project) -> list[dict[str, Any]]:
     return [
         {"id": g.get("id"), "question": g.get("question"), "missing": g.get("missing"),
-         "use_cases": g.get("use_cases", [])}
+         "use_cases": g.get("use_cases", []), "note": g.get("note", "")}
         for g in load_content(project)["requirements"]["gaps"]
-        if g.get("decision") == "request_from_client"
+        if g.get("decision") == "explain"
     ]

@@ -5,7 +5,7 @@ from akme.ontology import load_content
 def test_new_edit_types_and_vocabularies():
     assert EditType("add_gap") in STAGE1_TYPES and EditType.add_class in ONTOLOGY_TYPES
     assert REQUIRED_FIELDS[EditType.add_gap] == ["question", "reason", "missing", "evidence"]
-    assert "dismiss" in DIVERGENCE_DECISIONS and "request_from_client" in GAP_DECISIONS
+    assert "dismiss" in DIVERGENCE_DECISIONS and "explain" in GAP_DECISIONS and "ignore" in GAP_DECISIONS
     assert CQ_TYPES[0] == "classificacao_hierarquia" and "reserved" in CQ_STATUSES
 
 def test_edit_carries_optional_review():

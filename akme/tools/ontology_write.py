@@ -678,7 +678,7 @@ def review_edit(project: Project, edit_id: str, decision: str, reviewer: str,
     reviewer = resolve_actor(project, reviewer.strip(), "revisar")
     _check_choice("decision", decision, ["accept", "reject"])
     if decision == "reject" and edit.type in (EditType.add_gap, EditType.add_divergence):
-        alt = "drop" if edit.type == EditType.add_gap else "dismiss"
+        alt = "ignore" if edit.type == EditType.add_gap else "dismiss"
         raise EditError(f"{edit.type.value} nao aceita reject; use accept com edits.decision {alt}")
     if decision == "reject" and not reason.strip():
         raise EditError("review_edit com decision reject exige reason")

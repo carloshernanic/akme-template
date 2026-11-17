@@ -47,7 +47,7 @@ def test_present_covers_every_edit_type():
         EditType.update_competency_question: {"id": "CQ-001", "question": "nova"},
         EditType.remove_competency_question: {"id": "CQ-001", "reason": "r"},
         EditType.add_gap: {"id": "L-01", "question": "g?", "reason": "r", "missing": "m"},
-        EditType.update_gap: {"id": "L-01", "decision": "drop"},
+        EditType.update_gap: {"id": "L-01", "decision": "ignore"},
         EditType.add_divergence: {"id": "D-01", "topic": "t", "sources": [], "hypothesis": "h"},
         EditType.update_divergence: {"id": "D-01", "decision": "dismiss"},
         EditType.update_mapping: {"term": "t", "source": "s", "column": "c", "set": {"column": "d"},

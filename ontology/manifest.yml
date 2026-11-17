@@ -34,7 +34,7 @@ tools:
     output_format: yaml
 
   - name: requirements
-    description: requirements_status devolve closed e a lista do que falta para fechar os requisitos; data_request deriva o pedido de dados das lacunas decididas como request_from_client.
+    description: requirements_status devolve closed e a lista do que falta para fechar os requisitos; data_request deriva o pedido de dados das lacunas decididas como explain (com a explicacao em note).
     when: Antes de iniciar a etapa Conceitualizar e ao fim da etapa Especificar.
     requires_approval: false
     output_format: json
