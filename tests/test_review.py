@@ -126,3 +126,19 @@ def test_apply_reviewed_promotes_over_readonly_pending_dir(project):
     ontology_write.review_edit(project, e.id, "accept", "ana", edits={"priority": "low"})
     out = ontology_write.apply_reviewed(project, "ana")
     assert out["summary"]["cqs_accepted"] == 1 and ontology_write.list_pending(project) == []
+
+
+def test_batch_without_new_relation_does_not_read_the_joins(seeded, monkeypatch):
+    from akme.tools import batch, validate as validate_mod
+    def must_not_read(*a, **k):
+        raise AssertionError("lote sem relacao nova nao confere o join no banco")
+    monkeypatch.setattr(validate_mod, "observe_join", must_not_read)
+    t = ontology_write.propose_edit(seeded, "add_term", {"name": "nf", "class": "Pedido", "definition": "nota fiscal"})
+    batch.apply_batch(seeded, [t.id], "ana")
+    calls = []
+    monkeypatch.setattr(validate_mod, "observe_join", lambda *a, **k: calls.append(1) or {"available": False, "reason": "x"})
+    r = ontology_write.propose_edit(seeded, "add_relation", {"name": "atendidoPor", "domain": "Pedido", "range": "Cliente",
+                                                            "label": "atendido por", "multiplicity": "many_to_one",
+                                                            "no_join_reason": "conceitual"})
+    batch.apply_batch(seeded, [r.id], "ana")
+    assert calls, "lote com relacao nova confere o join"

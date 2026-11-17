@@ -64,7 +64,7 @@ def _rmtree(path: Path) -> None:
         shutil.rmtree(path, onerror=lambda func, p, info: _clear_readonly(func, p, info[1]))
 
 
-def promote(staging: Project, project: Project) -> None:
+def promote(staging: Project, project: Project, check_data: bool = True) -> None:
     """Substitui ontology_dir e questions do projeto pelos da copia e atualiza docs/validation.json."""
     target = project.ontology_dir
     incoming = target.with_name(target.name + ".akme-new")
@@ -76,7 +76,7 @@ def promote(staging: Project, project: Project) -> None:
     if staging.questions_path.exists():
         project.questions_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(staging.questions_path, project.questions_path)
-    validate(project)
+    validate(project, check_data=check_data)
 
 
 def _key(f: dict[str, Any]) -> tuple[str, str, str]:
@@ -119,9 +119,12 @@ def apply_batch(project: Project, edit_ids: list[str], approved_by: str) -> dict
     if missing:
         raise EditError(f"edicao pendente nao encontrada: {', '.join(missing)}")
     edits = [pending[i] for i in edit_ids]
+    # conferir o join no banco custa uma consulta por relacao (lento no Databricks); so uma relacao nova muda o
+    # resultado. Nos outros lotes o validate confere so a estrutura.
+    check_data = any(e.type == EditType.add_relation for e in edits)
     staging = stage(project)
     try:
-        before = [f.model_dump() for f in validate(staging).findings if f.level == "error"]
+        before = [f.model_dump() for f in validate(staging, check_data=check_data).findings if f.level == "error"]
         results: list[dict[str, Any]] = []
         for edit_id in edit_ids:
             try:
@@ -129,11 +132,11 @@ def apply_batch(project: Project, edit_ids: list[str], approved_by: str) -> dict
             except Exception as exc:  # noqa: BLE001 - qualquer falha aborta o lote sem promover
                 raise BatchError(f"lote abortado em {edit_id}: {exc}") from exc
         known = {_key(f) for f in before}
-        new_errors = [f.model_dump() for f in validate(staging).findings
+        new_errors = [f.model_dump() for f in validate(staging, check_data=check_data).findings
                       if f.level == "error" and _key(f.model_dump()) not in known]
         if new_errors:
             raise BatchError("lote abortado, erros novos no validate", new_errors)
-        promote(staging, project)
+        promote(staging, project, check_data)
     finally:
         with contextlib.suppress(OSError):  # limpeza do temporario nao deve encobrir o erro do lote
             _rmtree(staging.root)
