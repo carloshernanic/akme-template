@@ -58,11 +58,10 @@ def test_suggestion_uses_contracts_profile_and_identifier_names(seeded):
     assert all(s["payload"] for s in by.values() if s["key"]), "rascunho pronto para propose_edit quando ha chave"
 
 
-def test_suggestion_excludes_source_without_class(seeded):
+def test_suggestion_skips_source_without_class(seeded):
     (seeded.root / "data" / "extra.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     by = {s["source"]: s for s in suggest_sources(seeded)}
-    assert by["extra"]["payload"] == {"source": "extra", "exclude": by["extra"]["payload"]["exclude"]}
-    assert "relacao" in by["extra"]["payload"]["exclude"]
+    assert "extra" not in by
 
 
 def test_proposal_is_checked_against_data(seeded):

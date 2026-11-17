@@ -129,10 +129,11 @@ def test_demo_has_no_problems(seeded):
     assert build_plan(seeded).problems == []
 
 
-def test_source_without_class_is_refused(seeded):
+def test_source_without_class_is_skipped(seeded):
     profile(seeded)
     (seeded.root / "data" / "extra.csv").write_text("a,b\n1,2\n", encoding="utf-8")
-    assert any("extra" in p and "sem classe" in p for p in build_plan(seeded).problems)
+    p = build_plan(seeded)
+    assert p.problems == [] and "extra" in p.sources_skipped
 
 
 def test_source_can_be_excluded_explicitly(seeded):

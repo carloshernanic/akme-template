@@ -176,9 +176,6 @@ def suggest_sources(project: Project) -> list[dict[str, Any]]:
     out = []
     for source in sources:
         if source not in labels:
-            reason = "nao aparece em nenhuma relacao nem mapping da ontologia"
-            out.append({"source": source, "class": None, "key": [], "key_from": "", "types": {}, "notes": [reason],
-                        "payload": {"source": source, "exclude": reason}})
             continue
         columns, rows = _sample(project, source)
         prof = profile_source(source, columns, rows)

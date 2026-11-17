@@ -97,8 +97,6 @@ def labels_for(data: dict[str, Any], project: Project, sources: list[str], exclu
             add(m["source"], cls)
 
     problems = [f"etapa 5 exclui fonte inexistente: {shown([source])}" for source in excluded if source not in sources]
-    problems += [f"fonte {source} sem classe associada: mapeie a fonte ou exclua na etapa 5 (add_source com exclude)"
-                 for source in sources if source not in candidates and source not in excluded]
     labels: dict[str, str] = {}
     for source, options in sorted(candidates.items()):
         if source in excluded:
@@ -416,6 +414,8 @@ def build_plan(project: Project, batch: int = BATCH) -> Plan:
     try:
         sources = adapter.list_sources()
         labels, label_problems = labels_for(data, project, sources, excluded)
+        unmapped = [s for s in sources if s not in labels and s not in excluded and not any(s in p for p in label_problems)]
+        plan.sources_skipped = sorted(set(excluded) | set(unmapped))
         problems = plan.problems
         problems += config_problems + label_problems
         problems += [reserved_problem("class", name) for name in reserved]

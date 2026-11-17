@@ -93,6 +93,7 @@ def current_stage(project: Project) -> dict[str, Any]:
         next_step = "A IA decide e aplica as propostas pendentes (modo automático)."
     name = next(n for num, n, _ in STAGES if num == number)
     return {
+        "project": project.name,
         "number": number, "name": name, "total": len(STAGES),
         "label": f"Etapa {number} de {len(STAGES)}: {name}",
         "missing": missing, "next_step": next_step,

@@ -172,6 +172,22 @@ def apply_reviewed(approved_by: str, stage: str = "all") -> dict[str, Any]:
 
 
 @mcp.tool()
+def set_project_name(name: str) -> dict[str, Any]:
+    """Define e salva o nome do projeto (`project` no akme.yml). Deve ser chamada logo ao comecar a criacao da
+    ontologia quando o nome ainda for `akme-template`, antes da primeira carga no Neo4j."""
+    from .project import CONFIG_FILE, read_yaml, write_yaml
+    clean = str(name or "").strip()
+    if not clean:
+        raise ValueError("nome do projeto nao pode ser vazio")
+    p = project()
+    cfg_path = p.root / CONFIG_FILE
+    cfg = read_yaml(cfg_path) if cfg_path.exists() else {}
+    cfg["project"] = clean
+    write_yaml(cfg_path, cfg)
+    return {"project": clean, "saved_in": str(cfg_path)}
+
+
+@mcp.tool()
 async def choose_decision_mode(ctx: Context, mode: str = "", authorized_by: str = "") -> dict[str, Any]:
     """Primeiro passo de todo projeto: pergunta ao humano quem decide as propostas. human (padrao): o humano
     decide cada uma. auto: a IA decide e aplica em nome de quem autorizou (reviewer e approved_by 'IA'); so
