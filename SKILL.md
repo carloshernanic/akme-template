@@ -140,8 +140,7 @@ Tools: `validate` (com `oops=true` quando houver rede), `evaluate`, `export`.
 2. Rode `evaluate`. Os `expects` de cada pergunta sao testes estruturais; `fail` significa que a ontologia nao sustenta a pergunta.
 3. Para a comparacao com e sem ontologia, peca ao consultor para rodar `akme eval --callable modulo:funcao` com o agente dele (ver "Como interpretar o eval").
 4. Interprete os relatorios e proponha correcoes como novos `propose_edit`. Nunca aplique correcao sem voltar ao passo de aprovacao.
-
-**Pare e pergunte:** o humano decide se volta para a etapa 2 ou 3, ou se segue para publicar. A decisao final de qualidade e humana; o validate e o eval sao verificadores externos, nao juizes.
+5. **Avance direto para a Etapa 5 (Neo4j):** assim que o `validate` passar sem erros (e o `evaluate` estiver ok), nao pare nem pergunte se pode publicar: siga direto para a Etapa 5 preparando a publicacao no Neo4j (`suggest_sources`, `add_source` por tabela com `open_review`/`wait_for_review` no modo humano, e `publish --target neo4j` em dry-run). So pare na etapa 4 se houver erros ou falhas que exijam voltar para a etapa 2 ou 3.
 
 ### 5. Publicar (LOT: publicacao)
 

@@ -84,7 +84,7 @@ def current_stage(project: Project) -> dict[str, Any]:
         if not published:
             missing.append("nenhum artefato em docs/publish/")
         next_step = ("Decida as tabelas na página e aplique." if by_stage[5]
-                     else "No chat, peça o publish em dry-run para o alvo do cliente.")
+                     else "Avance para a etapa 5: chame suggest_sources, proponha add_source por tabela e rode publish --target neo4j em dry-run.")
     else:
         number = 6
         next_step = "Toda mudança começa por uma CQ nova ou uma alteração proposta na página."
