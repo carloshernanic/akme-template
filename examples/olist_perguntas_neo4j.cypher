@@ -1,7 +1,6 @@
 // Perguntas de competencia do Olist (CQ-006, CQ-007 e CQ-008 de validation/questions.yml) respondidas no grafo do
 // Neo4j carregado pelo akme. Os dados e a ontologia do Olist nao estao no repositorio: estas consultas valem para o
-// grafo do registro de execucao em docs/exportacao-neo4j/task-9-aceitacao.md (Olist completo, com as tres correcoes
-// descritas la). Nenhum valor de linha aparece aqui: o pedido da CQ-008 entra pelo parametro $pedido.
+// grafo do Olist completo carregado na aceitacao do exportador. Nenhum valor de linha aparece aqui: o pedido da CQ-008 entra pelo parametro $pedido.
 //
 // Cada bloco comeca com "// pergunta: <id>". As consultas aplicam as regras da ontologia do Olist:
 //   C-001: uma avaliacao por pedido, a de review_answer_timestamp mais recente (texto ISO, ordena como data);

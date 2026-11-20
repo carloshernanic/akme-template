@@ -1,6 +1,6 @@
 # Exportar a ontologia e os dados para o Neo4j
 
-Guia de uso, do primeiro uso até ver o grafo. O motivo de cada escolha e as provas estão nas páginas de `docs/exportacao-neo4j/` (visão geral em `index.md`, provas em `task-9-aceitacao.md`; `uv run --extra docs mkdocs serve`).
+Guia de uso, do primeiro uso até ver o grafo. O motivo de cada escolha e o comportamento em cada caso estão em [Referência do exportador](#referência-do-exportador), no fim.
 
 **O que você vai ter no fim:** os dados do cliente como um grafo no Neo4j, com a ontologia junto: conceitos, definições, hierarquia e relações como setas.
 
@@ -415,8 +415,6 @@ Cuidados com dado real de cliente, antes de usar o console:
 - o Browser local envia telemetria por padrão (`client.allow_telemetry=false` na configuração do servidor desliga; não testado);
 - combine com o cliente antes.
 
-Detalhes e fontes: `docs/exportacao-neo4j/pesquisa-visualizacao.md`, seções 1.3 e 1.4.
-
 Cada nó de dado tem:
 - o label da classe, por exemplo `Pedido`;
 - uma propriedade por coluna preenchida, com o nome da coluna e o tipo aprovado;
@@ -518,7 +516,7 @@ O comando não mostra nada quando dá certo. Depois, rode a carga de novo (seç�
 ## Limites conhecidos
 
 - **Tamanho:** não há teto de linhas. Cada tabela é lida em blocos de 5.000 linhas, e o akme guarda em memória só as chaves e os valores de join.
-- **Memória e tempo:** no Olist inteiro (cerca de 446 mil linhas, com os comentários acentuados das avaliações), o dry-run levou 2,24 s com 144 MB, e a carga num banco vazio levou 34,1 s, com 356 MB de memória residente máxima no processo do akme; na demo, 0,39 s e 3,18 s. Medidos com `/usr/bin/time -l` sobre o `akme publish`, uma vez, numa máquina (Apple M5, 24 GB), na rodada final. O Olist é um registro de execução (dados e ontologia fora do repositório, numa cópia com três correções); detalhes em `docs/exportacao-neo4j/task-9-aceitacao.md`. O driver do Neo4j guarda parte da memória do texto acentuado em memória nativa, que o Python não libera. Em máquinas com pouca memória, feche outros programas antes de carregar.
+- **Memória e tempo:** no Olist inteiro (cerca de 446 mil linhas, com os comentários acentuados das avaliações), o dry-run levou 2,24 s com 144 MB, e a carga num banco vazio levou 34,1 s, com 356 MB de memória residente máxima no processo do akme; na demo, 0,39 s e 3,18 s. Medidos com `/usr/bin/time -l` sobre o `akme publish`, uma vez, numa máquina (Apple M5, 24 GB), na rodada final. O Olist é um registro de execução (dados e ontologia fora do repositório, numa cópia com três correções). O driver do Neo4j guarda parte da memória do texto acentuado em memória nativa, que o Python não libera. Em máquinas com pouca memória, feche outros programas antes de carregar.
 - **Memória do plano proporcional ao número de chaves:** o plano não guarda as linhas, mas guarda um `_id` por linha da tabela que está lendo e uma contagem por valor de cada coluna de join. A ordem de grandeza: no Olist (446 mil linhas), o dry-run usou cerca de 144 MB; extrapolando, para 10 milhões de linhas, de 1,5 a 2 GB só de chaves, e cerca de 13 minutos de carga; 100 milhões não cabem numa máquina comum.
 - **Carga sempre completa, sem incremental:** cada carga lê a origem inteira e regrava todos os nós e arestas, mesmo que só uma linha tenha mudado.
 - **Duas cargas ao mesmo tempo:** a marca `_carga` tem precisão de milissegundos, e a trava da seção 3.3 (regra 4) faz a carga mais antiga parar sem gravar nem apagar mais nada. Sobra uma janela de milissegundos: um bloco da carga antiga que já estava em andamento quando a nova gravou a marca ainda pode terminar; a sincronização da nova apaga o que ele gravou e a nova não regravou. Se a carga nova começar entre os dois comandos da sincronização, a antiga para com `outra carga deste projeto comecou durante a sincronizacao`: rode a carga de novo.
@@ -533,3 +531,93 @@ O comando não mostra nada quando dá certo. Depois, rode a carga de novo (seç�
 - **Tutorial só nesta máquina:** o `akme review` serve o tutorial em `127.0.0.1`. Para um time, o arquivo `docs/publish/neo4j_guia.html` precisa de um endereço com CORS que todos alcancem. Não testamos o `:guide` no Query do console da Aura.
 - **Legenda automática:** sem legenda decidida na etapa 5, o akme escolhe pelo nome da coluna, sem julgamento: uma coluna de texto com cara de nome, preenchida em 90% das linhas; se não houver, a classe e a chave, mais a primeira coluna mapeada que não é chave nem join e está preenchida em metade das linhas. Para outra legenda, decida na etapa 5.
 - **Legenda de quem já carregou:** quem carregou antes de 13/11/2026 vê as legendas mudarem na próxima carga (por exemplo, `Cliente 1 SP` vira `Construtora Horizonte`). Não é preciso refazer a etapa 5: a regra automática vale para as tabelas já aprovadas.
+
+## Referência do exportador
+
+Para quem mexe no código. O uso está nas partes acima.
+
+### Módulos
+
+O código está em `akme/tools/`:
+
+| Módulo | Papel |
+|---|---|
+| `neo4j_values.py` | Converte cada célula para o tipo aprovado, calcula a identidade `_id` do nó e guarda os nomes reservados |
+| `neo4j_plan.py` | Plano da carga (dry-run): lê em blocos, confere e conta, sem guardar as linhas |
+| `neo4j_onto.py` | Camada `Conceito`, espelho do `schema.ttl`, com os termos de cada classe nas propriedades `atributos` e `atributos_detalhes`; textos de `_descricao` |
+| `neo4j_schema.py` | Esquema descritivo para o LLM, em Markdown, determinístico |
+| `neo4j_guide.py` | Tutorial do projeto no Neo4j Browser e consultas salvas, determinísticos, só de navegação |
+| `neo4j_load.py` | Proteção do destino, carga, sincronização, conferência, artefato e textos da CLI |
+| `neo4j_page.py` | Aba "Exportar" da página: `.env`, contêiner, prévia com o estado do banco e carga confirmada |
+
+### Detalhes do modelo
+
+- **Esquema do banco:** uma restrição de unicidade de `_id` por label (`akme_uniq_<Label>`), uma composta para o `Conceito` (`akme_conceito_uniq_projeto_nome`), `akme_projeto_uniq` para a marca e um índice por coluna-alvo de join (`akme_idx_<Label>__<coluna>_<hash>`).
+- **Marca:** `(:_AkmeProjeto {projeto, name, esquema, carga_atual})`, gravada na primeira carga; `carga_atual`, `name` e `esquema` são regravados a cada carga.
+- **Nomes reservados:** os labels `Conceito`, `Termo` e `_AkmeProjeto`, as propriedades `_id`, `_projeto`, `_carga` e `_descricao` e, como nome de relação, `RELACAO_ONTOLOGIA`, `SUBCLASSE_DE` e `TEM_TERMO`. Uma classe, relação ou coluna da origem com um desses nomes é problema no plano, e a carga é recusada. `Termo` e `TEM_TERMO` continuam reservados, embora a carga não grave mais nós `Termo` (os termos viraram atributos do `Conceito`).
+- **Dados como parâmetro:** os valores vão sempre em `$rows`, `$projeto`, `$carga`, `$descricao` e `$esquema`. No texto das consultas só entram identificadores, entre crases.
+- **Nova tentativa em erro transitório:** cada bloco de nós e de arestas, cada comando da ontologia e cada restrição ou índice é gravado numa transação gerenciada (`execute_write`), que o driver repete em erro transitório. Repetir é seguro porque tudo é `MERGE`. Só os dois comandos da sincronização (`CALL ... IN TRANSACTIONS`) usam transação implícita, como o Neo4j exige.
+- **Conferência:** conta nós por label, arestas por padrão `(:Dominio)-[:relacao]->(:Alcance)` e nós `Conceito`. Não compara valores; `verification.ok` quer dizer que as contagens do banco batem com as da origem lida nesta carga.
+
+### O que o exportador faz com cada caso
+
+| Caso | Resultado |
+|---|---|
+| Fonte sem classe, com mais de uma classe ou classe em mais de uma fonte | Recusa |
+| Fonte sem chave; chave vazia ou repetida | Recusa |
+| Valor que não converte sem perda, como `03/07/2026` em `date` | Recusa |
+| Tipo, fonte ou coluna inexistente na configuração; chave ou join com tipo diferente de `string` | Recusa |
+| Classe, relação ou coluna com nome reservado | Recusa |
+| Nome de fonte, coluna ou contrato com caractere invisível (BOM `U+FEFF`, espaço de largura zero, espaço não separável, controle) que não bate com a origem | Recusa, com o caractere marcado como `<U+FEFF>` e o que fazer, no plano, no `add_source` e na conferência dos contratos |
+| Bloco `neo4j` do `akme.yml` com outra chave que não `descricao_nos_dados`, ou com valor que não é `true`/`false` | Recusa |
+| Coluna de join ausente, ou relação em que nenhuma linha encontra alvo | Recusa |
+| Banco vazio, ou só com este projeto | Aceita; com este projeto, atualiza e sincroniza |
+| Banco com outro projeto, com mais de um projeto, com nós sem marca ou com nós que não vieram do akme | Recusa antes de gravar. A aba "Exportar" recusa também antes da confirmação |
+| Banco carregado pela exportação antiga (nós `Resource` ou `_GraphConfig` sem `_projeto`, ou a restrição antiga) | Recusa, com o comando de limpeza em "Banco da exportação antiga"; não há migração |
+| Falha num lote, na ontologia ou na leitura da origem | Erro dizendo o lote e quantos já foram gravados; nada é apagado; repetir é seguro |
+| Origem com outro número de linhas que o plano, durante a carga | Recusa antes de apagar |
+| Linha de CSV com colunas a mais ou a menos que o cabeçalho, ou linha de XLSX com valor além do cabeçalho | Recusa, com a linha onde começa a primeira |
+| Fonte com chave aprovada e nenhuma linha | Recusa: a sincronização apagaria o label inteiro |
+| Classe, relação ou coluna de join com barra invertida seguida de `u` ou com caractere de controle | Recusa: o Cypher troca escapes unicode antes do parser, e um deles poderia fechar a crase do identificador |
+| Neo4j anterior ao 5.23 | Recusa antes de gravar |
+| Outra carga do mesmo projeto começou depois desta | A mais antiga para no bloco seguinte, sem gravar nem apagar mais nada; a mais nova regrava tudo e, na sua sincronização, apaga o que a antiga gravou antes e ela não regravou |
+| Remoção prevista acima de 20% de alguma classe | A aba "Exportar" pede o número total de remoções digitado; sem ele, nada é gravado. A CLI não pede (ver "O que falta") |
+| Classe de métrica com mais de um mapping de métrica | Avisa; no `Conceito` vale o primeiro |
+| Parte das linhas de uma relação sem alvo | Avisa; essas linhas ficam sem aresta |
+| Medida sem tipo numérico declarado | Avisa; carrega como texto |
+| Banco diverge da previsão depois da carga | Erro; os dados continuam gravados |
+
+As recusas de dados acontecem no dry-run, antes de conectar ao banco. As de destino acontecem antes de qualquer gravação.
+
+### Por que este caminho
+
+| Decisão | Motivo |
+|---|---|
+| Neo4j como alvo | Pedido de Gabriel, da McKinsey |
+| Cypher puro, sem plugin | O n10s não existe no Aura e é projeto Labs, sem aprovação para produção. Decisão de Mateus em 11/11/2026 |
+| Ontologia como `Conceito`, espelho do `schema.ttl`, com uma seta `RELACAO_ONTOLOGIA` por relação (nome em `nome`) | Quem abre o Browser lê conceitos como nós e relações como setas, sem escrever Cypher; o tipo próprio evita que o mapa nativo desenhe ligações de dado que não existem |
+| `_descricao` nos dados ligada por padrão | Quem navega vê a definição ao clicar no nó. Custa +14% a +43% de disco no Olist; desliga-se com `descricao_nos_dados: false` |
+| Leitura em blocos nos quatro adapters, sem teto de linhas | O `olist_order_items_dataset` tem 112.650 linhas |
+| Restrição única por label antes do `MERGE` | Sem ela, cada `MERGE` varre o label inteiro |
+| Sincronizar a cada carga | As contagens do banco batem com as da origem lida nesta carga, inclusive linhas apagadas e relações que saíram. A conferência só conta; a comparação de valores existe só na amostra da demo (`examples/local_demo/amostra_valores.py`) |
+| Chave e tipo decididos na etapa 5, com sugestão automática | Identidade estável, tipo que não depende dos dados, nada escrito à mão, decisão versionada |
+| Dinheiro como `float` | O Neo4j não tem tipo decimal; não serve para uso contábil |
+| Carga só pelo humano, na CLI ou na aba "Exportar" | A carga altera o banco do cliente; a tool MCP só roda em dry-run (`tests/test_server_publish_guard.py`) |
+
+### O que falta
+
+- **CLI sem confirmação:** desde o commit `d37da76`, `akme publish --target neo4j --no-dry-run` grava sem mostrar o estado do banco, sem perguntar e sem pedir o número na remoção acima de 20%. A recusa de destino continua, dentro da carga. A seção 3.2 deste guia ainda descreve as confirmações, e 19 testes em `tests/test_neo4j_*.py` esperam o comportamento anterior (as confirmações da CLI, os nós `Termo` e a aba `tab-exportar`).
+- Corrigir na ontologia do Olist da raiz as três pendências que a aceitação corrigiu só numa cópia.
+- Servidor MCP do Neo4j e perguntas de competência em Cypher como teste.
+- Aviso de grafo desconectado no dry-run.
+- Exigir definição em `add_relation` e checar relações sem definição no validador; hoje a `_descricao` das arestas costuma ser só o rótulo.
+- Snowflake e Databricks com leitura em blocos testada só com cursor falso.
+- Decidir o destino do alvo `rdf`, cujo YARRRML perde relações e tipos.
+- Decidir se a aresta sem definição, com `_descricao` ligada, deve receber o rótulo ou ficar sem a propriedade.
+- Testar no Aura.
+- Unificar como CSV e XLSX aparam espaços (hoje só a planilha apara).
+
+**Fora do Neo4j:**
+
+- A tool MCP ainda executa `snowflake`, `databricks` e `rdf` sem confirmação.
+- `connect` ignora o `.r2rml` do `teste_acme`.

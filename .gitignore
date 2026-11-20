@@ -58,8 +58,5 @@ ontology/pending/activity.tmp
 !.agents/skills/akme/
 .gemini
 
-# Site MkDocs gerado
-site/
-
 # copias da ontologia guardadas pelo akme reset
 backups/
