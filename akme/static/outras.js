@@ -117,6 +117,10 @@
     classes: new Set(["class", "term"]),
     rels: new Set(["relation"]),
     mapping: new Set(["mapping", "constraint", "precedence", "source"]),
+    // alteracoes do que a etapa 1 ja aplicou: aparecem embaixo da tela da etapa 1 correspondente
+    uc: new Set(["uc"]),
+    cq: new Set(["cq"]),
+    gd: new Set(["gap", "div"]),
   };
   function allowedGroups() {
     const f = O.ctx && O.ctx.groupFilter;
@@ -190,7 +194,10 @@
   const REQUIRED_TEXT = new Set(["label", "comment", "definition", "rule", "reason", "meaning", "value", "name", "description"]);
   const emptied = (it) => Object.entries(diffOf(it)).some(([k, v]) => REQUIRED_TEXT.has(k) && !Array.isArray(v) && !v);
   function missing(M) {
-    const items = visItems(M), m = [];
+    return missingOf(visItems(M));
+  }
+  function missingOf(items) {
+    const m = [];
     const und = items.filter((it) => !it.dec).length;
     const nr = items.filter((it) => it.dec === "rej" && !reasonOf(it)).length;
     const ne = items.filter((it) => it.dec === "ok" && emptied(it)).length;
@@ -566,8 +573,22 @@
   function render(focusSel) {
     if (!O.el || !O.M) return;
     const M = O.M, auto = isAuto();
+    // dentro de um passo da etapa 1: so os cartoes; quem salva e o "Conferir e salvar" da etapa 1
+    if (O.ctx.embedded) {
+      O.el.innerHTML = visItems(M).length
+        ? `<div class="e1 ou ou-embedded"><h3 class="e1-sub">Alterações do que já foi aplicado</h3>
+          <p class="e1-lead">A IA propõe mudar itens já aprovados. Aceite ou rejeite cada uma.</p>
+          <section class="e1-screen" data-screen="alteracoes">${screenHtml(M)}</section></div>` : "";
+      if (focusSel) { const t = $(focusSel, O.el); if (t) t.focus({ preventScroll: true }); }
+      writeDraft(M);
+      if (O.ctx.onCount) O.ctx.onCount(remainingOf(M));
+      return;
+    }
     const otherE1 = (window.AkmeEtapa1 && window.AkmeEtapa1.collectOps) ? window.AkmeEtapa1.collectOps(O.ctx.data) : [];
-    const any = visItems(M).length || visOwn(M).length || planOps(M, true).length || otherE1.length;
+    const away = elsewhere()[0];
+    const any = visItems(M).length || visOwn(M).length || planOps(M, true).length || otherE1.length || away;
+    // rodape: decidir o que falta aqui, ir ao passo com pendencia ou salvar tudo
+    const footLabel = missing(M).length ? "Próxima decisão ↓" : away ? `Ir para ${away.label} →` : "Conferir e salvar";
     const f = O.ctx && O.ctx.groupFilter;
     const lead = f === "classes" ? "Revise, edite ou adicione classes e seus atributos."
       : f === "rels" ? "Defina e revise os relacionamentos entre classes."
@@ -576,7 +597,7 @@
     O.el.innerHTML = `<div class="e1 ou${auto ? " is-auto" : ""}">${auto ? '<p class="e1-auto">Modo automático: a IA decide e aplica. Aqui você acompanha.</p>' : ""}
       <p class="e1-lead">${lead}</p>
       <section class="e1-screen" data-screen="outras">${screenHtml(M)}</section>
-      ${any && !auto ? `<div class="e1-foot"><span class="e1-msg" id="ou-msg" role="status" aria-live="polite"></span><button type="button" class="btn" data-o="save">Conferir e salvar</button></div>` : ""}</div>`;
+      ${any && !auto ? `<div class="e1-foot"><span class="e1-msg" id="ou-msg" role="status" aria-live="polite"></span><button type="button" class="btn" data-o="save">${esc(footLabel)}</button></div>` : ""}</div>`;
     if (focusSel) { const t = $(focusSel, O.el); if (t) t.focus({ preventScroll: true }); }
     if (O.notice) msg(O.notice);
     writeDraft(M);
@@ -954,22 +975,31 @@
   }
 
   // ---------- conferir e salvar ----------
+  // outros passos do menu com algo ainda sem decisao: [{id, label}]
+  function elsewhere() { return (O.ctx && O.ctx.pendingElsewhere ? O.ctx.pendingElsewhere() : []); }
+  // leva ao primeiro item que falta, aberto; false se nao falta nada aqui
+  function goFirstMissing() {
+    if (!O.M || !O.el) return false;
+    const first = visItems(O.M).find((it) => !done(it) || (it.dec === "ok" && emptied(it)));
+    if (!first) return false;
+    first.open = true;
+    if (first.dec === "ok") { first.det = true; first.editing = true; }
+    render(!first.dec ? `[data-o="dec"][data-id="${first.id}"][data-v="ok"]`
+      : first.dec === "rej" ? (first.why === "outro" ? `#ou-r-${first.id}` : `[data-o="why"][data-id="${first.id}"]`) : `[data-of="val"][data-id="${first.id}"]`);
+    const el = $(`[data-ou="${first.id}"]`, O.el);
+    if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    return true;
+  }
   function onSave() {
-    const M = O.M, falta = missing(M), curItems = visItems(M);
+    const M = O.M, falta = missing(M);
     if (falta.length) {
-      // leva ao primeiro item que falta, aberto
-      const first = curItems.find((it) => !done(it) || (it.dec === "ok" && emptied(it)));
-      if (first) {
-        first.open = true;
-        if (first.dec === "ok") { first.det = true; first.editing = true; }
-        render(!first.dec ? `[data-o="dec"][data-id="${first.id}"][data-v="ok"]`
-          : first.dec === "rej" ? (first.why === "outro" ? `#ou-r-${first.id}` : `[data-o="why"][data-id="${first.id}"]`) : `[data-of="val"][data-id="${first.id}"]`);
-        const el = $(`[data-ou="${first.id}"]`, O.el);
-        if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
-      }
+      goFirstMissing();
       msg(`<b>Falta:</b> ${falta.map(esc).join("; ")}`, "warn");
       return;
     }
+    // salvar grava a rodada inteira: com decisao pendente em outro passo, o botao leva ate ele
+    const away = elsewhere()[0];
+    if (away && O.ctx.goStep) { O.ctx.goStep(away.id); return; }
     const e1Ops = (window.AkmeEtapa1 && window.AkmeEtapa1.collectOps) ? window.AkmeEtapa1.collectOps(O.ctx.data) : [];
     const ouOps = planOps(M);
     if (!ouOps.length && !e1Ops.length) { msg("Nada para salvar."); return; }
@@ -1149,5 +1179,12 @@
     if (O.M) O.M.apOpen = true; else O.showApplied = true;
   }
 
-  window.AkmeOutras = { mount, remaining, pendingCount, covers, showApplied, countFor, collectOps, clearExternalDraft };
+  // o que falta decidir num passo do menu, com as decisoes ja feitas nesta pagina
+  function missingFor(data, filter) {
+    const grp = FILTER_GROUPS[filter];
+    if (!grp) return [];
+    return missingOf(buildModel(data, O.M).items.filter((it) => grp.has(it.v.group)));
+  }
+
+  window.AkmeOutras = { mount, remaining, pendingCount, covers, showApplied, countFor, collectOps, clearExternalDraft, missingFor, goFirstMissing };
 })();

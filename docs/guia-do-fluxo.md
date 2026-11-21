@@ -133,8 +133,8 @@ Na página (vista **Revisão**, a inicial):
 
 - A barra lateral mostra o **fluxo LOT** com a etapa atual. O cabeçalho diz "Etapa X de 6" e,
   enquanto os requisitos estão abertos, uma faixa no topo diz o que falta.
-- Um seletor no topo separa **Etapa 1** (telas Caso de uso, Perguntas, Lacunas e divergências e
-  Glossário; só aparecem as que têm algo a decidir) de **Outras propostas** (classes, relações,
+- Um seletor no topo separa **Etapa 1** (telas Caso de uso, CQs e glossário, e Lacunas e
+  divergências; só aparecem as que têm algo a decidir) de **Outras propostas** (classes, relações,
   termos, mapeamentos, restrições, precedências, fontes e alterações do que já foi aplicado). O
   número ao lado de cada um cai conforme você decide.
 - Cada proposta é um cartão enxuto: título, fonte citada, **ver detalhes** (evidência com

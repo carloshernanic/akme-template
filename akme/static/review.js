@@ -74,7 +74,7 @@
     { group: "Configuração", items: [{ id: "inicio", num: "1", label: "Início" }] },
     { group: "Especificar", items: [
       { id: "uc", num: "2", label: "Caso de uso" },
-      { id: "cq", num: "3", label: "CQs" },
+      { id: "cq", num: "3", label: "CQs e glossário" },
       { id: "gd", num: "4", label: "Lacunas e divergências" },
     ] },
     { group: "Conceitualizar", items: [
@@ -95,11 +95,22 @@
   const OU = () => window.AkmeOutras || null;
   const lean = () => E1_STEPS.has(S.step) || (OU_STEPS.has(S.step) && !!OU());
   function stepCount(id) {
-    if (E1_STEPS.has(id) && E1() && E1().countFor) return E1().countFor(S.data, id);
+    // na etapa 1 contam tambem as alteracoes do que ja foi aplicado, mostradas embaixo da tela
+    if (E1_STEPS.has(id) && E1() && E1().countFor) return E1().countFor(S.data, id) + (OU() && OU().countFor ? OU().countFor(S.data, id) : 0);
     if (OU_STEPS.has(id) && OU() && OU().countFor) return OU().countFor(S.data, id);
     return 0;
   }
   function updateE1Count() { renderFlowNav(); renderNav(); }
+  // passos onde se decide alguma coisa, na ordem do menu
+  const DECIDE_STEPS = ["uc", "cq", "gd", "classes", "rels", "mapping"];
+  const stepLabel = (id) => (FLOW_GROUPS.flatMap((g) => g.items).find((it) => it.id === id) || {}).label || id;
+  // passos (fora o atual) com algo ainda sem decisao; decidido e nao salvo ja nao conta
+  function pendingElsewhere() {
+    return DECIDE_STEPS.filter((id) => id !== S.step && stepCount(id) > 0 && (
+      (E1_STEPS.has(id) && E1() && E1().missingFor ? E1().missingFor(S.data, id).length : 0)
+      || (OU() && OU().missingFor ? OU().missingFor(S.data, id).length : 0)))
+      .map((id) => ({ id, label: stepLabel(id) }));
+  }
   function updateOuCount() { renderFlowNav(); renderNav(); }
 
   // ---------- utilidades ----------
@@ -154,8 +165,9 @@
     const domainClasses = (S.data.classes || []).filter((c) => !["Entity", "Relation", "Rule", "Metric"].includes(c.name));
     if (id === "inicio") return Boolean(S.setupSaved || (S.data.decision_mode && S.data.decision_mode.authorized_by));
     if (id === "uc") return Boolean((r.use_cases || []).length || r.no_use_case);
-    if (id === "cq") return Boolean((r.competency_questions || []).length);
-    if (id === "gd") return Boolean((r.gaps || []).length || (r.divergences || []).length || (domainClasses.length && stepCount("gd") === 0));
+    // o glossario e decidido no mesmo passo: com sigla pendente, o passo ainda nao terminou
+    if (id === "cq") return Boolean((r.competency_questions || []).length) && !stepCount("cq");
+    if (id === "gd") return !stepCount("gd") && Boolean((r.gaps || []).length || (r.divergences || []).length || domainClasses.length);
     if (id === "classes") return Boolean(domainClasses.length);
     if (id === "rels") return Boolean((S.data.relations || []).length);
     if (id === "mapping") return Boolean((S.data.mappings || []).length || (S.data.sources || []).length);
@@ -1027,14 +1039,22 @@
     if (el) el.hidden = true;
     const isE1 = E1_STEPS.has(S.step) && !!E1();
     const isOu = OU_STEPS.has(S.step) && !!OU();
+    // na etapa 1, as alteracoes do que ja foi aplicado (CQ, lacuna, divergencia) aparecem embaixo da tela
+    const ouInE1 = isE1 && !!OU() && OU().countFor(S.data, S.step) > 0;
     if (root) root.hidden = !isE1;
-    if (ouRoot) ouRoot.hidden = !isOu;
+    if (ouRoot) ouRoot.hidden = !(isOu || ouInE1);
     if (one) one.hidden = isE1 || isOu;
+    const goStep = (id) => { setStep(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
     if (isE1) {
+      // as alteracoes montam antes: o rodape da etapa 1 ja nasce sabendo o que falta nelas
+      if (ouInE1) OU().mount(ouRoot, { data: S.data, api: S.api, reviewer: S.reviewer, groupFilter: S.step, embedded: true, toast,
+        onCount: () => { updateOuCount(); if (E1().refreshFoot) E1().refreshFoot(); }, setBusy: (v) => { S.busy = !!v; } });
       E1().mount(root, { data: S.data, api: S.api, reviewer: S.reviewer, stepFilter: S.step, toast, onDone: afterE1, onCount: updateE1Count,
-        onOutras: () => setStep("classes") });
+        onOutras: () => setStep("classes"), pendingElsewhere, goStep,
+        ouMissing: () => (ouInE1 && OU().missingFor ? OU().missingFor(S.data, S.step) : []) });
     } else if (isOu) {
       OU().mount(ouRoot, { data: S.data, api: S.api, reviewer: S.reviewer, groupFilter: S.step, toast, onDone: afterOu, onCount: updateOuCount,
+        pendingElsewhere, goStep,
         setBusy: (v) => { S.busy = !!v; }, refresh: async () => { try { await reload(); } catch (e) {} render(); } });
     }
   }
@@ -1373,7 +1393,9 @@
     buildCards();
     const setupDone = !!(dm.chosen && data.project && data.project !== "akme-template");
     const saved = read("akme-step");
-    const initialStep = !setupDone ? "inicio" : (saved && ALL_STEPS.has(saved) ? saved : "uc");
+    let initialStep = !setupDone ? "inicio" : (saved && ALL_STEPS.has(saved) ? saved : "uc");
+    // o passo salvo pode nao ter mais nada (ex.: glossario proposto depois das lacunas): abre onde ha decisao
+    if (E1_STEPS.has(initialStep) && !stepCount(initialStep)) initialStep = [...E1_STEPS].find((id) => stepCount(id)) || initialStep;
     setStep(initialStep, false);
     render();
     if (S.api) poll();

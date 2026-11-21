@@ -1,4 +1,4 @@
-// Revisao da etapa 1 em tres telas: caso de uso, perguntas, lacunas e divergencias.
+// Revisao da etapa 1 em tres telas: caso de uso, perguntas e glossario, lacunas e divergencias.
 // So muda a pagina: as decisoes viram as mesmas chamadas de /api/review e /api/propose de sempre.
 // O review.js monta este modulo quando o seletor esta em "Etapa 1"; o resto da aba segue na caixa de entrada.
 (function () {
@@ -34,9 +34,8 @@
   const WHY_L = Object.fromEntries(WHY);
   const STEPS = [
     { id: "uc", title: "Caso de uso", lead: "Marque os que valem para o projeto." },
-    { id: "cq", title: "Perguntas", lead: "Aceite, rejeite ou escreva a sua." },
+    { id: "cq", title: "Perguntas e glossário", lead: "Aceite, rejeite ou escreva a sua." },
     { id: "gd", title: "Lacunas e divergências", lead: "Decida o que fazer com cada uma." },
-    { id: "gl", title: "Glossário", lead: "Confira cada sigla." },
   ];
 
   const E = { el: null, ctx: null, M: null, wired: null };
@@ -184,17 +183,17 @@
       if (lost) m.push("caso de uso de " + n(lost, "pergunta sua", "perguntas suas"));
       const anyOk = ai.some((c) => c.dec === "ok") || M.ownCqs.length || M.applied.cqs.some((q) => q.status === "approved");
       if (!anyOk) m.push("aceitar ou escrever pelo menos uma pergunta");
+      // o glossario e decidido na mesma tela das perguntas
+      const gu = M.gls.filter((g) => !g.dec).length, gr = M.gls.filter((g) => g.dec === "rej" && !glReason(g)).length;
+      const ge = M.gls.filter((g) => g.dec === "ok" && !g.meaning.trim()).length;
+      if (gu) m.push(`decidir ${gu} ${gu === 1 ? "sigla" : "siglas"}`);
+      if (gr) m.push(`motivo de ${gr} ${gr === 1 ? "sigla rejeitada" : "siglas rejeitadas"}`);
+      if (ge) m.push(`significado de ${ge} ${ge === 1 ? "sigla" : "siglas"}`);
     } else if (step === 2) {
       const und = M.gds.filter((c) => !c.choice || (c.choice === "precedence" && !c.winner)).length;
       const nt = M.gds.filter((c) => c.choice && needOf(c) && !c.text.trim()).length;
       if (und) m.push(`decidir ${und} ${und === 1 ? "item" : "itens"}`);
       if (nt) m.push(`escrever o que falta em ${nt} ${nt === 1 ? "item" : "itens"}`);
-    } else if (step === 3) {
-      const und = M.gls.filter((g) => !g.dec).length, nr = M.gls.filter((g) => g.dec === "rej" && !glReason(g)).length;
-      const ne = M.gls.filter((g) => g.dec === "ok" && !g.meaning.trim()).length;
-      if (und) m.push(`decidir ${und} ${und === 1 ? "sigla" : "siglas"}`);
-      if (nr) m.push(`motivo de ${nr} ${nr === 1 ? "sigla rejeitada" : "siglas rejeitadas"}`);
-      if (ne) m.push(`significado de ${ne} ${ne === 1 ? "sigla" : "siglas"}`);
     }
     return m;
   }
@@ -287,10 +286,8 @@
     const fora = out.length ? `<details class="e1-more"><summary>Fora dos casos escolhidos (${out.length})</summary>${out.map((c) => `<div class="e1-line mute"><span class="q">${esc(c.q)}</span></div>`).join("")}<p class="p secondary">Não pedem decisão: ficam de fora junto com o caso de uso.</p></details>` : "";
     const ap = M.applied.cqs;
     const aplicadas = ap.length ? `<div class="e1-applied"><h3 class="e1-sub">Perguntas aplicadas (${ap.length})</h3><div class="e1-cqs">${ap.map((q) => `<div class="e1-line ok"><span class="i" aria-hidden="true">✓</span><span class="q">${esc(q.question)}${q.status === "reserved" ? ' <span class="e1-seu">teste</span>' : ""}</span><span class="m">${esc(PRIO_L[q.priority] || q.status || "")}${q.reviewed_by ? " · " + esc(q.reviewed_by) : ""}</span></div>`).join("")}</div></div>` : "";
-    const apGl = (!M.gls.length && (M.applied.gl || []).length)
-      ? `<div class="e1-applied"><h3 class="e1-sub">Glossário aplicado (${M.applied.gl.length})</h3><div class="e1-gl">${M.applied.gl.map((g) => `<div class="e1-gl-row ok"><span class="ac">${esc(g.acronym)}</span><div class="body"><span class="mean">${esc(g.meaning || "")}</span>${g.convention ? `<span class="conv">${esc(g.convention)}</span>` : ""}</div></div>`).join("")}</div></div>` : "";
-    const nada = !groups.length ? `<div class="e1-empty"><b>Nada pendente para decidir</b><span>${ap.length ? "As perguntas aprovadas aparecem abaixo." : "Escreva uma pergunta se quiser."}</span></div>` : "";
-    return `${bar}${nada}${body}${fora}${aplicadas}${apGl}`;
+    const nada = !groups.length ? `<div class="e1-empty"><b>${M.gls.length ? "Nenhuma pergunta pendente" : "Nada pendente para decidir"}</b><span>${M.gls.length ? "Confira as siglas do glossário abaixo." : ap.length ? "As perguntas aprovadas aparecem abaixo." : "Escreva uma pergunta se quiser."}</span></div>` : "";
+    return `${bar}${nada}${body}${fora}${aplicadas}${sectionGl(M)}`;
   }
   // depois de decidir um card, o foco vai para o proximo que ainda espera decisao
   function focusAfter(id) {
@@ -306,13 +303,12 @@
   function visibleSteps(M) {
     const f = E.ctx && E.ctx.stepFilter;
     if (f === "uc") return [0];
-    if (f === "cq") return M.gls.length ? [1, 3] : [1];
+    if (f === "cq") return [1];
     if (f === "gd") return [2];
     const v = [];
     if (M.ucs.length || M.reqs.length || M.noUcIds.length || M.owns.length || M.noUc || (!M.applied.ucs.length && !M.appliedReq.no_use_case)) v.push(0);
-    if (M.cqs.length || M.ownCqs.length) v.push(1);
+    if (M.cqs.length || M.ownCqs.length || M.gls.length) v.push(1);
     if (M.gds.length) v.push(2);
-    if (M.gls.length) v.push(3);
     return v.length ? v : [0];
   }
   function countFor(data, filter) {
@@ -332,9 +328,9 @@
     }
     // antes de escolher o caso de uso, todas as perguntas contam; depois, so as dos casos escolhidos
     const choice = chosenUcs(M).length || hasNoUc(M);
-    if (vis.includes(1)) n += (choice ? cqGroups(M).groups.flatMap((g) => g.ai) : M.cqs).filter((c) => !cqDone(c)).length;
+    if (vis.includes(1)) n += (choice ? cqGroups(M).groups.flatMap((g) => g.ai) : M.cqs).filter((c) => !cqDone(c)).length
+      + M.gls.filter((g) => !glDone(g)).length;
     if (vis.includes(2)) n += M.gds.filter((c) => !gdDone(c)).length;
-    if (vis.includes(3)) n += M.gls.filter((g) => !glDone(g)).length;
     return n;
   }
   // decidida aqui mas ainda nao gravada no servidor
@@ -444,7 +440,7 @@
     return next.kind === "gap" ? `[data-e1="gd-set"][data-id="${next.edit_id}"]` : `[data-e1="dv-win"][data-id="${next.edit_id}"]`;
   }
 
-  // ---------- tela 4: glossario ----------
+  // ---------- tela 2: glossario (fica abaixo das perguntas) ----------
   const glReason = (g) => (g.why && g.why !== "outro" ? GL_WHY_L[g.why] : g.reason.trim());
   const glDone = (g) => (g.dec === "ok" && !!g.meaning.trim()) || (g.dec === "rej" && !!glReason(g));
   function glRow(g) {
@@ -468,13 +464,15 @@
         <button type="button" class="e1-gl-b rej" data-e1="gl-dec" data-id="${id}" data-v="rej" aria-pressed="${g.dec === "rej"}" aria-label="Rejeitar ${esc(pl.acronym)}">✕</button>
         <button type="button" class="lnk" data-e1="gl-edit" data-id="${id}">${g.editing ? "pronto" : "ajustar"}</button></div></div>`;
   }
-  function screenGl(M) {
-    const left = M.gls.filter((g) => !g.dec).length;
+  function sectionGl(M) {
     const apGl = (M.applied.gl || []).length
       ? `<div class="e1-applied"><h3 class="e1-sub">Glossário aplicado (${M.applied.gl.length})</h3><div class="e1-gl">${M.applied.gl.map((g) => `<div class="e1-gl-row ok"><span class="ac">${esc(g.acronym)}</span><div class="body"><span class="mean">${esc(g.meaning || "")}</span>${g.convention ? `<span class="conv">${esc(g.convention)}</span>` : ""}</div></div>`).join("")}</div></div>` : "";
-    return `<div class="e1-cqbar"><span class="e1-count">${left ? `<b>${left}</b> ${left === 1 ? "sigla para conferir" : "siglas para conferir"}` : "Todas conferidas"}</span>
+    if (!M.gls.length) return apGl;
+    const left = M.gls.filter((g) => !g.dec).length;
+    return `<section class="e1-glsec" aria-labelledby="e1-gl-h"><h3 class="e1-sub" id="e1-gl-h">Glossário</h3><p class="e1-lead">Confira cada sigla.</p>
+      <div class="e1-cqbar"><span class="e1-count">${left ? `<b>${left}</b> ${left === 1 ? "sigla para conferir" : "siglas para conferir"}` : "Todas conferidas"}</span>
       ${left ? `<button type="button" class="btn btn-outline" data-e1="gl-all">✓ Aceitar tudo (${left})</button>` : ""}</div>
-      <div class="e1-gl">${M.gls.map(glRow).join("")}</div>${apGl}`;
+      <div class="e1-gl">${M.gls.map(glRow).join("")}</div></section>${apGl}`;
   }
 
   // ---------- tela 1: caso de uso ----------
@@ -576,12 +574,23 @@
     const lead = M.step === 0 && ucSaved(M) && M.reqs.length
       ? "Confira o propósito, escopo e usuários. O caso de uso já está salvo."
       : s.lead;
-    const body = M.step === 0 ? screenUc(M) : M.step === 1 ? screenCq(M) : M.step === 2 ? screenGd(M) : screenGl(M);
+    const body = M.step === 0 ? screenUc(M) : M.step === 1 ? screenCq(M) : screenGd(M);
     return `<p class="e1-lead">${esc(lead)}</p>${body}`;
+  }
+  // ---------- rodape: decidir o que falta aqui, ir ao passo com pendencia ou salvar tudo ----------
+  // alteracoes do que ja foi aplicado (outras.js) mostradas embaixo deste passo
+  const ouMissing = () => (E.ctx && E.ctx.ouMissing ? E.ctx.ouMissing() : []);
+  // outros passos do menu com algo ainda sem decisao: [{id, label}]
+  const elsewhere = () => (E.ctx && E.ctx.pendingElsewhere ? E.ctx.pendingElsewhere() : []);
+  const hereMissing = (M) => missing(M, M.step).concat(ouMissing());
+  function footLabel(M) {
+    if (hereMissing(M).length) return "Próxima decisão ↓";
+    const away = elsewhere()[0];
+    return away ? `Ir para ${away.label} →` : "Conferir e salvar";
   }
   function footHtml(M) {
     const nx = nextStep(M);
-    const next = nx === undefined ? "Conferir e salvar" : `Próximo: ${STEPS[nx].title} →`;
+    const next = E.ctx && E.ctx.stepFilter ? footLabel(M) : nx === undefined ? "Conferir e salvar" : `Próximo: ${STEPS[nx].title} →`;
     return `<span class="e1-msg" id="e1-msg" role="status" aria-live="polite"></span>
       ${prevStep(M) !== undefined ? '<button type="button" class="btn btn-outline" data-e1="back">← Voltar</button>' : ""}
       <button type="button" class="btn" data-e1="next">${esc(next)}</button>`;
@@ -606,9 +615,15 @@
     if (input) input.classList.toggle("miss", !input.value.trim());
     const label = input && input.id ? $(`label[for="${input.id}"] .req`, E.el) : null;
     if (label) label.hidden = !!input.value.trim();
+    refreshFoot();
     msg("");
     writeDraft(E.M);
     if (E.ctx.onCount) E.ctx.onCount(remainingOf(E.M) + unsavedOf(E.M));
+  }
+  // o texto do botao do rodape muda sem redesenhar a tela (quem digita nao perde o foco)
+  function refreshFoot() {
+    const b = E.el && E.M && E.ctx && E.ctx.stepFilter ? $('[data-e1="next"]', E.el) : null;
+    if (b) b.textContent = footLabel(E.M);
   }
   function msg(text, kind) {
     const el = $("#e1-msg", E.el);
@@ -626,7 +641,30 @@
     const top = $(".e1", E.el);
     if (top) window.scrollTo({ top: Math.max(0, top.getBoundingClientRect().top + window.scrollY - 72), behavior: "smooth" });
   }
+  // leva ate o primeiro item deste passo ainda sem decisao completa
+  function goFirstOpen(M) {
+    let sel = null;
+    if (M.step === 1) {
+      const c = cqGroups(M).groups.flatMap((g) => g.ai).find((x) => !cqDone(x)), g = M.gls.find((x) => !glDone(x));
+      sel = c ? `[data-cq="${c.edit_id}"]` : g ? `[data-gl="${g.edit_id}"]` : null;
+    } else if (M.step === 2) {
+      const c = M.gds.find((x) => !gdDone(x));
+      sel = c ? `[data-gd="${c.edit_id}"]` : null;
+    }
+    const el = sel ? $(sel, E.el) : missing(M, M.step).length ? $(".e1-screen", E.el) : null;
+    if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+    if (window.AkmeOutras && window.AkmeOutras.goFirstMissing) window.AkmeOutras.goFirstMissing();
+  }
+  // botao do rodape com o menu lateral: so salva quando nao sobra decisao em nenhum passo
+  function onFoot() {
+    const M = E.M, falta = hereMissing(M);
+    if (falta.length) { msg(`<b>Falta:</b> ${falta.map(esc).join("; ")}`, "warn"); goFirstOpen(M); refreshFoot(); return; }
+    const away = elsewhere()[0];
+    if (away && E.ctx.goStep) { E.ctx.goStep(away.id); return; }
+    trySave();
+  }
   function onNext() {
+    if (E.ctx && E.ctx.stepFilter) return onFoot();
     const falta = missing(E.M, E.M.step);
     if (falta.length) { msg(`<b>Falta:</b> ${falta.map(esc).join("; ")}`, "warn"); return; }
     const nx = nextStep(E.M);
@@ -642,6 +680,12 @@
     // salvar so com as telas visiveis completas; leva para a primeira que falta
     const bad = visibleSteps(E.M).find((i) => missing(E.M, i).length);
     if (bad !== undefined) { goStep(bad); msg(`<b>Falta em ${esc(STEPS[bad].title)}:</b> ${missing(E.M, bad).map(esc).join("; ")}`, "warn"); return; }
+    // alteracoes do que ja foi aplicado aparecem embaixo desta tela (outras.js) e entram no mesmo salvar
+    const ouMiss = ouMissing();
+    if (ouMiss.length) { msg(`<b>Falta nas alterações:</b> ${ouMiss.map(esc).join("; ")}`, "warn"); return; }
+    // salvar grava a rodada inteira: nenhum passo do menu pode ficar com decisao pendente
+    const away = elsewhere();
+    if (away.length) { msg(`<b>Falta decidir em:</b> ${away.map((s) => esc(s.label)).join(", ")}`, "warn"); return; }
     openSave();
   }
   function onClick(e) {
@@ -890,7 +934,7 @@
       else { if (c.choice === "precedence") edits.winner = c.winner; else if (c.text.trim()) edits.reason = c.text.trim(); }
       rv(c, "accept", { edits }, c.kind === "gap" ? `lacuna “${c.payload.question}”` : `divergência “${c.payload.topic}”`);
     });
-    const glList = vis.has(3) ? M.gls : M.gls.filter((g) => glDone(g) && !g.saved);
+    const glList = vis.has(1) ? M.gls : M.gls.filter((g) => glDone(g) && !g.saved);
     glList.forEach((g) => {
       const pl = g.payload, label = `sigla ${pl.acronym}`;
       if (g.dec === "rej") return rv(g, "reject", { reason: glReason(g) }, label);
@@ -927,11 +971,11 @@
       .concat(vis.has(1) ? out.map((c) => li(c.q, "fora dos casos escolhidos", "off")) : []);
     const gdsShow = vis.has(2) ? M.gds : M.gds.filter((c) => gdDone(c) && !c.saved);
     const gdRows = gdsShow.map((c) => li(c.kind === "gap" ? c.payload.question : divTitle(c.payload), gdLabel(c) + (c.text.trim() ? ": " + c.text.trim() : "")));
-    const glsShow = vis.has(3) ? M.gls : M.gls.filter((g) => glDone(g) && !g.saved);
+    const glsShow = vis.has(1) ? M.gls : M.gls.filter((g) => glDone(g) && !g.saved);
     const ouOps = (window.AkmeOutras && window.AkmeOutras.collectOps) ? window.AkmeOutras.collectOps(E.ctx.data) : [];
     return sec("Caso de uso", ucRows) + sec("Sobre o projeto", reqRows) + sec("Perguntas", cqRows) + sec("Lacunas e divergências", gdRows)
       + sec("Glossário", glsShow.map((g) => (g.dec === "rej" ? li(g.payload.acronym, "rejeitada: " + glReason(g), "off") : li(`${g.payload.acronym} · ${g.meaning}`, ""))))
-      + sec("Outras abas decididas", ouOps.map((o) => li(o.label, o.body && o.body.decision === "reject" ? "rejeitada" : "decidida")));
+      + sec("Alterações e outras abas", ouOps.map((o) => li(o.label, o.body && o.body.decision === "reject" ? "rejeitada" : "decidida")));
   }
   function readName() {
     try { return localStorage.getItem("akme-reviewer") || ""; } catch (e) { return ""; }
@@ -1079,5 +1123,12 @@
     }
   }
 
-  window.AkmeEtapa1 = { mount, pendingCount, remaining, covers, aboutCard, countFor, collectOps, clearExternalDraft };
+  // o que falta decidir num passo do menu ("uc", "cq" ou "gd"), com as decisoes ja feitas nesta pagina
+  function missingFor(data, id) {
+    const i = { uc: 0, cq: 1, gd: 2 }[id];
+    if (i === undefined) return [];
+    return missing(buildModel(data, E.M), i);
+  }
+
+  window.AkmeEtapa1 = { mount, pendingCount, remaining, covers, aboutCard, countFor, collectOps, clearExternalDraft, missingFor, refreshFoot };
 })();
