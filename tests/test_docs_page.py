@@ -6,13 +6,15 @@ DOCS = ROOT / "akme" / "static"
 
 def test_index_has_shell_and_loads_modules():
     html = (DOCS / "index.html").read_text(encoding="utf-8")
-    for needle in ('id="tab-ontologia"', 'id="tab-revisao"', 'id="view-revisao"', 'id="view-ontologia"', 'id="gate-banner"',
-                   'id="stepper"', 'id="rv-nav"', 'href="akme.css"', 'src="ontology.js"', 'src="graph.js"', 'src="etapa1.js"', 'src="review.js"', 'src="app.js"',
+    for needle in ('id="sidebar"', 'id="flow-nav"', 'id="view-inicio"', 'id="view-revisao"', 'id="view-ontologia"',
+                   'id="view-exportar"', 'href="akme.css"', 'src="ontology.js"', 'src="graph.js"', 'src="inicio.js"',
+                   'src="etapa1.js"', 'src="review.js"', 'src="app.js"',
                    'brand/akme-symbol-light.svg', 'brand/akme-symbol-dark.svg'):
         assert needle in html, needle
     assert "<style>" not in html, "o CSS vive em akme.css"
     assert html.index('src="etapa1.js"') < html.index('src="review.js"'), "a etapa 1 carrega antes da revisao"
     assert html.index('src="outras.js"') < html.index('src="review.js"'), "outras propostas carrega antes da revisao"
+    assert html.index('src="inicio.js"') < html.index('src="review.js"'), "a tela Inicio carrega antes da revisao"
 
 
 def test_review_js_talks_to_every_endpoint():
@@ -22,7 +24,7 @@ def test_review_js_talks_to_every_endpoint():
     # card enxuto da pergunta: sem o campo Uso, detalhes recolhidos e motivo em botoes
     assert "Usar na construção" not in js and "Guardar para o teste" not in js
     assert 'data-act="details"' in js and 'data-act="why"' in js
-    assert 'data-act="mode"' in js, "seletor Etapa 1 / Outras propostas"
+    assert "flow-nav" in js, "a navegacao entre etapas fica na barra lateral"
     assert '"Ajuste"' not in js
 
 
@@ -35,18 +37,21 @@ def test_etapa1_js_has_three_screens():
 
 def test_etapa1_tela_de_perguntas():
     js = (DOCS / "etapa1.js").read_text(encoding="utf-8")
-    for needle in ("+ Criar pergunta", "Nova pergunta", "Fora dos casos escolhidos", "Já aplicadas",
+    for needle in ("+ Criar pergunta", "Nova pergunta", "Fora dos casos escolhidos",
                    'data-e1="cq-dec"', 'data-e1="cq-prio"', 'data-e1="cq-why"', "Outro motivo", '"add_competency_question"'):
         assert needle in js, needle
 
 
 def test_etapa1_tela_de_lacunas_e_salvar():
     js = (DOCS / "etapa1.js").read_text(encoding="utf-8")
-    for needle in ("Pedir o dado ao cliente", "Reformular a pergunta", "nenhuma das duas? outras opções", "São coisas diferentes",
-                   "Conferir e salvar", "Salvar e aplicar", "Seu nome", '"/api/apply"', 'stage: "requirements"',
+    for needle in ("Explicar Lacuna", "Ignorar Lacuna", "nenhuma das duas? outras opções", "São coisas diferentes",
+                   "Conferir e salvar", "Salvar e aplicar", "Seu nome", '"/api/apply"',
+                   # so requisitos; "all" apenas quando o mesmo salvar leva propostas de outras etapas
+                   'stage: ouOps.length ? "all" : "requirements"',
                    '"/api/review"', '"/api/propose"', '"add_gap"', '"add_divergence"'):
         assert needle in js, needle
     assert "Em construção" not in js
+    assert "Pedir o dado ao cliente" not in js and "Reformular a pergunta" not in js, "opcoes antigas de lacuna"
 
 
 def test_etapa1_mostra_so_telas_com_itens_e_respeita_o_modo_automatico():
@@ -54,7 +59,7 @@ def test_etapa1_mostra_so_telas_com_itens_e_respeita_o_modo_automatico():
     for needle in ("function visibleSteps(", "function remaining(", "onCount", "Modo automático", 'dataset.decisionMode === "auto"'):
         assert needle in js, needle
     review = (DOCS / "review.js").read_text(encoding="utf-8")
-    assert "onCount: updateE1Count" in review and "e1Has()" in review
+    assert "onCount: updateE1Count" in review
     css = (DOCS / "akme.css").read_text(encoding="utf-8")
     assert "body.chat-open .e1-foot" in css, "o rodape da etapa 1 abre espaco para a conversa"
 
@@ -63,20 +68,41 @@ def test_etapa1_tela_do_glossario():
     js = (DOCS / "etapa1.js").read_text(encoding="utf-8")
     for needle in ('"add_glossary"', "Glossário", "Confira cada sigla.", 'data-e1="gl-dec"', 'data-e1="gl-all"', "Não é usada"):
         assert needle in js, needle
+    # o glossario fica na mesma tela das perguntas, sem passo proprio escondido
+    assert 'if (f === "cq") return [1];' in js and "screenGl" not in js and "${sectionGl(M)}" in js
     review = (DOCS / "review.js").read_text(encoding="utf-8")
     assert "Conferir e salvar" in review, "a faixa do agente esperando fala do botao da etapa 1"
+    assert 'label: "CQs e glossário"' in review
+
+
+def test_alteracoes_da_etapa1_aparecem_num_passo():
+    # update_competency_question, update_gap etc. nao tem tela propria: aparecem embaixo do passo da etapa 1
+    outras = (DOCS / "outras.js").read_text(encoding="utf-8")
+    for needle in ('cq: new Set(["cq"])', 'gd: new Set(["gap", "div"])', "O.ctx.embedded", "function missingFor(",
+                   "Alterações do que já foi aplicado"):
+        assert needle in outras, needle
+    review = (DOCS / "review.js").read_text(encoding="utf-8")
+    assert "embedded: true" in review and "ouInE1" in review and "ouMissing:" in review
+
+
+def test_salvar_so_com_tudo_decidido():
+    # o botao do rodape decide o que falta aqui, leva ao passo com pendencia e so entao salva
+    review = (DOCS / "review.js").read_text(encoding="utf-8")
+    assert "function pendingElsewhere(" in review and "pendingElsewhere, goStep" in review
+    for name in ("etapa1.js", "outras.js"):
+        js = (DOCS / name).read_text(encoding="utf-8")
+        for needle in ("Próxima decisão ↓", "`Ir para ${away.label} →`", "function missingFor(", "pendingElsewhere"):
+            assert needle in js, (name, needle)
+    etapa1 = (DOCS / "etapa1.js").read_text(encoding="utf-8")
+    assert "Falta decidir em:" in etapa1, "o salvar da etapa 1 tambem recusa com pendencia em outro passo"
 
 
 def test_base_comum_em_portugues_e_sem_ids_crus():
     graph = (DOCS / "graph.js").read_text(encoding="utf-8")
     for velho in ('"relacoes"', "Competency questions", "<h3>Relacoes</h3>", "Sem validate", '"pitfalls"', "Glossario<"):
         assert velho not in graph, velho
-    for novo in ("Propósito e perguntas", "mapeamentos", "Armadilhas de modelagem", "Glossário"):
+    for novo in ("Entidades geradas", "<h3>Atributos</h3>", "<h3>Relações</h3>", "mapeamentos", "Glossário"):
         assert novo in graph, novo
-    review = (DOCS / "review.js").read_text(encoding="utf-8")
-    assert "function humanMissing" in review and ".map(humanMissing)" in review
-    # o banner nomeia o pendente da etapa 1 e leva ate ele, em vez de "Decidir 1 item da etapa 1"
-    assert "function pendingLabel" in review and 'data-act="goto"' in review
     css = (DOCS / "akme.css").read_text(encoding="utf-8")
     assert ".rv-section > h3, .panel-section h3, .e1-sub {" in css
     assert ".rv-empty, .e1-empty, .chat-empty {" in css
@@ -85,7 +111,7 @@ def test_base_comum_em_portugues_e_sem_ids_crus():
 def test_aba_ontologia_no_padrao():
     graph = (DOCS / "graph.js").read_text(encoding="utf-8")
     assert '"Árvore lateral"' not in graph and "Nenhuma classe escolhida" in graph
-    assert "guardada para o teste" in graph and 'class="onto-cq"' in graph and "levelOf(" in graph
+    assert "guardada para o teste" in graph and 'class="onto-cq"' in graph and "levelOf" in graph
     css = (DOCS / "akme.css").read_text(encoding="utf-8")
     assert "grid-template-columns: repeat(6, minmax(0, 1fr))" in css
 
